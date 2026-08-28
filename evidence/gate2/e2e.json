@@ -1,0 +1,33 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/gate2.e2e.schema.json",
+  "schemaVersion": 1,
+  "runId": "gate2-dev",
+  "recordedAt": "2026-08-28T21:15:42.196Z",
+  "capsule": {
+    "archiveSha256": "86a657b752a0983f149e3acddbf439df5aae436a6c86eca7edd477c9d2874792"
+  },
+  "artifactEndpoint": {
+    "url": "https://172.17.0.1:8443",
+    "caBundleContainer": "/opt/dsh-evolve-le/ca-bundle.crt"
+  },
+  "verifierModeProbe": {
+    "verdict": "shared-only"
+  },
+  "harborVersion": "0.21.0\n",
+  "flags": {
+    "harborVersionOk": true,
+    "capsuleBuilt": true,
+    "artifactEndpointHttps": true,
+    "jobCompleted": true,
+    "trialAttributionOk": true,
+    "verifierRan": true,
+    "acpCandidateStreamed": true,
+    "verifierModeProbed": true,
+    "idempotencyLedgerSingleEntry": true,
+    "idempotencyNoSecondTrial": true,
+    "normalizationDeterministic": true
+  },
+  "notes": [
+    "trial dirs before/after resume: 1/1"
+  ]
+}

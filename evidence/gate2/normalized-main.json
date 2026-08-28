@@ -1,0 +1,60 @@
+{
+  "protocol": "dsh-evolve-le/tb-run/v1",
+  "jobName": "dsh-4706def5f0a9fc52b15f566c",
+  "jobDir": "/tmp/dsh-gate2-m81lFP/jobs/dsh-4706def5f0a9fc52b15f566c",
+  "idempotencyKey": "4706def5f0a9fc52b15f566c3d621b89738bc512612de3cf5bc0b8ff14c58720",
+  "identity": {
+    "runId": "gate2-dev",
+    "capsuleArchiveSha256": "86a657b752a0983f149e3acddbf439df5aae436a6c86eca7edd477c9d2874792",
+    "inventorySha256": "27c443a4d06d1a49ba7595e906f97bdeb3a5c491d8d1e9e21e624313c63a0501",
+    "handles": [
+      "extract-elf"
+    ],
+    "attempts": 1,
+    "harborVersion": "0.21.0"
+  },
+  "plannedTrials": 1,
+  "trials": [
+    {
+      "protocol": "dsh-evolve-le/tb-trial/v1",
+      "identity": {
+        "runId": "gate2-dev",
+        "capsuleArchiveSha256": "86a657b752a0983f149e3acddbf439df5aae436a6c86eca7edd477c9d2874792",
+        "inventorySha256": "27c443a4d06d1a49ba7595e906f97bdeb3a5c491d8d1e9e21e624313c63a0501",
+        "handle": "extract-elf",
+        "attempt": 0
+      },
+      "trialName": "extract-elf__3UBseoG",
+      "taskName": "terminal-bench/extract-elf",
+      "agentInfo": {
+        "name": "dsh-evolve-le-capsule",
+        "version": "86a657b752a0983f149e3acddbf439df5aae436a6c86eca7edd477c9d2874792"
+      },
+      "usage": {
+        "agentExecutionMs": 2192,
+        "verifierMs": 129218,
+        "nInputTokens": null,
+        "nOutputTokens": null,
+        "costUsd": null
+      },
+      "resultDigest": "ba648700f8bf74cc5f1eec2e3490971bb9a41e60657e2fed12861b7034c1cf1d",
+      "status": "fail",
+      "outcome": {
+        "category": "reward",
+        "reward": 0,
+        "exceptionType": null,
+        "reason": "reward 0 != 1"
+      }
+    }
+  ],
+  "counts": {
+    "pass": 0,
+    "fail": 1,
+    "infraRetryable": 0,
+    "protocolInvalid": 0,
+    "valid": true,
+    "denominator": 1,
+    "passRate": 0
+  },
+  "artifactSha256": "c8298c0937ab38074c62c2ff93204cbfe55dc4aa4466d27085ad309a788ac7d0"
+}

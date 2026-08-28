@@ -1,0 +1,27 @@
+{
+  "id": "3f8a8cd2-0000-4000-8000-000000000004",
+  "task_name": "terminal-bench/extract-elf",
+  "trial_name": "extract-elf__envfail",
+  "trial_uri": "file:///jobs/dsh-envfail/extract-elf__envfail",
+  "task_id": { "path": "/tasks/extract-elf" },
+  "source": "adhoc",
+  "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+  "agent_info": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "agent_result": null,
+  "verifier_result": null,
+  "verifier_environment_mode": null,
+  "exception_info": {
+    "exception_type": "EnvironmentStartTimeoutError",
+    "exception_message": "Environment failed to start within timeout",
+    "exception_traceback": "Traceback (most recent call last): ...",
+    "occurred_at": "2026-08-29T00:10:00Z"
+  },
+  "started_at": "2026-08-29T00:00:00Z",
+  "finished_at": "2026-08-29T00:10:00Z",
+  "agent_execution": null,
+  "verifier": null,
+  "step_results": null
+}

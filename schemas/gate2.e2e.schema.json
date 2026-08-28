@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/gate2.e2e.schema.json",
+  "title": "dsh-evolve-le Gate 2 end-to-end evidence",
+  "description": "Machine-checkable record of the Gate 2 acceptance run (specs/07 §4): one real Harbor job on the pinned extract-elf task through the inline ACP binary distribution, plus the attribution, verifier-mode, idempotency, and determinism flags. Written by scripts/run-gate2-e2e.ts; the normalized per-trial artifacts it references live beside it in evidence/gate2/.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://dsh-evolve-le.local/schemas/gate2.e2e.schema.json"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "capsule": {
+      "type": "object",
+      "properties": {
+        "archiveSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        }
+      },
+      "required": ["archiveSha256"],
+      "additionalProperties": false
+    },
+    "artifactEndpoint": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "caBundleContainer": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["url", "caBundleContainer"],
+      "additionalProperties": false
+    },
+    "verifierModeProbe": {
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "enum": ["rewards-agree", "shared-only", "not-run"]
+        }
+      },
+      "required": ["verdict"],
+      "additionalProperties": false
+    },
+    "harborVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "flags": {
+      "$ref": "#/$defs/flags"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "runId",
+    "recordedAt",
+    "capsule",
+    "artifactEndpoint",
+    "verifierModeProbe",
+    "harborVersion",
+    "flags"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "flags": {
+      "type": "object",
+      "properties": {
+        "harborVersionOk": {
+          "type": "boolean"
+        },
+        "capsuleBuilt": {
+          "type": "boolean"
+        },
+        "artifactEndpointHttps": {
+          "type": "boolean"
+        },
+        "jobCompleted": {
+          "type": "boolean"
+        },
+        "trialAttributionOk": {
+          "type": "boolean"
+        },
+        "verifierRan": {
+          "type": "boolean"
+        },
+        "acpCandidateStreamed": {
+          "type": "boolean"
+        },
+        "verifierModeProbed": {
+          "type": "boolean"
+        },
+        "idempotencyLedgerSingleEntry": {
+          "type": "boolean"
+        },
+        "idempotencyNoSecondTrial": {
+          "type": "boolean"
+        },
+        "normalizationDeterministic": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "harborVersionOk",
+        "capsuleBuilt",
+        "artifactEndpointHttps",
+        "jobCompleted",
+        "trialAttributionOk",
+        "verifierRan",
+        "acpCandidateStreamed",
+        "verifierModeProbed",
+        "idempotencyLedgerSingleEntry",
+        "idempotencyNoSecondTrial",
+        "normalizationDeterministic"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

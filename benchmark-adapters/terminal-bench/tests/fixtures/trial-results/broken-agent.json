@@ -1,0 +1,35 @@
+{
+  "id": "3f8a8cd2-0000-4000-8000-000000000003",
+  "task_name": "terminal-bench/extract-elf",
+  "trial_name": "extract-elf__broken1",
+  "trial_uri": "file:///jobs/dsh-broken/extract-elf__broken1",
+  "task_id": { "path": "/tasks/extract-elf" },
+  "source": "adhoc",
+  "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+  "agent_info": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "agent_result": {
+    "n_input_tokens": 1200,
+    "n_cache_tokens": 0,
+    "n_output_tokens": 0,
+    "cost_usd": 0.0001
+  },
+  "verifier_result": { "rewards": { "reward": 0 } },
+  "verifier_environment_mode": "shared",
+  "exception_info": {
+    "exception_type": "AgentTimeoutError",
+    "exception_message": "Agent exceeded its timeout of 900s",
+    "exception_traceback": "Traceback (most recent call last): ...",
+    "occurred_at": "2026-08-29T00:15:00Z"
+  },
+  "started_at": "2026-08-29T00:00:00Z",
+  "finished_at": "2026-08-29T00:15:01Z",
+  "agent_execution": {
+    "started_at": "2026-08-29T00:00:05Z",
+    "finished_at": "2026-08-29T00:15:00Z"
+  },
+  "verifier": { "started_at": "2026-08-29T00:15:00Z", "finished_at": "2026-08-29T00:15:01Z" },
+  "step_results": null
+}

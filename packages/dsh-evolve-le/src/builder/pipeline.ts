@@ -23,7 +23,7 @@ import {
   buildBundle,
   buildInstallManifest,
   installCandidateIntoClosure,
-  tarCapsule,
+  archiveCapsule,
 } from './capsule.js'
 import { doubleCompile } from './compile.js'
 import { toolchainFingerprints } from './pins.js'
@@ -69,12 +69,18 @@ export interface BuildResult {
   rejection?: { stage: StageName; reason: string }
   receipts: Receipts
   bundle?: { tarSha256: string; entrySha256: string; fileCount: number; bytes: number }
-  capsule?: { tarSha256: string; sbomSha256: string; provenanceSha256: string }
+  capsule?: {
+    tarSha256: string
+    archiveSha256: string
+    sbomSha256: string
+    provenanceSha256: string
+  }
   artifacts: {
     workRoot: string
     treeDir: string
     capsuleDir: string
     capsuleTar: string
+    capsuleArchive: string
     buildManifestPath: string
   }
   manifest: Record<string, unknown>
@@ -307,7 +313,9 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
   // ---- stages 7–9: packed boot, unload invariant, mock replay -------------
   let bundleStats:
     { tarSha256: string; entrySha256: string; fileCount: number; bytes: number } | undefined
-  let capsuleStats: { tarSha256: string; sbomSha256: string; provenanceSha256: string } | undefined
+  let capsuleStats:
+    | { tarSha256: string; archiveSha256: string; sbomSha256: string; provenanceSha256: string }
+    | undefined
   let bootSolve: ProbeReport | undefined
   if (failed === undefined && source !== undefined && closure !== undefined) {
     const toolchain = await toolchainFingerprints()
@@ -491,17 +499,23 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
       } as const
       await rm(capsuleDir, { recursive: true, force: true })
       await assembleCapsule({ ...assembleOptions, capsuleDir })
-      const first = await tarCapsule(capsuleDir)
+      const first = await archiveCapsule(capsuleDir)
       const secondDir = join(workRoot, 'capsule-2')
       await assembleCapsule({ ...assembleOptions, capsuleDir: secondDir })
-      const second = await tarCapsule(secondDir)
+      const second = await archiveCapsule(secondDir)
       if (first.tarSha256 !== second.tarSha256) {
         failStage(
           'capsuleDoubleBuild',
           `capsule tars differ: ${first.tarSha256.slice(0, 16)}… vs ${second.tarSha256.slice(0, 16)}…`,
         )
+      } else if (first.archiveSha256 !== second.archiveSha256) {
+        failStage(
+          'capsuleDoubleBuild',
+          `capsule tar.gz archives differ: ${first.archiveSha256.slice(0, 16)}… vs ${second.archiveSha256.slice(0, 16)}…`,
+        )
       } else {
         await writeFile(join(workRoot, 'capsule.tar'), first.tar)
+        await writeFile(join(workRoot, 'capsule.tar.gz'), first.archive)
         bundleStats = {
           tarSha256: bundle.tarSha256,
           entrySha256: bundle.entrySha256,
@@ -510,12 +524,13 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
         }
         capsuleStats = {
           tarSha256: first.tarSha256,
+          archiveSha256: first.archiveSha256,
           sbomSha256: docs.sbomSha256,
           provenanceSha256: docs.provenanceSha256,
         }
         receipts.capsuleDoubleBuild = {
           status: 'pass',
-          detail: `two capsule assemblies byte-identical (${first.fileCount} files, ${first.bytes} bytes); tar ${first.tarSha256.slice(0, 16)}…`,
+          detail: `two capsule assemblies byte-identical (tar and tar.gz; ${first.fileCount} files, ${first.bytes} bytes); tar ${first.tarSha256.slice(0, 16)}…, archive ${first.archiveSha256.slice(0, 16)}…`,
         }
       }
     }
@@ -587,6 +602,7 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
       treeDir,
       capsuleDir,
       capsuleTar: join(workRoot, 'capsule.tar'),
+      capsuleArchive: join(workRoot, 'capsule.tar.gz'),
       buildManifestPath,
     },
     manifest,

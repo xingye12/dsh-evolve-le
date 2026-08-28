@@ -1,13 +1,14 @@
 /**
- * ACP mock-replay agent (Gate 1, specs/07 §3): serves the Agent Client
+ * ACP recorded-replay agent (Gate 2, specs/07 §3-4): serves the Agent Client
  * Protocol over a Capsule composition booted through the real Cordis Loader,
- * on `@agentclientprotocol/sdk` 0.25.1 — the exact version the locked
- * upstream `@deepseek-ai/dsh-acp` 0.1.0-rc.5 builds on. The turn is a
- * deterministic replay, not an LLM call: the assistant message carries the
- * composed system-prompt sections verbatim, so the E2E can assert that the
+ * on `@agentclientprotocol/sdk` 0.25.1 — the exact version the locked upstream
+ * `@deepseek-ai/dsh-acp` 0.1.0-rc.5 builds on. The turn is a deterministic
+ * recorded-LLM replay, not a model call: the prompt (composed system sections
+ * + user turn) is hashed to a lookup key and answered from the builder-owned
+ * table in `runner/acp/recorded-replay.js`; a miss falls back to streaming
+ * the composed sections verbatim, so the E2E can always assert that the
  * candidate's section actually flowed through the real Loader into the
- * session layer. Recorded-LLM replay lands when the full DSH production
- * closure is staged (Gate 2 runner).
+ * session layer. No model, no network, no credentials.
  * @module @dsh-evolve-le/core/acp/replay-agent
  */
 
@@ -19,6 +20,7 @@ import {
   type AgentSideConnection,
   type AuthenticateRequest,
   type CancelNotification,
+  type ContentBlock,
   type InitializeRequest,
   type InitializeResponse,
   type NewSessionRequest,
@@ -27,12 +29,14 @@ import {
   type PromptResponse,
 } from '@agentclientprotocol/sdk'
 import { BUILDER_VERSION } from '../version.js'
+import { promptSha256, replayResponseFor } from './recorded-replay.js'
 import type { StubSystemPromptService } from '../probe/system-prompt-stub.js'
 
-/** One composed system-prompt section captured at session creation. */
+/** One session: captured prompt identity and the task workspace path. */
 export interface ReplaySession {
   sessionId: string
   sections: readonly { name: string; order: number; text: string }[]
+  cwd: string
 }
 
 /** The deterministic replay turn emitted for `session/prompt`. */
@@ -41,16 +45,26 @@ export interface ReplayTurn {
   chunks: { name: string; text: string }[]
 }
 
+/** Plain text of the text blocks of a prompt (the user turn, in order). */
+export function promptText(prompt: PromptRequest): string {
+  const blocks = Array.isArray(prompt.prompt) ? prompt.prompt : [prompt.prompt]
+  return blocks
+    .filter((block: ContentBlock): block is { type: 'text'; text: string } => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+}
+
 function systemPromptService(ctx: Context): StubSystemPromptService | undefined {
   const service = (ctx as unknown as { systemPrompt?: StubSystemPromptService }).systemPrompt
   return typeof service?.snapshot === 'function' ? service : undefined
 }
 
 /**
- * Build the mock-replay `Agent` over a booted Capsule context. Session
- * creation captures the composed prompt sections; each prompt turn replays
- * them as `agent_message_chunk` updates through the connection, then ends the
- * turn. No model, no network, no wall-clock dependence beyond UUID identity.
+ * Build the recorded-replay `Agent` over a booted Capsule context. Session
+ * creation captures the composed prompt sections and the workspace `cwd`;
+ * each prompt turn hashes the full prompt and answers from the recorded
+ * table, falling back to streaming the composed sections when no recording
+ * exists. No model, no network, no wall-clock dependence beyond UUID identity.
  */
 export function createReplayAgent(
   ctx: Context,
@@ -69,10 +83,10 @@ export function createReplayAgent(
         },
       }
     },
-    async newSession(_params: NewSessionRequest): Promise<NewSessionResponse> {
+    async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
       const sections = systemPromptService(ctx)?.snapshot() ?? []
       const sessionId = randomUUID()
-      sessions.set(sessionId, { sessionId, sections })
+      sessions.set(sessionId, { sessionId, sections, cwd: params.cwd })
       return { sessionId }
     },
     async prompt(params: PromptRequest): Promise<PromptResponse> {
@@ -80,6 +94,31 @@ export function createReplayAgent(
       if (session === undefined) {
         throw new Error(`acp replay: unknown session ${params.sessionId}`)
       }
+      const userText = promptText(params)
+      const hash = promptSha256({ sections: session.sections, userText })
+      const recorded = replayResponseFor(hash)
+      if (recorded !== undefined) {
+        await connection.sessionUpdate({
+          sessionId: session.sessionId,
+          update: {
+            sessionUpdate: 'agent_message_chunk',
+            content: { type: 'text', text: recorded },
+          },
+        })
+        return { stopReason: 'end_turn' }
+      }
+      // Deterministic fallback: make the miss and the composed sections
+      // observable so candidate influence is verifiable on every turn.
+      await connection.sessionUpdate({
+        sessionId: session.sessionId,
+        update: {
+          sessionUpdate: 'agent_message_chunk',
+          content: {
+            type: 'text',
+            text: `[dsh-evolve-le replay] no recorded response for prompt sha256:${hash} (workspace: ${session.cwd}); composed sections:`,
+          },
+        },
+      })
       for (const section of [...session.sections].sort((a, b) => a.order - b.order)) {
         await connection.sessionUpdate({
           sessionId: session.sessionId,

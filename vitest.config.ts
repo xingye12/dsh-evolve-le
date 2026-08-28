@@ -3,7 +3,10 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['packages/*/tests/**/*.{test,spec}.ts'],
+    include: [
+      'packages/*/tests/**/*.{test,spec}.ts',
+      'benchmark-adapters/*/tests/**/*.{test,spec}.ts',
+    ],
     // Fixture trees (e.g. the golden scan case) contain candidate-owned specs
     // that are data, not tests of this repo; only real packages run.
     exclude: ['**/node_modules/**', '**/tests/fixtures/**'],

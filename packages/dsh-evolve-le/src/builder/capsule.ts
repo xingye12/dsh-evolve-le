@@ -15,8 +15,9 @@
  */
 
 import { createHash } from 'node:crypto'
-import { cp, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { chmod, cp, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { gzipSync } from 'node:zlib'
 import {
   buildCanonicalTar,
   type CanonicalFile,
@@ -28,6 +29,26 @@ import { BUILDER_VERSION } from '../version.js'
 
 export const CAPSULE_PROTOCOL = 'dsh-evolve-le/capsule/v1'
 export { BUILDER_VERSION }
+
+/**
+ * Capsule ACP entrypoint staged at the archive root (Gate 2, specs/01 §5.3,
+ * runbook §2-3): Harbor's inline binary distribution launches `cmd`
+ * (`./dsh-evolve-le-acp`) with the task workspace as cwd, so the wrapper
+ * resolves its own directory — never the cwd — and execs the embedded runner
+ * with an absolute config path. A task workspace cannot redirect which
+ * composition boots.
+ */
+export const ACP_ENTRYPOINT_NAME = 'dsh-evolve-le-acp'
+export const ACP_ENTRYPOINT = [
+  '#!/bin/sh',
+  '# dsh-evolve-le capsule ACP entrypoint (Harbor inline binary distribution).',
+  '# Resolves its own directory, never the task cwd, so the workspace cannot',
+  '# redirect which composition boots (specs/01 §5.3).',
+  'set -e',
+  'DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)',
+  'exec node "$DIR/runner/bin/acp-boot.js" "$DIR/cordis.yml" "$@"',
+  '',
+].join('\n')
 
 export interface CapsuleBundle {
   /** Deterministic tar over the candidate package content. */
@@ -285,6 +306,10 @@ export async function assembleCapsule(options: {
     join(runnerSourceDir, 'acp/replay-agent.js'),
     join(capsuleDir, 'runner/acp/replay-agent.js'),
   )
+  await cp(
+    join(runnerSourceDir, 'acp/recorded-replay.js'),
+    join(capsuleDir, 'runner/acp/recorded-replay.js'),
+  )
   await cp(join(runnerSourceDir, 'version.js'), join(capsuleDir, 'runner/version.js'))
   const { digest: runnerDigest } = await computeTreeDigest(join(capsuleDir, 'runner'))
 
@@ -294,6 +319,13 @@ export async function assembleCapsule(options: {
     bootConfig(candidatePackage, candidateId, 'solve'),
     'utf8',
   )
+
+  // ACP entrypoint at the archive root: Harbor's inline binary registry entry
+  // runs this after `tar -xf` into /opt/harbor-acp-agent/dist. Written before
+  // collectFiles so SHA256SUMS covers it; the exec bit survives both the
+  // canonical tar and Harbor's tar -xf.
+  await writeFile(join(capsuleDir, ACP_ENTRYPOINT_NAME), ACP_ENTRYPOINT, 'utf8')
+  await chmod(join(capsuleDir, ACP_ENTRYPOINT_NAME), 0o755)
 
   // Identity documents. SHA256SUMS covers the loadable payload only.
   const sbomText = buildSbom({
@@ -392,6 +424,33 @@ export async function tarCapsule(capsuleDir: string): Promise<{
     tarSha256: sha256(tar),
     fileCount: files.length,
     bytes: files.reduce((total, file) => total + file.content.length, 0),
+  }
+}
+
+/**
+ * Deterministic `.tar.gz` over the assembled capsule tree for Harbor's inline
+ * ACP binary distribution (`archive` must be HTTPS + sha256; Harbor extracts
+ * with `tar -xf` inside the task container). zlib deflate is deterministic for
+ * a fixed level, so double builds must agree byte-for-byte — asserted by the
+ * builder test suite.
+ */
+export async function archiveCapsule(capsuleDir: string): Promise<{
+  tar: Buffer
+  archive: Buffer
+  archiveSha256: string
+  tarSha256: string
+  fileCount: number
+  bytes: number
+}> {
+  const { tar, tarSha256, fileCount, bytes } = await tarCapsule(capsuleDir)
+  const archive = gzipSync(tar, { level: 9 })
+  return {
+    tar,
+    archive,
+    archiveSha256: sha256(archive),
+    tarSha256,
+    fileCount,
+    bytes,
   }
 }
 

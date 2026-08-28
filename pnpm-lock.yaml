@@ -36,6 +36,19 @@ importers:
         specifier: ^4.1.8
         version: 4.1.11(@types/node@24.13.3)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12))
 
+  benchmark-adapters/terminal-bench:
+    dependencies:
+      '@dsh-evolve-le/core':
+        specifier: 0.0.1
+        version: link:../../packages/dsh-evolve-le
+      js-yaml:
+        specifier: 4.1.0
+        version: 4.1.0
+    devDependencies:
+      '@types/js-yaml':
+        specifier: 4.0.9
+        version: 4.0.9
+
   packages/candidate-baseline:
     dependencies:
       '@deepseek-ai/schemastery':
@@ -754,6 +767,10 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  js-yaml@4.1.0:
+    resolution: {integrity: sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==}
+    hasBin: true
+
   js-yaml@4.2.0:
     resolution: {integrity: sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw==}
     hasBin: true
@@ -1439,6 +1456,10 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  js-yaml@4.1.0:
+    dependencies:
+      argparse: 2.0.1
 
   js-yaml@4.2.0:
     dependencies:

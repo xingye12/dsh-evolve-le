@@ -1,0 +1,6 @@
+{
+  "trial_name": "extract-elf__fixture",
+  "agent": { "name": "acp", "kwargs": { "registry_entry": { "version": "placeholder" } } },
+  "task": { "path": "/tasks/extract-elf", "source": "adhoc" },
+  "trials_dir": "/jobs/dsh-fixture"
+}

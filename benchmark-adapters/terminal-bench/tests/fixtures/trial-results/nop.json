@@ -1,0 +1,30 @@
+{
+  "id": "3f8a8cd2-0000-4000-8000-000000000002",
+  "task_name": "terminal-bench/extract-elf",
+  "trial_name": "extract-elf__nop0001",
+  "trial_uri": "file:///jobs/dsh-nop/extract-elf__nop0001",
+  "task_id": { "path": "/tasks/extract-elf" },
+  "source": "adhoc",
+  "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+  "agent_info": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "agent_result": {
+    "n_input_tokens": 1200,
+    "n_cache_tokens": 0,
+    "n_output_tokens": 12,
+    "cost_usd": 0.0004
+  },
+  "verifier_result": { "rewards": { "reward": 0 } },
+  "verifier_environment_mode": "shared",
+  "exception_info": null,
+  "started_at": "2026-08-29T00:00:00Z",
+  "finished_at": "2026-08-29T00:01:00Z",
+  "agent_execution": {
+    "started_at": "2026-08-29T00:00:05Z",
+    "finished_at": "2026-08-29T00:00:10Z"
+  },
+  "verifier": { "started_at": "2026-08-29T00:00:11Z", "finished_at": "2026-08-29T00:00:20Z" },
+  "step_results": null
+}

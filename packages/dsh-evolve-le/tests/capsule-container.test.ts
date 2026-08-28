@@ -1,10 +1,11 @@
 /**
- * Packed-capsule container E2E (Gate 1 acceptance, specs/07 §3, specs/02
- * §12): the capsule tar — and nothing else — is mounted into a fresh,
- * network-disabled container; the entrypoint verifies SHA256SUMS after
- * extraction, then serves the ACP round through the real Cordis Loader with
- * no source checkout, no network, and no model. The host-side driver speaks
- * the same wire protocol the pipeline's mockReplay stage does.
+ * Packed-capsule container E2E (Gate 1-2 acceptance, specs/07 §3-4, specs/02
+ * §12): the capsule tar.gz — and nothing else — is mounted into a fresh,
+ * network-disabled container; the entrypoint extracts exactly the way
+ * Harbor's inline ACP binary distribution does (`tar -xf`), verifies
+ * SHA256SUMS, then boots through the capsule's own `dsh-evolve-le-acp`
+ * wrapper with the task workspace as cwd. The host-side driver speaks the
+ * same wire protocol the pipeline's mockReplay stage does.
  */
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -19,7 +20,10 @@ import { runAcpSession } from '../src/acp/driver.js'
 
 const exec = promisify(execFile)
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..')
-const NODE_IMAGE = 'node:24-alpine'
+// The default proves boot on a clean current node; pointing this at the real
+// task image (e.g. alexgshaw/extract-elf:20251031, node 18) proves the capsule
+// boots on the benchmark's own runtime, not only on our reference.
+const NODE_IMAGE = process.env['CAPSULE_CONTAINER_IMAGE'] ?? 'node:24-alpine'
 
 const scratchDirs: string[] = []
 
@@ -55,14 +59,17 @@ describe('packed capsule boots in a fresh offline container', () => {
     }
     void serverVersion
     await exec('docker', ['pull', NODE_IMAGE])
+    // --entrypoint sh: the probe must not depend on the image's own entrypoint.
     const { stdout } = await exec('docker', [
       'run',
       '--rm',
       '--network',
       'none',
+      '--entrypoint',
+      'sh',
       NODE_IMAGE,
-      'node',
-      '--version',
+      '-c',
+      'node --version',
     ])
     containerNodeVersion = stdout.trim()
     build = await buildCandidate({
@@ -71,23 +78,35 @@ describe('packed capsule boots in a fresh offline container', () => {
     })
     expect(build.outcome).toBe('admitted')
     payloadDir = await freshScratch('dsh-evolve-payload-')
-    await writeFile(join(payloadDir, 'capsule.tar'), await readFile(build.artifacts.capsuleTar))
+    await writeFile(
+      join(payloadDir, 'capsule.tar.gz'),
+      await readFile(build.artifacts.capsuleArchive),
+    )
   }, 600_000)
 
   it('extracts, verifies SHA256SUMS, and serves ACP initialize/session/prompt', async () => {
-    // Host-side pre-extraction verification (specs/02 §12): the tar digest
-    // must equal the one the build manifest recorded.
-    const tarBytes = await readFile(build.artifacts.capsuleTar)
-    expect(createHash('sha256').update(tarBytes).digest('hex')).toBe(build.capsule?.tarSha256)
+    // Host-side pre-extraction verification (specs/02 §12): the archive
+    // digest must equal the one the build manifest recorded.
+    const archiveBytes = await readFile(build.artifacts.capsuleArchive)
+    expect(createHash('sha256').update(archiveBytes).digest('hex')).toBe(
+      build.capsule?.archiveSha256,
+    )
 
+    // Mirrors Harbor's inline binary install: extract into a directory, then
+    // run the wrapper from the task workspace so the entrypoint must resolve
+    // its own directory, never the cwd (specs/01 §5.3).
     const entrypoint = [
       'set -e',
       'mkdir /capsule',
-      'cd /capsule',
-      'tar -xf /payload/capsule.tar',
+      // The task workspace stands in for the trial cwd; images that do not
+      // ship one still need it to exist for `-w` below.
+      'mkdir -p /workspace',
+      'tar -C /capsule -xf /payload/capsule.tar.gz',
       // Post-extraction verification; stdout stays reserved for the protocol.
+      'cd /capsule',
       'sha256sum -c SHA256SUMS > /dev/null',
-      'exec node runner/bin/acp-boot.js cordis.yml',
+      'cd /workspace',
+      'exec /capsule/dsh-evolve-le-acp',
     ].join('; ')
 
     const acp = await runAcpSession(
@@ -98,6 +117,8 @@ describe('packed capsule boots in a fresh offline container', () => {
         '--network',
         'none',
         '-i',
+        '-w',
+        '/workspace',
         '-v',
         `${payloadDir}:/payload:ro`,
         NODE_IMAGE,
@@ -118,27 +139,31 @@ describe('packed capsule boots in a fresh offline container', () => {
     expect(acp.sessionId).not.toBe('')
     expect(acp.stopReason).toBe('end_turn')
     expect(chunks.some((text) => text.includes('[candidate:identity]'))).toBe(true)
+    expect(chunks.some((text) => text.startsWith('[dsh-evolve-le replay]'))).toBe(true)
     expect(acp.report?.quiescent).toBe(true)
     expect(acp.report?.sections.afterUnload).toEqual([])
   }, 180_000)
 
-  it('container holds only the payload mount and a matching node major', async () => {
+  it('container holds only the payload mount and a real node', async () => {
     // Nothing but the read-only payload directory is mounted; the capsule is
-    // the whole runtime. The node major is recorded for the evidence
-    // document rather than pinned to a patch release.
+    // the whole runtime. The node version is recorded for the evidence
+    // document; overriding the image (task-image boot proof) changes it.
     const { stdout } = await exec('docker', [
       'run',
       '--rm',
       '--network',
       'none',
+      '--entrypoint',
+      'sh',
       '-v',
       `${payloadDir}:/payload:ro`,
       NODE_IMAGE,
-      'sh',
       '-c',
-      'ls /payload',
+      'ls /payload && node --version',
     ])
-    expect(stdout.trim()).toBe('capsule.tar')
-    expect(containerNodeVersion).toMatch(/^v24\./)
+    const [listing, version] = stdout.trim().split('\n')
+    expect(listing).toBe('capsule.tar.gz')
+    expect(version).toMatch(/^v\d+\.\d+\.\d+$/)
+    expect(containerNodeVersion).toBe(version)
   }, 120_000)
 })

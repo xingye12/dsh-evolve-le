@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/candidate-sdk" },
     { "path": "./packages/candidate-baseline" },
-    { "path": "./packages/dsh-evolve-le" }
+    { "path": "./packages/dsh-evolve-le" },
+    { "path": "./benchmark-adapters/terminal-bench" }
   ]
 }

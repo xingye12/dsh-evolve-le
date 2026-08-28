@@ -1,19 +1,24 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
 **更新时间：2026-08-29（Asia/Tokyo）**
 
 ## Claim boundaries
 
-- 本仓库已实现 **Gate 0**（provenance 机器校验 + 真实 Cordis Loader lifecycle spike）与
-  **Gate 1**（candidate SDK + 十阶段可信 admission builder + 离线 capsule + ACP E2E）。
-  Gate 1 的 `admitted` 只证明 **safety-runnability**（可构建、可加载、可干净卸载、扫描清白），
-  **不是**性能验收。
-- mock replay 是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；recorded-LLM 回放
-  与 DSH 生产闭包随 Gate 2 runner 落地（见下）。
-- 没有 baseline 分数、没有真实评测闭环、没有 sealed 结果；不得声称已提升、可部署、
+- 本仓库已实现 **Gate 0**（provenance 机器校验 + 真实 Cordis Loader lifecycle spike）、
+  **Gate 1**（candidate SDK + 十阶段可信 admission builder + 离线 capsule + ACP E2E）与
+  **Gate 2**（Terminal-Bench provider 纵切片：真实 Harbor job 在 pinned `extract-elf` 上经
+  inline ACP binary distribution 运行真实 capsule，normalizer/idempotency/verifier-mode
+  探针全部机器断言）。Gate 1 的 `admitted` 只证明 **safety-runnability**；
+  Gate 2 的全绿只证明 **单 task 评测管线成立且 replay capsule 得到诚实的 reward 0**，
+  都**不是**性能验收。
+- mock replay 仍是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；Gate 1 曾把
+  recorded-LLM 回放与 DSH 生产闭包 runner 归到 Gate 2，实际 Gate 2（`specs/07` §4）范围是
+  provider 纵切片、不含 runner 替换 —— 该项顺延至 runner 相关的后续 Gate，此处显式记录，
+  不算静默缩水。
+- 没有 baseline 分数、没有演化闭环、没有 sealed 结果；不得声称已提升、可部署、
   无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 2–8 全部未开始。前代项目的通过记录不是本
+- `specs/07-implementation-plan.md` 的 Gate 3–8 全部未开始。前代项目的通过记录不是本
   仓库的完成证据（见 2026-08-28 节）。
 
 ## 2026-08-28 repository bootstrap
@@ -256,7 +261,95 @@ cordis boot/inventory、ACP replay agent）、`cordis.yml`、`manifest.json`、`
   走编译 `lib/`（node_modules 下 type stripping 被禁用），candidate-baseline 已按此出包。
 - 容器 node 记录到 major（24.x），未 pin patch；镜像 tag `node:24-alpine`。
 
+## 2026-08-29 Gate 2 implemented — Terminal-Bench provider vertical slice
+
+对照 `specs/07-implementation-plan.md` §4 的 Build/Accept 项逐条落档（先写契约测试，再写
+最小实现）。全程 `pnpm gate2`（build + 124/124 test + provenance:check 7/7 + 真实 E2E）
+exit 0，evidence 36 文件入 `evidence/gate2/`。新包 `@dsh-evolve-le/tb-provider`
+（`benchmark-adapters/terminal-bench/`，纯 TypeScript provider，无 RSI 策略，CLAUDE.md
+rule 2）；capsule 侧新增 `archiveCapsule`（确定性 gzip level 9 tar.gz，双构建逐字节一致）
+与 0755 wrapper `dsh-evolve-le-acp`（自解析目录，绝不依赖 task cwd）。
+
+### 组件
+
+- **Dataset pin + inventory**（`dataset.ts`/`inventory.ts`）：terminal-bench 2.1 @
+  `7131e43`（tarball sha256 `aa992a88…`，89 task 目录全带 `task.toml`）；每 task 以确定性
+  树摘要内容寻址，inventory hash 对任何 task 内容漂移敏感；缺 `task.toml` 即拒绝规划
+  （fail closed，不在残缺集上出计划）。
+- **Inline ACP binary registry entry**（`registry.ts`）：HTTPS + SHA-256 checksum 的
+  `AcpRegistryEntry`；**`version` = capsule tar.gz sha256** —— harbor 把它写进每个 trial 的
+  `agent_info.version`，这就是候选归因绑定。生成的 entry + JobConfig 用**已安装 harbor
+  0.21.0 的 pydantic 模型**真实验证（`upstream-contract.test.ts`），不靠手抄 API 清单。
+- **JobConfig provider**（`jobconfig.ts`/`provider.ts`）：docker environment + 只读 bind
+  mount（CA bundle）+ `SSL_CERT_FILE`；agents[0] slot 名 `acp`，inline registry_entry、
+  `permission_mode: deny`、`auth_policy: disabled`；`job_name` 内嵌 idempotency key 前缀。
+- **Idempotency ledger**（`idempotency.ts`）：key = sha256(canonical(protocol, runId,
+  capsuleArchiveSha256, inventorySha256, sorted handles, attempts, harborVersion))，
+  append-only JSONL；同一 key 再 plan 返回 `existing` 不新增行；叠加 harbor 自身 resume
+  （同 job dir + 同 config.json → 保留已有 trial）= 无第二次付费 trial。
+- **本地 HTTPS artifact endpoint**（`artifact-server.ts`）：只服务 `/<sha256>.tar.gz`
+  内容寻址路径、注册时校验名字==摘要、strict TLS（TLSv1.2+）；自签 CA（IP SAN
+  172.17.0.1 = docker0 网关）+ **augmented bundle**（系统 CA + 本地 CA）bind-mount 到全新
+  路径 `/opt/dsh-evolve-le/ca-bundle.crt` 并设 `SSL_CERT_FILE` —— 绝不覆盖
+  `/etc/ssl/certs/ca-certificates.crt`（update-ca-certificates 会重写它）。
+- **Per-trial normalizer**（`normalize.ts`）：分母 = planned trials（task×attempt），从
+  raw job dir 零状态重放；trial 归属经其自身 `config.json` 的 `task.path`（免疫 harbor
+  trial 名 32 字符截断），attempt 序号按 handle 组内排序 trial 名；归因检查
+  `agent_info == {registry id, capsule sha}`；缺失 result.json/reward/trajectory/candidate
+  hash 全部显式 FAIL/invalid，绝不从分母消失；infra-retryable 白名单预登记为
+  {EnvironmentStartTimeout, SandboxBuildFailed, Healthcheck}（reward 无关、ADR 才可扩）；
+  canonical-JSON artifact hash，重解析两次同 hash。
+- **E2E**（`scripts/run-gate2-e2e.ts`，`pnpm e2e:gate2`）：构建 capsule → 本地 HTTPS 上
+  线 → 在 pinned `extract-elf` 上跑真实 `harbor run` → normalize → 11 个 acceptance flag
+  全断言（任一 false 即 exit 1）→ evidence + `schemas/gate2.e2e.schema.json` 校验文档。
+
+### 验收证据（`evidence/gate2/`：e2e.json + normalized-main/probe.json + 两个完整 job dir + ledger.jsonl）
+
+| specs/07 Gate 2 Accept                                                             | 结果 | 证据                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nop/broken/golden fixture 分别 expected fail/fail/valid                            | ✅   | `normalize.test.ts` 13 例：golden→pass、nop→fail、broken-agent→fail、env-infra→infra_retryable、missing reward/result/trajectory/trial→显式 FAIL、wrong capsule→PROTOCOL_INVALID |
+| 缺失 result.json、reward、trajectory、candidate hash 显式 FAIL/invalid，不离开分母 | ✅   | 同上（`missing-trajectory` 为本轮新增类别：无异常但无 ATIF trajectory 的 trial = 不可审计 = FAIL；exception trial 豁免——agent 根本没跑完 turn）                                  |
+| 真实 DSH candidate 经 ACP client 完成一次 task，stdout protocol clean              | ✅   | 主 trial `extract-elf__3UBseoG`：capsule 在任务容器内下载-校验-启动，3 个 ACP 事件、`end_turn`、runner report 走 stderr、`quiescent=true`、exit 0；verifier 独立评分 reward 0    |
+| adapter 同 idempotency key 重复 submit 不产生第二个付费 trial                      | ✅   | ledger 每 key 恰一行（main+probe 共 2 行）；重跑 `harbor run` resume 同 job dir，trial 目录数 1→1 不变（连续三次 E2E 复验）                                                      |
+| raw Harbor job + normalized artifact 可从零重解析成同 hash                         | ✅   | `normalizationDeterministic=true`：同目录两次 normalize，canonical artifact hash 相等（`c8298c0937ab3807…`）                                                                     |
+
+verifier-mode 探针（Build 项）：派生 task 副本（`extract-elf-separate-probe`）强制
+`[verifier] environment_mode = "separate"`，正式 task 目录未动。**实测结论
+`shared-only`**：harbor 的 separate verifier 容器是 task 环境的全新拷贝，只挂 verifier
+目录、不带 agent 写入的工作区，因此 extract-elf 的 verifier 找不到 agent 产物 →
+`RewardFileNotFoundError`（显式记录，不误判为协议失败）。sealed 协议保持每 task 的
+默认 verifier mode；separate 仅用于自带 verifier environment 的 task。
+
+### Gate 2 期间的经验性发现（都写进了实现与测试）
+
+1. **`model_name` 触发 harbor 的 session/set_model 路径**：JobConfig agent 带
+   `model_name` 时，harbor runner 在 `session/new` 后要求 agent 具备模型选择能力
+   （`session.models` 或 model config option），而 pinned 的 ACP TS SDK 0.25.1 **没有**
+   model-selection 面 → RuntimeError → `NonZeroAgentExitCodeError`（首次 E2E 的真实失败，
+   全程留档）。replay capsule 无外部模型路由，故 JobConfig **省略 `model_name`**；模型
+   路由记入 run manifest，真实模型 capsule 由其自身 ACP 层广告 set_model（specs/02 范畴）。
+2. **`agent_info.name` = registry entry id**（非 JobConfig slot 名）：normalizer 归因绑定
+   改为 `name == ACP_AGENT_ID && version == capsule sha256`。
+3. **capsule 在真实任务镜像的 node v18.19.1 上同样干净启动**（`CAPSULE_CONTAINER_IMAGE`
+   可参数化容器测试，node 24 与 extract-elf 镜像双验）：离线、wrapper 自解析、
+   unload 不变式成立。
+4. 容器内 apt/pip 网络可用，`SSL_CERT_FILE` 指向 bind-mount 的 augmented bundle 即可让
+   strict-TLS curl 通过 —— 预检脚本先行验证后再上 E2E。
+
+### 已知限制
+
+- 上游仍是 **SHA 寻址 tarball 快照而非 git checkout**（`github.com:443` 不可达），
+  working-tree-clean 由树摘要等价代替 `git status`。
+- 本切片是 **development 模式、单 task、replay capsule**：没有 baseline 分数、没有
+  sealed split、没有成本数据（replay 无模型，token/cost 字段为 null —— 诚实记录而非
+  填零）。recorded-LLM 回放与 DSH 生产闭包 runner 顺延（见 claim boundaries）。
+- artifact endpoint 是本机 HTTPS 桥（服务 inline distribution 的 HTTPS+SHA-256 契约），
+  非多机部署形态；idempotency ledger 为单文件 append-only，多写者仲裁随 Gate 3 状态机。
+
 ## Next
 
-- Gate 2（Terminal-Bench provider vertical slice，`specs/07` §4）：TypeScript Harbor
-  provider、recorded-LLM 回放 + DSH 生产闭包 runner、development split 真实闭环。
+- Gate 3（durable controller core，`specs/07` §5）：`@dsh-evolve-le/core` bundle/service、
+  object store + hash-chain journal + pure reducer、candidate/archive/observation 状态与
+  budget 双式记账。
+- 顺延项（显式记录，不静默）：recorded-LLM 回放、DSH 生产闭包 runner、真实模型 capsule
+  的 set_model 广告、development split 真实闭环（依赖 Gate 3 状态机与 Gate 4 budget）。

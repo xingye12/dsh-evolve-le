@@ -1,0 +1,18 @@
+{
+  "schema_version": "ATIF-v1.6",
+  "session_id": "00000000-0000-0000-0000-000000000001",
+  "agent": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "model_name": null
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "fixture instruction"
+    }
+  ],
+  "notes": "Committed minimal ATIF shape (harbor writes it by converting captured ACP session updates).",
+  "final_metrics": { "total_steps": 1 }
+}

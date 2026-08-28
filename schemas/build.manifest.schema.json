@@ -60,10 +60,14 @@
       "type": "object",
       "properties": {
         "tarSha256": { "$ref": "#/$defs/sha256Hex" },
+        "archiveSha256": {
+          "$ref": "#/$defs/sha256Hex",
+          "description": "Deterministic tar.gz of the same tree; the artifact Harbor's inline ACP binary registry entry downloads and sha256-checks (Gate 2)."
+        },
         "sbomSha256": { "$ref": "#/$defs/sha256Hex" },
         "provenanceSha256": { "$ref": "#/$defs/sha256Hex" }
       },
-      "required": ["tarSha256", "sbomSha256", "provenanceSha256"],
+      "required": ["tarSha256", "archiveSha256", "sbomSha256", "provenanceSha256"],
       "additionalProperties": false
     },
     "parentDiff": {
