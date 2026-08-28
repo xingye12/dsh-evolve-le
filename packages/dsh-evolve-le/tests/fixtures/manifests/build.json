@@ -1,0 +1,72 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/build.manifest.schema.json",
+  "schemaVersion": 1,
+  "candidateId": "c_aaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "outcome": "admitted",
+  "identity": {
+    "sourceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "canonicalParent": null
+  },
+  "source": {
+    "fileCount": 5,
+    "bytes": 4096,
+    "treeDigest": {
+      "algo": "dsh-evolve-tree-v1",
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "bundle": {
+    "tarSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "entrySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "fileCount": 3,
+    "bytes": 2048
+  },
+  "capsule": {
+    "tarSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "sbomSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "provenanceSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "parentDiff": {
+    "parent": null,
+    "diffHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "filesChanged": 0,
+    "linesAdded": 0,
+    "linesRemoved": 0
+  },
+  "fingerprints": {
+    "node": "v24.14.0",
+    "pnpm": "11.9.0",
+    "typescript": "6.0.3",
+    "dependencyClosureSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "tsconfigSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "receipts": {
+    "containment": {
+      "status": "pass",
+      "detail": "no symlink/traversal/oversize",
+      "artifact": "evidence://gate1/build/containment.json"
+    },
+    "schema": {
+      "status": "pass",
+      "detail": "candidate manifest valid",
+      "artifact": "evidence://gate1/build/schema.json"
+    },
+    "diffBoundary": { "status": "pass", "detail": "root parent, 0 changed lines" },
+    "policyScan": { "status": "pass", "detail": "no findings" },
+    "reproducibleBuild": { "status": "pass", "detail": "double build identical" },
+    "typeLintUnit": { "status": "pass", "detail": "candidate tests green" },
+    "loaderBoot": { "status": "pass", "detail": "entries active" },
+    "unloadInvariant": { "status": "pass", "detail": "inventory restored" },
+    "mockReplay": { "status": "pass", "detail": "both modes bounded exit" },
+    "capsuleDoubleBuild": { "status": "pass", "detail": "capsule hash stable" }
+  },
+  "builder": {
+    "builtAt": "2026-08-29T00:00:00.000Z",
+    "sandbox": {
+      "kind": "host-restricted",
+      "detail": "cleared env, no network namespace, staging tree read-only"
+    },
+    "networkAccess": false,
+    "executedCandidateLifecycleScript": false
+  }
+}

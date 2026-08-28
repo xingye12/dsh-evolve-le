@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/proposal.manifest.schema.json",
+  "title": "dsh-evolve-le proposal manifest",
+  "description": "One proposer sandbox output: which canonical parent was expanded, which development evidence was visible, and the drafted children (specs/02 §10). Statistics referenced here derive from DEV_OBSERVED trials only; the validator cannot prove that, the evidence export guard does.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://dsh-evolve-le.local/schemas/proposal.manifest.schema.json"
+    },
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "parent": { "$ref": "#/$defs/sha256Ref" },
+    "parentMode": { "const": "propose" },
+    "children": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "proposalId": { "$ref": "#/$defs/proposalId" },
+          "hypothesis": { "type": "string", "minLength": 1 },
+          "sourceDir": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Directory under the reservation's writable children root."
+          }
+        },
+        "required": ["proposalId", "hypothesis", "sourceDir"],
+        "additionalProperties": false
+      }
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidenceRef" },
+      "uniqueItems": true
+    }
+  },
+  "required": ["$schema", "schemaVersion", "parent", "parentMode", "children", "evidenceRefs"],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256Ref": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "evidenceRef": {
+      "type": "string",
+      "pattern": "^evidence://[A-Za-z0-9._/-]+$"
+    },
+    "proposalId": {
+      "type": "string",
+      "pattern": "^p_[a-z2-7]{26}$"
+    }
+  }
+}

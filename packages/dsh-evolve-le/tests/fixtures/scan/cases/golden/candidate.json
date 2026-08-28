@@ -1,0 +1,29 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": null,
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "Baseline two-mode candidate: registers only a stable identity prompt section, establishing the admission-pipeline floor without behavioral delta.",
+    "evidenceRefs": ["evidence://gate0/loader-spike.json"],
+    "targetFailureModes": [],
+    "expectedBehaviorChange": "None beyond a stable candidate:-prefixed prompt section in each mode.",
+    "regressionRisks": [],
+    "touchedSurfaces": ["system-prompt"]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"]
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": null,
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "Fixture candidate for scanner contract tests.",
+    "evidenceRefs": ["evidence://gate1/scan"],
+    "targetFailureModes": [],
+    "expectedBehaviorChange": "None.",
+    "regressionRisks": [],
+    "touchedSurfaces": ["system-prompt"]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"]
+  },
+  "tests": {
+    "mechanismAssertions": ["registers one section"],
+    "preservationAssertions": ["unwind restores inventory"]
+  }
+}

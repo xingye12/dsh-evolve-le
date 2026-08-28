@@ -1,0 +1,94 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/build.manifest.schema.json",
+  "schemaVersion": 1,
+  "candidateId": "c_yrs7qltqipkfgo2hxh4gynxhnq",
+  "outcome": "admitted",
+  "identity": {
+    "sourceDigest": "sha256:c465f82e7043d4533b47b9f86c36e76c3f1942e6e7e9a72abbeb4231356dbb54",
+    "canonicalParent": null
+  },
+  "source": {
+    "fileCount": 6,
+    "bytes": 7231,
+    "treeDigest": {
+      "algo": "dsh-evolve-tree-v1",
+      "value": "f0c833e75ded5a2bb7c48062e6560432bca82688ccadeb108390207f13d0f963"
+    }
+  },
+  "bundle": {
+    "tarSha256": "2cc3c9b39f4d35c84a5ea3dc9f65559ad7ccab24e4285f4e7d91fcc332a4458c",
+    "entrySha256": "8de329d492e1325d1e887cdf6219fb8b7ffa30eb23986a40211ccb134a882559",
+    "fileCount": 5,
+    "bytes": 6182
+  },
+  "capsule": {
+    "tarSha256": "6d75b63fc69a7cd543d6249bf90437beab326ec2dbb3d40a3ab8b034f48f3d8d",
+    "sbomSha256": "f0badb085ac945f69c39f6699a0b4d002d6a4fa75761022a854e3c667b8ba86e",
+    "provenanceSha256": "97d33f86f002f10ee54464b8679656cf6d090245a6f8b0367514b0f3a2596678"
+  },
+  "parentDiff": {
+    "parent": null,
+    "diffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "filesChanged": 0,
+    "linesAdded": 0,
+    "linesRemoved": 0
+  },
+  "fingerprints": {
+    "node": "v24.14.0",
+    "pnpm": "11.9.0",
+    "typescript": "6.0.3",
+    "dependencyClosureSha256": "38ff8ef5a5b8041a85c149c8c876abf2d7b157fe43a8d1b5c11fe993147efc17",
+    "tsconfigSha256": "0a3cd5f41121d31b950900dfbb29cec62ebbf429429e5e0039f247fcbd42a03c"
+  },
+  "receipts": {
+    "containment": {
+      "status": "pass",
+      "detail": "captured 6 files, 7231 bytes; staged read-only; tree digest dsh-evolve-tree-v1:f0c833e75ded5a2b…"
+    },
+    "schema": {
+      "status": "pass",
+      "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+    },
+    "diffBoundary": {
+      "status": "pass",
+      "detail": "lineage root (canonicalParent null): no parent diff required"
+    },
+    "policyScan": {
+      "status": "pass",
+      "detail": "no findings across import/dependency/leak/task/secret rules"
+    },
+    "reproducibleBuild": {
+      "status": "pass",
+      "detail": "two sandboxed tsc runs produced identical output (2 files); closure 12 packages (918 files), tsc 6.0.3"
+    },
+    "typeLintUnit": {
+      "status": "pass",
+      "detail": "oxlint clean over staged tree; candidate tests passed"
+    },
+    "loaderBoot": {
+      "status": "pass",
+      "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 28ms"
+    },
+    "unloadInvariant": {
+      "status": "pass",
+      "detail": "Cordis inventory and process handles returned to baseline; candidate sections removed"
+    },
+    "mockReplay": {
+      "status": "pass",
+      "detail": "ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: candidate:identity streamed in the turn, end_turn, unload invariant held; propose overlay dispatched candidate:proposal-policy with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2)"
+    },
+    "capsuleDoubleBuild": {
+      "status": "pass",
+      "detail": "two capsule assemblies byte-identical (942 files, 7929687 bytes); tar 6d75b63fc69a7cd5…"
+    }
+  },
+  "builder": {
+    "builtAt": "2026-08-28T19:42:21.705Z",
+    "sandbox": {
+      "kind": "namespace",
+      "detail": "unshare --net (network namespace, no interfaces)"
+    },
+    "networkAccess": false,
+    "executedCandidateLifecycleScript": false
+  }
+}

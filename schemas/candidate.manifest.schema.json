@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "title": "dsh-evolve-le candidate manifest (candidate.json)",
+  "description": "Behavior/provenance manifest drafted by the proposer, completed and frozen by the schema validator in the trusted builder (specs/02 §6). The proposer authors this file; every field here is claim-only until builder receipts attach in build-manifest.json.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json"
+    },
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "canonicalParent": {
+      "oneOf": [
+        { "type": "null", "description": "Null only for the lineage-root baseline candidate." },
+        { "$ref": "#/$defs/sha256Ref" }
+      ]
+    },
+    "donorCandidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sha256Ref" },
+      "uniqueItems": true
+    },
+    "proposal": { "$ref": "#/$defs/proposal" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "tests": { "$ref": "#/$defs/tests" }
+  },
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "canonicalParent",
+    "donorCandidates",
+    "proposal",
+    "runtime",
+    "tests"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256Ref": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "evidenceRef": {
+      "type": "string",
+      "pattern": "^evidence://[A-Za-z0-9._/-]+$"
+    },
+    "surfaceName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "serviceName": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z0-9]*$",
+      "description": "Cordis service injection key, e.g. systemPrompt, tools, agents."
+    },
+    "toolName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "failureMode": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64
+    },
+    "proposal": {
+      "type": "object",
+      "properties": {
+        "hypothesis": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Falsifiable mechanism-level hypothesis; audited, never scored."
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceRef" },
+          "uniqueItems": true
+        },
+        "targetFailureModes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failureMode" },
+          "uniqueItems": true
+        },
+        "expectedBehaviorChange": { "type": "string", "minLength": 1 },
+        "regressionRisks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "touchedSurfaces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surfaceName" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "hypothesis",
+        "evidenceRefs",
+        "targetFailureModes",
+        "expectedBehaviorChange",
+        "regressionRisks",
+        "touchedSurfaces"
+      ],
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "requiredServices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/serviceName" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "optionalServices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/serviceName" },
+          "uniqueItems": true
+        },
+        "newToolNames": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/toolName" },
+          "uniqueItems": true
+        },
+        "supportsModes": {
+          "const": ["solve", "propose"],
+          "description": "One artifact, both modes, selected by TCB config (specs/02 §5)."
+        }
+      },
+      "required": ["requiredServices", "optionalServices", "newToolNames", "supportsModes"],
+      "additionalProperties": false
+    },
+    "tests": {
+      "type": "object",
+      "properties": {
+        "mechanismAssertions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "preservationAssertions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      },
+      "required": ["mechanismAssertions", "preservationAssertions"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,7 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/dsh-evolve-le" },
-    { "path": "./packages/candidate-baseline" }
+    { "path": "./packages/candidate-sdk" },
+    { "path": "./packages/candidate-baseline" },
+    { "path": "./packages/dsh-evolve-le" }
   ]
 }

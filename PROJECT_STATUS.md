@@ -1,15 +1,19 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_8_PENDING`；`NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
 **更新时间：2026-08-29（Asia/Tokyo）**
 
 ## Claim boundaries
 
-- 本仓库已实现 **Gate 0**（provenance 机器校验 + 真实 Cordis Loader lifecycle spike），
-  其结论仅覆盖 Gate 0 验收范围：baseline bundle 能通过真实 Loader 加载/卸载并回到静默态。
+- 本仓库已实现 **Gate 0**（provenance 机器校验 + 真实 Cordis Loader lifecycle spike）与
+  **Gate 1**（candidate SDK + 十阶段可信 admission builder + 离线 capsule + ACP E2E）。
+  Gate 1 的 `admitted` 只证明 **safety-runnability**（可构建、可加载、可干净卸载、扫描清白），
+  **不是**性能验收。
+- mock replay 是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；recorded-LLM 回放
+  与 DSH 生产闭包随 Gate 2 runner 落地（见下）。
 - 没有 baseline 分数、没有真实评测闭环、没有 sealed 结果；不得声称已提升、可部署、
   无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 1–8 全部未开始。前代项目的通过记录不是本
+- `specs/07-implementation-plan.md` 的 Gate 2–8 全部未开始。前代项目的通过记录不是本
   仓库的完成证据（见 2026-08-28 节）。
 
 ## 2026-08-28 repository bootstrap
@@ -131,8 +135,128 @@ references 内容寻址。`scripts/setup:source.ts` 幂等物化（sha256 校验
 - 测试 fixture `.ts` 依赖 Node 24 原生 type stripping（仅 erasable 语法）；发布产物一律
   走编译 `lib/`（node_modules 下 type stripping 被禁用），candidate-baseline 已按此出包。
 
+## 2026-08-29 Gate 1 implemented — candidate SDK, trusted builder, offline capsule, ACP E2E
+
+对照 `specs/07-implementation-plan.md` §3 的 Build/Accept 项逐条落档（先写契约测试，再写最小实现）。
+全程 `pnpm gate1`（build + 95/95 test + provenance:check 7/7 + evidence:gate1）exit 0。
+
+### Versioned JSON schemas（`schemas/`）
+
+candidate / proposal / build / capsule / provenance.lock 五个 JSON Schema（2020-12 + ajv），
+`$id` 为稳定 URI（`https://dsh-evolve-le.local/schemas/…`），`schemaVersion` 常量；builder
+侧对自身产物做 schema 校验失败即抛错（builder bug 不得产出非法 manifest）。
+
+### Canonical tar / 身份 / diff boundary（`src/candidate/canonical.ts`、`diff.ts`）
+
+- `candidate_id = "c_" + base32(sha256(canonical_ustar_tar))[0:26]`；tar 确定性（排序路径、
+  uid/gid/mtime 归零、0644/0755、ustar magic、双 zero block）。同源字节 → 同 id，永久。
+- capture fail closed：symlink（任意层级）、非普通文件、`..`/dot 组件、forbidden 组件
+  （node_modules/.git 等）、build 产物顶层目录（lib/dist/build/out/coverage）、大小/数量上限
+  （25 文件 / 1 MiB / 单文件 512 KiB）、NFKC+case-fold 归一化碰撞、ustar 寻址能力、
+  capture 期间文件被换（dev/ino/size/mtime 双检）。
+- golden 基线 `c_yrs7qltqipkfgo2hxh4gynxhnq`（source 6 files / 7231 bytes）。
+
+### Policy scanner（`src/candidate/scan.ts`）
+
+21 条规则全部有对抗 fixture 且经**完整 pipeline**（非仅单测层）验证在 `policyScan` 阶段以
+预期规则拒绝：import/dynamic、import/require、dangerous/eval、dangerous/function-constructor、
+import/node-builtin（含 bare `path` 与 type-only）、import/not-allowed、import/traversal、
+import/unresolved、export/default、leak/timer、dangerous/process、task/fingerprint、
+task/verifier-path、secret/openai-key（凭据形状字面量）、package/native-binary（ELF/WASM
+魔数）、package/lifecycle-script、dependency/not-exact、dependency/not-allowed、
+patch/not-insert、entry/missing。扫描对象是冻结后的 canonical tree，不是 proposer 工作目录。
+
+### Candidate SDK / testkit / two-mode 基线（`packages/candidate-sdk/`、`packages/candidate-baseline/`）
+
+受限 plugin surface（`defineCandidate` solve/propose 两模式）+ testkit；golden 基线只声明
+`systemPrompt` 一个 section 的行为差异，经真实 Loader（非手工 `ctx.plugin()`）验证两种模式
+与干净卸载。
+
+### 可信 builder：十阶段 admission pipeline（`src/builder/`）
+
+containment → schema → diffBoundary → policyScan → reproducibleBuild → typeLintUnit →
+loaderBoot → unloadInvariant → mockReplay → capsuleDoubleBuild，fail-fast，逐阶段 receipt
+（pass/fail/**skipped**，未执行的阶段绝不虚构为通过）。十项全 pass 才 `admitted`
+（ADMITTED_UNEVALUATED：仅 safety-runnability）。
+
+- **staging**：只复制声明条目（package.json/candidate.json/cordis.patch.yml/tsconfig.json/
+  src/tests），其余（lib/、node_modules/、日志、未声明目录）结构性排除；声明条目为 symlink
+  即拒绝；staged tree 文件字节只读（0444/0555）。
+- **依赖闭包**：从 TCB `PACKAGE_PINS` 出发按 lock 精确版本做离线 BFS（含非 optional
+  peerDependencies，因 pnpm 自动装 peer；80 包上限 fail closed），逐包平铺复制进 capsule
+  的 `node_modules/`（跳过符号链接与嵌套 node_modules）；候选以声明包名装入闭包 —— Loader
+  从闭包内 bare `import(packageName)` 解析。runtime == install manifest，逐字节。
+- **sandbox**：编译与 boot 子进程跑在 `unshare --net` 网络命名空间 + 剥离环境
+  （PATH/HOME/LANG/TZ/SOURCE_DATE_EPOCH）中；evidence 记录实际达成的 sandbox kind。
+- **double build**：tsc 双跑逐字节一致；capsule 双组装逐字节一致；vitest `cache:false` 根除
+  `.vite` 缓存混入 staged tree 的问题。时间戳只进 capsule 外的 build manifest；SBOM 固定
+  epoch。当前 capsule：942 files / 7,929,687 bytes，tar `6d75b63f…`。
+- **TCB 不执行候选生命周期脚本**：build manifest 记录 `executedCandidateLifecycleScript:
+false`、`networkAccess: false`；model/verifier 在 builder 中不存在可访问路径。
+
+### Capsule（`src/builder/capsule.ts`，布局按 specs/02 §12）
+
+`runtime/`（install-manifest.json + system-prompt-stub + 平铺 node_modules）、`candidate/`
+（canonical bundle 副本，与 node_modules 内装入者同源不可分叉）、`runner/`（probe/acp-boot、
+cordis boot/inventory、ACP replay agent）、`cordis.yml`、`manifest.json`、`provenance.json`、
+`sbom.spdx.json`、`SHA256SUMS`。所有内容进 tar 前经 SHA256SUMS 覆盖。
+
+### ACP E2E（`src/acp/`、`src/bin/acp-boot.ts`）
+
+- capsule runner 经**真实 Cordis Loader** boot 后，在 `@agentclientprotocol/sdk` **0.25.1**
+  上服务 ACP：`initialize` → `session/new` → `session/prompt` → `agent_message_chunk` 流式
+  回放 composed system-prompt 分节 → `end_turn`；客户端关 stdin 后 app 卸载、unload 不变式
+  对 boot 前基线核验（inventory 严格相等 + 句柄单调不增），runner report 走 stderr（stdout
+  保留给协议）。
+- **版本依据**：0.25.1 是 lock 的 `@deepseek-ai/dsh-acp@0.1.0-rc.5` 实际依赖的 ACP SDK 版本
+  （记于 pin 注释）。rc.5 的完整生产闭包（14 个 workspace peer）在 npm 上无 lock 一致版本
+  （只有 rc.1/rc.6 漂移），故 Gate 1 capsule runner 在同一 wire 协议 + 同一 SDK 版本上运行；
+  **recorded-LLM 回放与完整 DSH 生产闭包随 Gate 2 落地** —— 该收缩在 receipt detail 与本文
+  显式声明，不是静默缩水。
+- **fresh container E2E**（`tests/capsule-container.test.ts` + evidence 复跑）：唯一挂载是
+  只读 `capsule.tar`，`--network none`，node:24-alpine（容器内 v24.20.0，docker 29.3.1）；
+  入口 `tar -xf` → `sha256sum -c SHA256SUMS` → `node runner/bin/acp-boot.js cordis.yml`；
+  host 侧先验 tar sha256 == build manifest 记录值。断言 protocolVersion 1、`end_turn`、
+  turn 内流式出现 `[candidate:identity]`、`quiescent=true`、`afterUnload` sections 为空、
+  exit 0。无 source checkout、无网络、无模型。
+
+### 验收证据（`evidence/gate1/builder.json` + `build-manifest.json`）
+
+| specs/07 Gate 1 Accept                                                                         | 结果 | 证据                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| golden 两次 clean build 的 source/bundle/capsule hash 相同                                     | ✅   | `doubleBuildIdentical=true`：candidateId/sourceDigest/bundle tar/capsule tar/SBOM/provenance 六值双跑相等（capsule 942 files 逐字节一致）                   |
+| traversal/symlink/install-script/dynamic-import/task-literal/default-export/leaked-effect 全拒 | ✅   | `rejectionsEnforced=true`：21/21 fixture 经完整 pipeline 在 `policyScan` 以预期规则拒绝；symlink 拒绝另见 canonical.test.ts（capture 与 staging 双层）      |
+| packed capsule 在无 checkout/无 network 的 fresh container 启动 ACP initialize/session         | ✅   | `capsuleBootsOfflineContainer=true`：docker `--network none`、payload-only 挂载、tar 摘要双验、protocolVersion 1 / end_turn / identity 流式 / unload 不变式 |
+| builder 不执行 candidate lifecycle script、不访问 model/verifier                               | ✅   | `builderTrustHeld=true`：`executedCandidateLifecycleScript=false`、`networkAccess=false`、sandbox kind=namespace；builder 无 model/verifier 调用路径        |
+
+`pnpm gate1` 一键复跑全部断言并重写 evidence；任何 acceptance flag 为 false 即 exit 1
+（docker 不可用同样 fail closed）。
+
+### Gate 1 期间发现并修复的实现缺陷
+
+- `materializeTree` 从不创建目标根目录：无子目录的源树（如 `missing-entry` fixture）第一个
+  顶层文件写入即 ENOENT，表现为 containment 失败而非预期扫描规则 —— 已修（root 目录显式
+  mkdir），fixture 恢复在 `policyScan`/`entry/missing` 拒绝。
+- 18 个扫描 fixture 的 `$schema` 仍是旧相对 URI，经完整 pipeline 全部在 `schema` 阶段早死，
+  掩盖预期扫描规则 —— 已统一为稳定 URI，21/21 恢复在 `policyScan` 以预期规则拒绝。
+- `native-binary` fixture 的 ELF blob 原在顶层 `assets/`（声明条目之外，被结构性排除），
+  经 pipeline 二进制根本不进 canonical tree —— 已移入 `src/assets/`（真实威胁形状：候选
+  代码内携带二进制），扫描规则恢复触发。教训已吸收：**fixture 必须走完整 pipeline 验证，
+  scanner 单测层绿灯不等于 admission 拒绝路径成立**。
+
+### 已知限制
+
+- 上游仍是 **SHA 寻址 tarball 快照而非 git checkout**（`github.com:443` 不可达），
+  working-tree-clean 由树摘要等价代替 `git status`；连通性恢复后按 lock 重新物化为
+  git checkout 并复验。
+- Loader boot 为按 pinned `dsh-app-boot@0.1.0-rc.5` 源码的重实现（该版本未发布 npm），
+  若后续 npm 出现该版本应替换为直接依赖并复验。
+- mock replay 为确定性分节回放（非 recorded-LLM）；DSH 生产闭包 runner 随 Gate 2。
+- 测试 fixture `.ts` 依赖 Node 24 原生 type stripping（仅 erasable 语法）；发布产物一律
+  走编译 `lib/`（node_modules 下 type stripping 被禁用），candidate-baseline 已按此出包。
+- 容器 node 记录到 major（24.x），未 pin patch；镜像 tag `node:24-alpine`。
+
 ## Next
 
-- Gate 1（Candidate SDK and builder）：versioned manifests、canonical tar/hash、
-  dependency/import/task-fingerprint 扫描、two-mode baseline candidate、确定性 builder、
-  packed bundle install + real Loader + mock replay E2E（见 `specs/07` §3）。
+- Gate 2（Terminal-Bench provider vertical slice，`specs/07` §4）：TypeScript Harbor
+  provider、recorded-LLM 回放 + DSH 生产闭包 runner、development split 真实闭环。

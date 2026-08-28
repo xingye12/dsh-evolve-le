@@ -19,9 +19,12 @@
     "provenance:check": "node --import tsx/esm scripts/check-provenance.ts",
     "upstream:check": "node --import tsx/esm scripts/check-provenance.ts --upstreams-only",
     "evidence:gate0": "node --import tsx/esm scripts/record-gate0-evidence.ts",
-    "gate0": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate0"
+    "evidence:gate1": "node --import tsx/esm scripts/record-gate1-evidence.ts",
+    "gate0": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate0",
+    "gate1": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate1"
   },
   "devDependencies": {
+    "@types/js-yaml": "4.0.9",
     "@types/node": "^24.10.1",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",

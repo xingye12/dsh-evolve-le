@@ -26,7 +26,7 @@ afterAll(async () => {
 })
 
 describe('bootLoader through the real Cordis Loader', () => {
-  it('activates the baseline composition and exposes the probe service', async () => {
+  it('activates the baseline composition and exposes its services', async () => {
     const booted = await bootLoader(fixture('cordis.baseline.yml'))
     contexts.push(booted.ctx)
     const { ctx } = booted
@@ -41,6 +41,12 @@ describe('bootLoader through the real Cordis Loader', () => {
       { id: 'include', name: 'cordis:include', disabled: false, state: 2 },
       { id: 'probe-service', name: './plugins/probe-service.ts', disabled: false, state: 2 },
       {
+        id: 'stub-system-prompt',
+        name: './plugins/stub-system-prompt.ts',
+        disabled: false,
+        state: 2,
+      },
+      {
         id: 'candidate-baseline',
         name: '@dsh-evolve-le/candidate-baseline',
         disabled: false,
@@ -48,15 +54,20 @@ describe('bootLoader through the real Cordis Loader', () => {
       },
     ])
 
-    // The probe service is provided and readable from the root context.
+    // Both fixture services are provided and readable from the root context.
     expect(ctx.get('dshEvolveProbe')).toEqual({ marker: 'gate0-probe' })
+    expect(typeof ctx.get('systemPrompt')?.section).toBe('function')
 
     // The baseline plugin's runtime name (namespace metadata) survived loading.
     const runtimeNames = [...ctx.registry.values()].map((runtime) => runtime.name ?? '<anonymous>')
-    expect(runtimeNames).toContain('dsh-evolve-le:candidate-baseline')
+    expect(runtimeNames).toContain('self-evolving-candidate')
 
-    // The probe event listener registered by the baseline plugin is live.
-    ctx.emit('dsh-evolve-le/candidate-baseline:probe', 'e2e')
+    // The candidate registered exactly one namespaced section in solve mode.
+    const snapshot = ctx.get('systemPrompt')?.snapshot() ?? []
+    expect(snapshot).toHaveLength(1)
+    expect(snapshot[0]?.name).toBe('candidate:identity')
+    expect(snapshot[0]?.order).toBe(100)
+    expect(snapshot[0]?.text).toContain('c_gate1goldenfixture000000000000')
   })
 
   it('rejects a namespace plugin with a stray export default (lost inject)', async () => {
@@ -91,12 +102,9 @@ describe('bootLoader through the real Cordis Loader', () => {
     const booted = await bootLoader(fixture('cordis.baseline.yml'), { context: ctx })
     const afterBoot = snapshotCordisInventory(ctx)
     expect(afterBoot.services).toContainEqual({ name: 'dshEvolveProbe', fiber: expect.any(String) })
-    expect(afterBoot.runtimes.map((r) => r.name)).toContain('dsh-evolve-le:candidate-baseline')
-    expect(afterBoot.listeners).toContainEqual({
-      event: 'dsh-evolve-le/candidate-baseline:probe',
-      fiber: expect.any(String),
-      count: 1,
-    })
+    expect(afterBoot.services).toContainEqual({ name: 'systemPrompt', fiber: expect.any(String) })
+    expect(afterBoot.runtimes.map((r) => r.name)).toContain('self-evolving-candidate')
+    expect(ctx.get('systemPrompt')?.snapshot()).toHaveLength(1)
     expect(afterBoot).not.toEqual(before)
 
     await booted.loaderFiber.dispose()

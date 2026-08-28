@@ -2,3 +2,10 @@ packages:
   - packages/*
 allowBuilds:
   esbuild: true
+# Link bare exact version specs (e.g. `@dsh-evolve-le/candidate-sdk: 0.0.1`)
+# to matching workspace packages instead of the registry. Candidate
+# package.json files must pin exact versions (scanner rule dependency/not-exact),
+# so they cannot use `workspace:` protocol; this resolves those pins to the
+# in-repo packages during development. The capsule builder (Gate 1) installs
+# the same pins from the offline trusted mirror instead.
+linkWorkspacePackages: true

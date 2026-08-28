@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/capsule.manifest.schema.json",
+  "title": "dsh-evolve-le capsule provenance (capsule/provenance.json)",
+  "description": "Self-describing provenance inside an evaluation capsule (specs/02 §12). Strictly content-addressed and timestamp-free so the capsule tar is byte-reproducible across double builds. The canonical identity (sha256 of the canonical source tar) and the SDK c_<base32> id must both appear and stay cross-bound; resume/audit must fail closed on mismatch or absence.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://dsh-evolve-le.local/schemas/capsule.manifest.schema.json"
+    },
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "protocol": { "const": "dsh-evolve-le/capsule/v1" },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "candidateId": { "$ref": "#/$defs/candidateId" },
+        "sourceDigest": { "$ref": "#/$defs/sha256Ref" }
+      },
+      "required": ["candidateId", "sourceDigest"],
+      "additionalProperties": false
+    },
+    "contents": {
+      "type": "object",
+      "properties": {
+        "fileCount": { "type": "integer", "minimum": 1 },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256SumsDigest": {
+          "$ref": "#/$defs/sha256Hex",
+          "description": "sha256 of the capsule's own SHA256SUMS file."
+        }
+      },
+      "required": ["fileCount", "bytes", "sha256SumsDigest"],
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "properties": {
+        "digest": { "$ref": "#/$defs/sha256Hex" },
+        "entry": { "type": "string", "pattern": "^lib/[a-z0-9/._-]+\\.js$" }
+      },
+      "required": ["digest", "entry"],
+      "additionalProperties": false
+    },
+    "runner": {
+      "type": "object",
+      "properties": {
+        "digest": { "$ref": "#/$defs/sha256Hex" },
+        "entry": { "type": "string", "minLength": 1 }
+      },
+      "required": ["digest", "entry"],
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "kind": { "enum": ["pinned-closure", "install-manifest"] },
+        "digest": { "$ref": "#/$defs/sha256Hex" },
+        "detail": { "type": "string", "minLength": 1 }
+      },
+      "required": ["kind", "digest", "detail"],
+      "additionalProperties": false
+    },
+    "sbom": {
+      "type": "object",
+      "properties": {
+        "path": { "const": "sbom.spdx.json" },
+        "sha256": { "$ref": "#/$defs/sha256Hex" }
+      },
+      "required": ["path", "sha256"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "protocol",
+    "identity",
+    "contents",
+    "candidate",
+    "runner",
+    "runtime",
+    "sbom"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sha256Ref": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "candidateId": {
+      "type": "string",
+      "pattern": "^c_[a-z2-7]{26}$"
+    }
+  }
+}

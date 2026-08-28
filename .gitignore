@@ -22,6 +22,8 @@ evidence/*
 !evidence/calibration/**
 !evidence/gate0/
 !evidence/gate0/**
+!evidence/gate1/
+!evidence/gate1/**
 !evidence/pilot/
 !evidence/pilot/**
 !evidence/formal/

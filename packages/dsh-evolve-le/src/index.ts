@@ -23,3 +23,13 @@ export {
   type RuntimeRecord,
   type ServiceRecord,
 } from './cordis/inventory.js'
+export {
+  buildCandidate,
+  STAGE_ORDER,
+  type BuildInput,
+  type BuildResult,
+  type Receipt,
+  type Receipts,
+  type ReceiptStatus,
+  type StageName,
+} from './builder/pipeline.js'

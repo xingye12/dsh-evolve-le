@@ -1,0 +1,31 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/capsule.manifest.schema.json",
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/capsule/v1",
+  "identity": {
+    "candidateId": "c_aaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sourceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "contents": {
+    "fileCount": 12,
+    "bytes": 8192,
+    "sha256SumsDigest": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "candidate": {
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "entry": "lib/index.js"
+  },
+  "runner": {
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "entry": "runner/acp-runner.mjs"
+  },
+  "runtime": {
+    "kind": "install-manifest",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "detail": "pinned @deepseek-ai/* closure recorded in install-manifest.json; no vendored runtime"
+  },
+  "sbom": {
+    "path": "sbom.spdx.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

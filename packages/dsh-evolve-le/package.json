@@ -17,14 +17,19 @@
     "lib"
   ],
   "scripts": {
-    "spike": "node lib/bin/loader-spike.js"
+    "spike": "node lib/bin/loader-spike.js",
+    "build:candidate": "node lib/bin/build-candidate.js"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "0.25.1",
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/cordis-plugin-group": "1.0.1",
     "@deepseek-ai/cordis-plugin-include": "1.0.6",
     "@deepseek-ai/cordis-plugin-loader": "1.0.2",
-    "@deepseek-ai/cosmokit": "1.8.2"
+    "@deepseek-ai/cosmokit": "1.8.2",
+    "ajv": "8.17.1",
+    "js-yaml": "4.2.0",
+    "oxc-parser": "0.147.0"
   },
   "devDependencies": {
     "@dsh-evolve-le/candidate-baseline": "workspace:*"

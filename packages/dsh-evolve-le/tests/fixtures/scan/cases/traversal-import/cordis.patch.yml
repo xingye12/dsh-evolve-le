@@ -1,0 +1,3 @@
+- insert:
+    - id: self-evolving-candidate
+      name: '@dsh-evolve-le/candidate-fixture'

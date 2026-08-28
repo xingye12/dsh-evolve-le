@@ -1,0 +1,265 @@
+{
+  "gate": "gate1",
+  "kind": "builder-capsule-acp",
+  "generatedAt": "2026-08-28T19:42:45.213Z",
+  "environment": {
+    "node": "v24.14.0",
+    "platform": "linux x64",
+    "repositoryHead": "694d28da2e929e628c38291d803c277d5f770fda",
+    "builderVersion": "dsh-evolve-le-builder-0.0.1",
+    "builderSandbox": {
+      "kind": "namespace",
+      "detail": "unshare --net (network namespace, no interfaces)"
+    },
+    "dockerServerVersion": "29.3.1",
+    "containerNodeVersion": "v24.20.0"
+  },
+  "acceptance": {
+    "goldenAdmittedTenStages": true,
+    "doubleBuildIdentical": true,
+    "rejectionsEnforced": true,
+    "builderTrustHeld": true,
+    "capsuleBootsOfflineContainer": true
+  },
+  "goldenBuilds": {
+    "first": {
+      "candidateId": "c_yrs7qltqipkfgo2hxh4gynxhnq",
+      "sourceDigest": "sha256:c465f82e7043d4533b47b9f86c36e76c3f1942e6e7e9a72abbeb4231356dbb54",
+      "bundleTarSha256": "2cc3c9b39f4d35c84a5ea3dc9f65559ad7ccab24e4285f4e7d91fcc332a4458c",
+      "capsuleTarSha256": "6d75b63fc69a7cd543d6249bf90437beab326ec2dbb3d40a3ab8b034f48f3d8d",
+      "capsuleSbomSha256": "f0badb085ac945f69c39f6699a0b4d002d6a4fa75761022a854e3c667b8ba86e",
+      "capsuleProvenanceSha256": "97d33f86f002f10ee54464b8679656cf6d090245a6f8b0367514b0f3a2596678",
+      "receipts": {
+        "containment": {
+          "status": "pass",
+          "detail": "captured 6 files, 7231 bytes; staged read-only; tree digest dsh-evolve-tree-v1:f0c833e75ded5a2b…"
+        },
+        "schema": {
+          "status": "pass",
+          "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+        },
+        "diffBoundary": {
+          "status": "pass",
+          "detail": "lineage root (canonicalParent null): no parent diff required"
+        },
+        "policyScan": {
+          "status": "pass",
+          "detail": "no findings across import/dependency/leak/task/secret rules"
+        },
+        "reproducibleBuild": {
+          "status": "pass",
+          "detail": "two sandboxed tsc runs produced identical output (2 files); closure 12 packages (918 files), tsc 6.0.3"
+        },
+        "typeLintUnit": {
+          "status": "pass",
+          "detail": "oxlint clean over staged tree; candidate tests passed"
+        },
+        "loaderBoot": {
+          "status": "pass",
+          "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 28ms"
+        },
+        "unloadInvariant": {
+          "status": "pass",
+          "detail": "Cordis inventory and process handles returned to baseline; candidate sections removed"
+        },
+        "mockReplay": {
+          "status": "pass",
+          "detail": "ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: candidate:identity streamed in the turn, end_turn, unload invariant held; propose overlay dispatched candidate:proposal-policy with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2)"
+        },
+        "capsuleDoubleBuild": {
+          "status": "pass",
+          "detail": "two capsule assemblies byte-identical (942 files, 7929687 bytes); tar 6d75b63fc69a7cd5…"
+        }
+      }
+    },
+    "second": {
+      "candidateId": "c_yrs7qltqipkfgo2hxh4gynxhnq",
+      "sourceDigest": "sha256:c465f82e7043d4533b47b9f86c36e76c3f1942e6e7e9a72abbeb4231356dbb54",
+      "bundleTarSha256": "2cc3c9b39f4d35c84a5ea3dc9f65559ad7ccab24e4285f4e7d91fcc332a4458c",
+      "capsuleTarSha256": "6d75b63fc69a7cd543d6249bf90437beab326ec2dbb3d40a3ab8b034f48f3d8d",
+      "capsuleSbomSha256": "f0badb085ac945f69c39f6699a0b4d002d6a4fa75761022a854e3c667b8ba86e",
+      "capsuleProvenanceSha256": "97d33f86f002f10ee54464b8679656cf6d090245a6f8b0367514b0f3a2596678"
+    }
+  },
+  "adversarialFixtures": [
+    {
+      "case": "dynamic-import",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "import/dynamic",
+      "ruleMatched": true,
+      "detail": "import/dynamic at src/index.ts:26 (dynamic import() is forbidden); import/unresolved at src/index.ts:26 (relative import not present in canonical tree: ./helper.js)"
+    },
+    {
+      "case": "require-call",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "import/require",
+      "ruleMatched": true,
+      "detail": "import/require at src/index.ts:26 (require() is forbidden in candidate code)"
+    },
+    {
+      "case": "eval-call",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "dangerous/eval",
+      "ruleMatched": true,
+      "detail": "dangerous/eval at src/index.ts:26 (eval() is forbidden)"
+    },
+    {
+      "case": "function-constructor",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "dangerous/function-constructor",
+      "ruleMatched": true,
+      "detail": "dangerous/function-constructor at src/index.ts:25 (new Function(...) and friends are forbidden)"
+    },
+    {
+      "case": "node-fs",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "import/node-builtin",
+      "ruleMatched": true,
+      "detail": "import/node-builtin at src/index.ts:1 (node/builtin import not allowed: node:fs)"
+    },
+    {
+      "case": "node-builtin-bare",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "import/node-builtin",
+      "ruleMatched": true,
+      "detail": "import/node-builtin at src/index.ts:1 (node/builtin import not allowed: path)"
+    },
+    {
+      "case": "unknown-package",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "import/not-allowed",
+      "ruleMatched": true,
+      "detail": "import/not-allowed at src/index.ts:1 (bare import not in allowlist: zod)"
+    },
+    {
+      "case": "traversal-import",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "import/traversal",
+      "ruleMatched": true,
+      "detail": "import/traversal at src/index.ts:1 (relative import escapes the candidate root: ../../../outside/secret.js)"
+    },
+    {
+      "case": "unresolved-relative",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "import/unresolved",
+      "ruleMatched": true,
+      "detail": "import/unresolved at src/index.ts:1 (relative import not present in canonical tree: ./not-present.js)"
+    },
+    {
+      "case": "default-export",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "export/default",
+      "ruleMatched": true,
+      "detail": "export/default at src/index.ts:25 (default export breaks Loader unwrap of named plugin metadata (postmortem 0001))"
+    },
+    {
+      "case": "leaked-timer",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "leak/timer",
+      "ruleMatched": true,
+      "detail": "leak/timer at src/index.ts:22 (bare setInterval() escapes candidate Fiber ownership; use ctx timers/effects)"
+    },
+    {
+      "case": "process-access",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "dangerous/process",
+      "ruleMatched": true,
+      "detail": "dangerous/process at src/index.ts:22 (direct process.* access is forbidden; candidates never touch process state)"
+    },
+    {
+      "case": "task-literal",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "task/fingerprint",
+      "ruleMatched": true,
+      "detail": "task/fingerprint at src/index.ts:17 (literal matches registered benchmark task identifier: extract-elf); task/fingerprint at src/index.ts:1 (literal matches registered benchmark task identifier: extract-elf)"
+    },
+    {
+      "case": "verifier-path",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "task/verifier-path",
+      "ruleMatched": true,
+      "detail": "task/verifier-path at src/index.ts:17 (literal matches benchmark verifier/test path fragment: test_outputs.py); task/verifier-path at src/index.ts:17 (literal matches benchmark verifier/test path fragment: tests/test_outputs); task/verifier-path at src/index.ts:1 (literal matches benchmark verifier/"
+    },
+    {
+      "case": "secret-literal",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "secret/openai-key",
+      "ruleMatched": true,
+      "detail": "secret/openai-key at src/index.ts:17 (credential-shaped literal in candidate source); secret/openai-key at src/index.ts:1 (credential-shaped literal in candidate source)"
+    },
+    {
+      "case": "native-binary",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "package/native-binary",
+      "ruleMatched": true,
+      "detail": "package/native-binary at src/assets/blob.bin:1 (ELF binary in candidate source)"
+    },
+    {
+      "case": "install-script",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "package/lifecycle-script",
+      "ruleMatched": true,
+      "detail": "package/lifecycle-script at package.json:1 (forbidden lifecycle script \"postinstall\")"
+    },
+    {
+      "case": "loose-dep-range",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "dependency/not-exact",
+      "ruleMatched": true,
+      "detail": "dependency/not-exact at package.json:1 (@deepseek-ai/schemastery: \"^3.18.1\" is not an exact pinned version)"
+    },
+    {
+      "case": "unknown-dep",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "dependency/not-allowed",
+      "ruleMatched": true,
+      "detail": "dependency/not-allowed at package.json:1 (lodash-es is not in the run allowlist)"
+    },
+    {
+      "case": "patch-override",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "patch/not-insert",
+      "ruleMatched": true,
+      "detail": "patch/not-insert at cordis.patch.yml:1 (cordis.patch.yml must only insert (got keys: id,config))"
+    },
+    {
+      "case": "missing-entry",
+      "outcome": "rejected",
+      "stage": "policyScan",
+      "expectedRule": "entry/missing",
+      "ruleMatched": true,
+      "detail": "entry/missing at src/index.ts:0 (candidate entry must be src/index.ts)"
+    }
+  ],
+  "containerBoot": {
+    "booted": true,
+    "exitCode": 0,
+    "protocolVersion": 1,
+    "stopReason": "end_turn",
+    "identityStreamed": true,
+    "unloadInvariantHeld": true,
+    "tarDigestMatchesManifest": true,
+    "nodeVersion": "v24.20.0",
+    "stderrTail": "dsh-evolve-le-runner-report:{\"config\":\"/capsule/cordis.yml\",\"sections\":{\"afterBoot\":[\"candidate:identity\"],\"afterUnload\":[]},\"quiescent\":true,\"timings\":{\"bootMs\":34.029742,\"unloadMs\":2.533040000000028}}\n"
+  }
+}

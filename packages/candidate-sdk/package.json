@@ -1,0 +1,29 @@
+{
+  "name": "@dsh-evolve-le/candidate-sdk",
+  "version": "0.0.1",
+  "description": "Candidate SDK: the typed, import-safe surface candidates are allowed to build on (specs/02 §4–7), plus a dependency-free testkit for candidate-owned tests",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./testkit": {
+      "types": "./lib/testkit.d.ts",
+      "default": "./lib/testkit.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1"
+  }
+}

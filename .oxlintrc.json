@@ -6,11 +6,12 @@
     "tb/**",
     "**/lib/**",
     "node_modules/**",
-    "evidence/**"
+    "evidence/**",
+    "**/tests/fixtures/**"
   ],
   "rules": {
     "no-unused-vars": "error",
-    "eqeqeq": "error",
+    "eqeqeq": ["error", "smart"],
     "no-async-promise-executor": "error",
     "prefer-const": "error"
   }

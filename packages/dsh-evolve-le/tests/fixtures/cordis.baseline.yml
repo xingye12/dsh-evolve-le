@@ -1,12 +1,17 @@
-# Gate 0 loader-spike composition: one service-providing fixture and the
-# baseline candidate plugin. Entries load through the real Cordis Loader
-# (root cordis:include) with entry configs validated by each plugin's Config
-# schema. The candidate row uses a bare package name, resolving to the
+# Gate 1 loader composition: the probe service, the trusted systemPrompt stub
+# (the real DSH service is only staged inside capsule runners, task 13), and
+# the golden baseline candidate plugin. Entries load through the real Cordis
+# Loader (root cordis:include) with entry configs validated by each plugin's
+# Config schema. The candidate row uses a bare package name, resolving to the
 # workspace-linked built artifact in node_modules.
 - id: probe-service
   name: './plugins/probe-service.ts'
 
+- id: stub-system-prompt
+  name: './plugins/stub-system-prompt.ts'
+
 - id: candidate-baseline
   name: '@dsh-evolve-le/candidate-baseline'
   config:
+    candidateId: c_gate1goldenfixture000000000000
     mode: solve

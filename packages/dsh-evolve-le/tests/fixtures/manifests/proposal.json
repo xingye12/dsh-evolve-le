@@ -1,0 +1,14 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/proposal.manifest.schema.json",
+  "schemaVersion": 1,
+  "parent": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "parentMode": "propose",
+  "children": [
+    {
+      "proposalId": "p_aaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hypothesis": "Retry transient tool failures once before surfacing them to the model.",
+      "sourceDir": "child-001"
+    }
+  ],
+  "evidenceRefs": ["evidence://dev/trial-0001.json"]
+}
