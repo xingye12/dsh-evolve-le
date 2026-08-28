@@ -57,8 +57,8 @@ digests. It proves a measurable runtime behavior delta only; it does not prove a
 When the controller is installed as a profile bundle (`@dsh-evolve-le/core` via `dsh plugin add`), the bundle
 requires these environment variables before the profile starts; omission fails Config validation by design:
 
-| Variable                      | Purpose                        |
-| ----------------------------- | ------------------------------ |
+| Variable                  | Purpose                        |
+| ------------------------- | ------------------------------ |
 | `DSH_EVOLVE_LE_STATE_DIR` | Private, no-replace state root |
 | `DSH_EVOLVE_LE_RUN_ID`    | Unique identity of the run     |
 

@@ -2,11 +2,11 @@
 
 v0.2 renames every live product-facing identity from `dsh-RSI` / `dsh-rsi` to `dsh-evolve-le`:
 
-| Surface              | v0.2 identity                                |
-| -------------------- | -------------------------------------------- |
+| Surface              | v0.2 identity                            |
+| -------------------- | ---------------------------------------- |
 | npm scope            | `@dsh-evolve-le/*`                       |
 | CLI                  | `dsh-evolve-le`                          |
-| Cordis service       | `ctx.selfEvolving`                           |
+| Cordis service       | `ctx.selfEvolving`                       |
 | core package         | `@dsh-evolve-le/core`                    |
 | protocol             | `dsh-evolve-le-candidate-tree-v2`        |
 | evidence MIME prefix | `application/vnd.dsh-evolve-le.*`        |

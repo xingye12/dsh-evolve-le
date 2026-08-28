@@ -1,0 +1,473 @@
+{
+  "gate": "gate0",
+  "kind": "loader-spike",
+  "generatedAt": "2026-08-28T17:59:59.215Z",
+  "environment": {
+    "node": "v24.14.0",
+    "platform": "linux x64",
+    "repositoryHead": "612350481524939d9f8c9d150bc6197c2ebc8d7e"
+  },
+  "acceptance": {
+    "baselineQuiescent": true,
+    "negativeRejected": true,
+    "controlActivated": true
+  },
+  "runs": [
+    {
+      "fixture": "/root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/cordis.baseline.yml",
+      "exitCode": 0,
+      "timedOut": false,
+      "report": {
+        "config": "/root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/cordis.baseline.yml",
+        "phases": {
+          "before": {
+            "services": [],
+            "runtimes": [],
+            "fibers": [],
+            "listeners": [
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              }
+            ],
+            "effects": []
+          },
+          "afterBoot": {
+            "services": [
+              {
+                "name": "dshEvolveProbe",
+                "fiber": "dsh-evolve-le:probe-service#4"
+              },
+              {
+                "name": "loader",
+                "fiber": "Loader#1"
+              }
+            ],
+            "runtimes": [
+              {
+                "name": "dsh-evolve-le:candidate-baseline",
+                "fibers": 1
+              },
+              {
+                "name": "dsh-evolve-le:probe-service",
+                "fibers": 1
+              },
+              {
+                "name": "Include",
+                "fibers": 1
+              },
+              {
+                "name": "isolate",
+                "fibers": 1
+              },
+              {
+                "name": "Loader",
+                "fibers": 1
+              }
+            ],
+            "fibers": [
+              {
+                "name": "Loader",
+                "uid": 1,
+                "state": 2
+              },
+              {
+                "name": "isolate",
+                "uid": 2,
+                "state": 2
+              },
+              {
+                "name": "Include",
+                "uid": 3,
+                "state": 2
+              },
+              {
+                "name": "dsh-evolve-le:probe-service",
+                "uid": 4,
+                "state": 2
+              },
+              {
+                "name": "dsh-evolve-le:candidate-baseline",
+                "uid": 5,
+                "state": 2
+              }
+            ],
+            "listeners": [
+              {
+                "event": "dsh-evolve-le/candidate-baseline:probe",
+                "fiber": "dsh-evolve-le:candidate-baseline#5",
+                "count": 1
+              },
+              {
+                "event": "internal/config",
+                "fiber": "Loader#1",
+                "count": 1
+              },
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/plugin",
+                "fiber": "Loader#1",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "Include#3",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "Loader#1",
+                "count": 2
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "loader/entry-init",
+                "fiber": "isolate#2",
+                "count": 1
+              },
+              {
+                "event": "loader/partial-dispose",
+                "fiber": "isolate#2",
+                "count": 1
+              },
+              {
+                "event": "loader/patch-context",
+                "fiber": "isolate#2",
+                "count": 1
+              }
+            ],
+            "effects": [
+              {
+                "fiber": "dsh-evolve-le:candidate-baseline#5",
+                "count": 2
+              },
+              {
+                "fiber": "dsh-evolve-le:probe-service#4",
+                "count": 1
+              },
+              {
+                "fiber": "Include#3",
+                "count": 3
+              },
+              {
+                "fiber": "isolate#2",
+                "count": 3
+              },
+              {
+                "fiber": "Loader#1",
+                "count": 7
+              },
+              {
+                "fiber": "root#0",
+                "count": 1
+              }
+            ]
+          },
+          "afterUnload": {
+            "services": [],
+            "runtimes": [],
+            "fibers": [],
+            "listeners": [
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              }
+            ],
+            "effects": []
+          }
+        },
+        "handles": {
+          "before": {},
+          "afterUnload": {}
+        },
+        "timings": {
+          "bootMs": 78.949015,
+          "unloadMs": 1.423070999999993
+        },
+        "quiescent": true
+      },
+      "stderr": ""
+    },
+    {
+      "fixture": "/root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/cordis.negative.yml",
+      "exitCode": 2,
+      "timedOut": false,
+      "report": {
+        "config": "/root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/cordis.negative.yml",
+        "phases": {
+          "before": {
+            "services": [],
+            "runtimes": [],
+            "fibers": [],
+            "listeners": [
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              }
+            ],
+            "effects": []
+          },
+          "afterBoot": {
+            "services": [],
+            "runtimes": [],
+            "fibers": [],
+            "listeners": [
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              }
+            ],
+            "effects": []
+          },
+          "afterUnload": {
+            "services": [],
+            "runtimes": [],
+            "fibers": [],
+            "listeners": [
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              }
+            ],
+            "effects": []
+          }
+        },
+        "handles": {
+          "before": {},
+          "afterUnload": {}
+        },
+        "timings": {
+          "bootMs": 72.648541,
+          "unloadMs": 0
+        },
+        "quiescent": false,
+        "error": "Error: dsh-evolve-le:boot: plugin tree failed to load: failed to apply loader entry include (cordis:include): failed to apply loader entry bad-default-export (./plugins/bad-default-export.ts): cannot get property \"dshEvolveProbe\" without inject\nError: cannot get property \"dshEvolveProbe\" without inject\n    at new apply (file:///root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/plugins/bad-default-export.ts:31:12)\n    at Fiber.execute (file:///root/vibe/dsh/dsh-evolve-le/node_modules/.pnpm/@deepseek-ai+cordis@4.0.1_@deepseek-ai+cordis-plugin-include@1.0.6_@deepseek-ai+cordis-plugin-loader@1.0.2/node_modules/@deepseek-ai/cordis/lib/index.js:1067:24)\n    at file:///root/vibe/dsh/dsh-evolve-le/node_modules/.pnpm/@deepseek-ai+cordis@4.0.1_@deepseek-ai+cordis-plugin-include@1.0.6_@deepseek-ai+cordis-plugin-loader@1.0.2/node_modules/@deepseek-ai/cordis/lib/index.js:1141:34\n    at file:///root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/#bad-default-export\n    at file:///root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/#include\n    at bootLoader (file:///root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/lib/cordis/boot.js:57:15)\n    at async main (file:///root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/lib/bin/loader-spike.js:31:18)\n    at async file:///root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/lib/bin/loader-spike.js:69:18"
+      },
+      "stderr": ""
+    },
+    {
+      "fixture": "/root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/cordis.twin.yml",
+      "exitCode": 0,
+      "timedOut": false,
+      "report": {
+        "config": "/root/vibe/dsh/dsh-evolve-le/packages/dsh-evolve-le/tests/fixtures/cordis.twin.yml",
+        "phases": {
+          "before": {
+            "services": [],
+            "runtimes": [],
+            "fibers": [],
+            "listeners": [
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              }
+            ],
+            "effects": []
+          },
+          "afterBoot": {
+            "services": [
+              {
+                "name": "dshEvolveProbe",
+                "fiber": "dsh-evolve-le:probe-service#4"
+              },
+              {
+                "name": "loader",
+                "fiber": "Loader#1"
+              }
+            ],
+            "runtimes": [
+              {
+                "name": "dsh-evolve-le:good-inject-twin",
+                "fibers": 1
+              },
+              {
+                "name": "dsh-evolve-le:probe-service",
+                "fibers": 1
+              },
+              {
+                "name": "Include",
+                "fibers": 1
+              },
+              {
+                "name": "isolate",
+                "fibers": 1
+              },
+              {
+                "name": "Loader",
+                "fibers": 1
+              }
+            ],
+            "fibers": [
+              {
+                "name": "Loader",
+                "uid": 1,
+                "state": 2
+              },
+              {
+                "name": "isolate",
+                "uid": 2,
+                "state": 2
+              },
+              {
+                "name": "Include",
+                "uid": 3,
+                "state": 2
+              },
+              {
+                "name": "dsh-evolve-le:probe-service",
+                "uid": 4,
+                "state": 2
+              },
+              {
+                "name": "dsh-evolve-le:good-inject-twin",
+                "uid": 5,
+                "state": 2
+              }
+            ],
+            "listeners": [
+              {
+                "event": "internal/config",
+                "fiber": "Loader#1",
+                "count": 1
+              },
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/plugin",
+                "fiber": "Loader#1",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "Include#3",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "Loader#1",
+                "count": 2
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "loader/entry-init",
+                "fiber": "isolate#2",
+                "count": 1
+              },
+              {
+                "event": "loader/partial-dispose",
+                "fiber": "isolate#2",
+                "count": 1
+              },
+              {
+                "event": "loader/patch-context",
+                "fiber": "isolate#2",
+                "count": 1
+              }
+            ],
+            "effects": [
+              {
+                "fiber": "dsh-evolve-le:probe-service#4",
+                "count": 1
+              },
+              {
+                "fiber": "Include#3",
+                "count": 3
+              },
+              {
+                "fiber": "isolate#2",
+                "count": 3
+              },
+              {
+                "fiber": "Loader#1",
+                "count": 7
+              },
+              {
+                "fiber": "root#0",
+                "count": 1
+              }
+            ]
+          },
+          "afterUnload": {
+            "services": [],
+            "runtimes": [],
+            "fibers": [],
+            "listeners": [
+              {
+                "event": "internal/listener",
+                "fiber": "root#0",
+                "count": 1
+              },
+              {
+                "event": "internal/update",
+                "fiber": "root#0",
+                "count": 1
+              }
+            ],
+            "effects": []
+          }
+        },
+        "handles": {
+          "before": {},
+          "afterUnload": {}
+        },
+        "timings": {
+          "bootMs": 68.50231400000001,
+          "unloadMs": 2.5625429999999767
+        },
+        "quiescent": true
+      },
+      "stderr": ""
+    }
+  ]
+}

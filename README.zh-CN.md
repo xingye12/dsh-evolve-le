@@ -57,15 +57,15 @@ provenance + 真实 Loader 生命周期（Gate 0）→ 候选 SDK 与 builder（
 
 ## 文档
 
-| 入口                                        | 用途                                                       |
-| ------------------------------------------- | ---------------------------------------------------------- |
-| [文档索引](docs/README.md)                  | 查找安装、架构、运维、证据与发布文档                        |
-| [规范](specs/)                              | 规范性的产品、架构、算法、评测与安全契约                     |
-| [项目状态](PROJECT_STATUS.md)               | 当前已接受的状态与声称边界                                   |
-| [架构概览](docs/architecture-overview.md)   | 组件、数据流与隔离边界                                       |
-| [证据指南](docs/evidence-guide.md)          | 每个 artifact 证明什么、不证明什么                           |
-| [DSH 集成](docs/dsh-integration.md)         | 源码核验过的 Cordis 与 Loader 契约                           |
-| [DSH 上游策略](docs/upstream-policy.md)     | 可复现 pin 与最新兼容通道                                    |
+| 入口                                      | 用途                                     |
+| ----------------------------------------- | ---------------------------------------- |
+| [文档索引](docs/README.md)                | 查找安装、架构、运维、证据与发布文档     |
+| [规范](specs/)                            | 规范性的产品、架构、算法、评测与安全契约 |
+| [项目状态](PROJECT_STATUS.md)             | 当前已接受的状态与声称边界               |
+| [架构概览](docs/architecture-overview.md) | 组件、数据流与隔离边界                   |
+| [证据指南](docs/evidence-guide.md)        | 每个 artifact 证明什么、不证明什么       |
+| [DSH 集成](docs/dsh-integration.md)       | 源码核验过的 Cordis 与 Loader 契约       |
+| [DSH 上游策略](docs/upstream-policy.md)   | 可复现 pin 与最新兼容通道                |
 
 文档冲突时的优先级：frozen run manifest → specs → 运维文档 → README → 历史讨论。
 

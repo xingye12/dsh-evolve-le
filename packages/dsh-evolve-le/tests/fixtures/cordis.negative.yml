@@ -1,0 +1,8 @@
+# Gate 0 NEGATIVE composition: the probe service plus a namespace plugin with
+# a stray `export default apply`. The Loader drops the plugin's `inject`, so
+# its direct property read throws at load time and boot must reject.
+- id: probe-service
+  name: './plugins/probe-service.ts'
+
+- id: bad-default-export
+  name: './plugins/bad-default-export.ts'

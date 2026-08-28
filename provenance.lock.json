@@ -1,30 +1,66 @@
 {
   "$schema": "./schemas/provenance.lock.schema.json",
   "version": 1,
-  "generatedAt": "2026-08-14T00:00:00+09:00",
-  "generatedBy": "Gate 0 lock with v0.1 stable-demo route successor; verify with `pnpm provenance:check`",
+  "generatedAt": "2026-08-29T12:00:00+09:00",
+  "generatedBy": "Gate 0 regeneration on this repository (dsh-evolve-le reimplementation); verify with `pnpm provenance:check`",
   "upstreams": {
     "deepseek-harness": {
       "path": "./deepseek-harness",
       "vcs": "git",
       "commit": "47f943859bef60e4160492346772ded9b24f765a",
+      "remote": { "owner": "deepseek-ai", "repo": "deepseek-harness" },
       "describe": "47f9438",
       "packageJsonVersion": "0.1.0-rc.5",
       "nodeVersion": ">=22.19.0 || >=24.0.0",
       "packageManager": "pnpm@11.7.0",
-      "lockfileIntegrity": { "algo": "sha256", "value": "6177ec61bdb8194eb5a606813a62ffb0ab2cc7fdfe2cd6e0249dcbfe4bce58e0" }
+      "lockfileIntegrity": {
+        "algo": "sha256",
+        "value": "6177ec61bdb8194eb5a606813a62ffb0ab2cc7fdfe2cd6e0249dcbfe4bce58e0"
+      },
+      "snapshot": {
+        "mode": "tarball",
+        "url": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/47f943859bef60e4160492346772ded9b24f765a",
+        "tarballSha256": "534c9f1c9d30fea136026ecf7a23c2137e350f43558e2f1eff6218aef7b15b26",
+        "fileCount": 7412,
+        "treeDigest": {
+          "algo": "dsh-evolve-tree-v1",
+          "value": "e7dd80d01333ba9e376ce0ea5e0bc3dbd7ed895111d672cc1d3f1a7362d43479"
+        }
+      }
     },
     "harbor": {
       "path": "./harbor",
       "vcs": "git",
       "commit": "ac398bbda7c4c1073461797d3b95c2455cc671b5",
-      "packageManager": "uv"
+      "remote": { "owner": "laude-institute", "repo": "harbor" },
+      "packageManager": "uv",
+      "snapshot": {
+        "mode": "tarball",
+        "url": "https://codeload.github.com/laude-institute/harbor/tar.gz/ac398bbda7c4c1073461797d3b95c2455cc671b5",
+        "tarballSha256": "51e3fd7ac8aa026efbe679a69b07bef710d351a4a78954a4e976250a1a2bbe2f",
+        "fileCount": 3104,
+        "treeDigest": {
+          "algo": "dsh-evolve-tree-v1",
+          "value": "13fbc208523731b31409546da5270261e73e3a304d17a74a2483732fc749c5c3"
+        }
+      }
     },
     "terminal-bench": {
       "path": "./tb",
       "vcs": "git",
       "commit": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
-      "packageManager": "uv"
+      "remote": { "owner": "laude-institute", "repo": "terminal-bench" },
+      "packageManager": "uv",
+      "snapshot": {
+        "mode": "tarball",
+        "url": "https://codeload.github.com/laude-institute/terminal-bench/tar.gz/d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "tarballSha256": "ef3a5a1fde139283419ea6d470ee0a1a621fd53085533632a2ca2566cb44457c",
+        "fileCount": 2474,
+        "treeDigest": {
+          "algo": "dsh-evolve-tree-v1",
+          "value": "15a546f8a3b9060f05eac29d9acacc4085e0fdd5d8ce021198f20aa4e9b0f859"
+        }
+      }
     }
   },
   "references": {
@@ -37,20 +73,21 @@
     }
   },
   "toolchain": {
-    "node": "v22.23.1",
-    "pnpm": "11.7.0",
+    "node": "v24.14.0",
+    "pnpm": "11.9.0",
     "python": "3.12.3",
-    "uv": "0.11.33",
-    "docker": "29.6.2",
-    "os": "Ubuntu 24.04.4 LTS (Noble Numbat)",
+    "uv": "0.11.29",
+    "docker": "29.3.1",
+    "os": "Ubuntu 24.04.3 LTS (Noble Numbat) on WSL2",
     "platform": "linux x64"
   },
   "dshPackages": {
-    "note": "Pinned @deepseek-ai/* package versions actually resolved from the locked DSH checkout. Versions are verified against each package's manifest in deepseek-harness/.",
+    "note": "Pinned @deepseek-ai/* package versions consumed by this repository. Each version is verified against the corresponding manifest in the locked deepseek-harness checkout (vendor/* and packages/boot/app-boot); @deepseek-ai/dsh-app-boot is not published at this version, so its boot sequence is reimplemented in packages/dsh-evolve-le/src/cordis/boot.ts against the checkout source.",
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/cordis-plugin-loader": "1.0.2",
     "@deepseek-ai/cordis-plugin-include": "1.0.6",
     "@deepseek-ai/cordis-plugin-group": "1.0.1",
+    "@deepseek-ai/cosmokit": "1.8.2",
     "@deepseek-ai/schemastery": "3.18.1",
     "@deepseek-ai/dsh-app-boot": "0.1.0-rc.5"
   },
@@ -79,10 +116,11 @@
     "machineReadable": true,
     "checker": "scripts/check-provenance.ts",
     "checks": [
-      "each upstream path exists and is a git checkout at the recorded commit",
-      "each upstream working tree is clean (no local edits to read-only pins)",
+      "provenance.lock.json validates against schemas/provenance.lock.schema.json",
+      "each upstream path exists and is either a git checkout at the recorded commit with a clean tree, or a snapshot whose dsh-evolve-tree-v1 digest matches the recorded value",
+      "snapshot tarball urls address the pinned commit and their recorded sha256 anchors the materialization",
       "toolchain versions match the recorded values",
-      "referenced @deepseek-ai/* package versions match deepseek-harness/package.json",
+      "referenced @deepseek-ai/* package versions match the manifests in the deepseek-harness checkout",
       "content-addressed Cordis paper sha256 matches"
     ]
   }

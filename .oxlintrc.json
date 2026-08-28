@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "deepseek-harness/**",
+    "harbor/**",
+    "tb/**",
+    "**/lib/**",
+    "node_modules/**",
+    "evidence/**"
+  ],
+  "rules": {
+    "no-unused-vars": "error",
+    "eqeqeq": "error",
+    "no-async-promise-executor": "error",
+    "prefer-const": "error"
+  }
+}

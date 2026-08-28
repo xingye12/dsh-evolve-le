@@ -1,0 +1,13 @@
+# Read-only pinned upstream checkouts (external to this git scope).
+deepseek-harness/
+harbor/
+tb/
+
+# Build output and generated artifacts.
+**/lib/
+.references/
+evidence/
+pnpm-lock.yaml
+
+# Vendored reference data.
+*.pdf

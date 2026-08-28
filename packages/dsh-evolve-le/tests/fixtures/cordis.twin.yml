@@ -1,0 +1,8 @@
+# Gate 0 control composition for the negative default-export fixture: same
+# probe service plus the inject-honoring twin (no default export). Must boot
+# and activate cleanly.
+- id: probe-service
+  name: './plugins/probe-service.ts'
+
+- id: good-inject-twin
+  name: './plugins/good-inject-twin.ts'

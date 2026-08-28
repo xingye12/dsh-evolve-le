@@ -58,15 +58,15 @@ not work in this repository until the corresponding gates land.
 
 ## Documentation
 
-| Start here                                       | Purpose                                                              |
-| ------------------------------------------------ | -------------------------------------------------------------------- |
-| [Documentation index](docs/README.md)            | Find setup, architecture, operation, evidence, and release documents |
-| [Specifications](specs/)                         | Normative product, architecture, algorithm, evaluation, and safety contracts |
-| [Project status](PROJECT_STATUS.md)              | Current accepted state and claim boundaries                          |
-| [Architecture](docs/architecture-overview.md)    | Components, data flow, and isolation boundaries                      |
-| [Evidence guide](docs/evidence-guide.md)         | What each artifact proves—and does not prove                         |
-| [DSH integration](docs/dsh-integration.md)       | Source-verified Cordis and Loader contracts                          |
-| [DSH upstream policy](docs/upstream-policy.md)   | Reproducible pinning and the latest compatibility channel            |
+| Start here                                     | Purpose                                                                      |
+| ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| [Documentation index](docs/README.md)          | Find setup, architecture, operation, evidence, and release documents         |
+| [Specifications](specs/)                       | Normative product, architecture, algorithm, evaluation, and safety contracts |
+| [Project status](PROJECT_STATUS.md)            | Current accepted state and claim boundaries                                  |
+| [Architecture](docs/architecture-overview.md)  | Components, data flow, and isolation boundaries                              |
+| [Evidence guide](docs/evidence-guide.md)       | What each artifact proves—and does not prove                                 |
+| [DSH integration](docs/dsh-integration.md)     | Source-verified Cordis and Loader contracts                                  |
+| [DSH upstream policy](docs/upstream-policy.md) | Reproducible pinning and the latest compatibility channel                    |
 
 When documents disagree, precedence is: frozen run manifest → specifications → operational docs → README →
 historical discussion.

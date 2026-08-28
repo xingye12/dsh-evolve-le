@@ -1,0 +1,12 @@
+# Gate 0 loader-spike composition: one service-providing fixture and the
+# baseline candidate plugin. Entries load through the real Cordis Loader
+# (root cordis:include) with entry configs validated by each plugin's Config
+# schema. The candidate row uses a bare package name, resolving to the
+# workspace-linked built artifact in node_modules.
+- id: probe-service
+  name: './plugins/probe-service.ts'
+
+- id: candidate-baseline
+  name: '@dsh-evolve-le/candidate-baseline'
+  config:
+    mode: solve

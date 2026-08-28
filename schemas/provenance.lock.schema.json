@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/provenance.lock.schema.json",
+  "title": "dsh-evolve-le provenance lock",
+  "description": "Machine-verifiable provenance for upstream pins, references, toolchain, pinned @deepseek-ai packages, and model catalog. Verified by scripts/check-provenance.ts; see the verification section for the check inventory.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string", "const": "./schemas/provenance.lock.schema.json" },
+    "version": { "type": "integer", "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "generatedBy": { "type": "string", "minLength": 1 },
+    "upstreams": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/upstreamName" },
+      "additionalProperties": { "$ref": "#/$defs/upstream" },
+      "minProperties": 1
+    },
+    "references": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/reference" }
+    },
+    "toolchain": { "$ref": "#/$defs/toolchain" },
+    "dshPackages": {
+      "type": "object",
+      "properties": {
+        "note": { "type": "string" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/semver" },
+      "required": ["note"]
+    },
+    "modelCatalog": {
+      "type": "object",
+      "properties": {
+        "note": { "type": "string" },
+        "providers": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["note", "providers"]
+    },
+    "verification": { "$ref": "#/$defs/verification" }
+  },
+  "required": [
+    "$schema",
+    "version",
+    "generatedAt",
+    "generatedBy",
+    "upstreams",
+    "toolchain",
+    "dshPackages",
+    "verification"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "upstreamName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "hex40": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "hex64": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sha256Value": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "remote": {
+      "type": "object",
+      "properties": {
+        "owner": { "type": "string", "minLength": 1 },
+        "repo": { "type": "string", "minLength": 1 }
+      },
+      "required": ["owner", "repo"],
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "description": "Materialization mode used when the upstream is not a git checkout (github.com unreachable): a codeload tarball addressed by the pinned commit SHA, verified by its recorded sha256, plus a deterministic digest over the extracted tree for local-drift detection.",
+      "properties": {
+        "mode": { "const": "tarball" },
+        "url": {
+          "type": "string",
+          "pattern": "^https://codeload\\.github\\.com/[^/]+/[^/]+/tar\\.gz/[0-9a-f]{40}$"
+        },
+        "tarballSha256": { "$ref": "#/$defs/sha256Value" },
+        "fileCount": { "type": "integer", "minimum": 1 },
+        "treeDigest": {
+          "type": "object",
+          "properties": {
+            "algo": { "const": "dsh-evolve-tree-v1" },
+            "value": { "$ref": "#/$defs/sha256Value" }
+          },
+          "required": ["algo", "value"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["mode", "url", "tarballSha256", "fileCount", "treeDigest"],
+      "additionalProperties": false
+    },
+    "upstream": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "pattern": "^\\./[a-z][a-z0-9-]*$" },
+        "vcs": { "const": "git" },
+        "commit": { "$ref": "#/$defs/hex40" },
+        "remote": { "$ref": "#/$defs/remote" },
+        "describe": { "type": "string" },
+        "packageJsonVersion": { "$ref": "#/$defs/semver" },
+        "nodeVersion": { "type": "string" },
+        "packageManager": { "type": "string" },
+        "lockfileIntegrity": {
+          "type": "object",
+          "properties": {
+            "algo": { "const": "sha256" },
+            "value": { "$ref": "#/$defs/sha256Value" }
+          },
+          "required": ["algo", "value"],
+          "additionalProperties": false
+        },
+        "snapshot": { "$ref": "#/$defs/snapshot" }
+      },
+      "required": ["path", "vcs", "commit", "remote"],
+      "additionalProperties": false
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "pattern": "^\\.references/[A-Za-z0-9._-]+$" },
+        "sourceUrl": { "type": "string", "format": "uri" },
+        "algo": { "const": "sha256" },
+        "value": { "$ref": "#/$defs/sha256Value" },
+        "note": { "type": "string" }
+      },
+      "required": ["path", "sourceUrl", "algo", "value"],
+      "additionalProperties": false
+    },
+    "toolchain": {
+      "type": "object",
+      "properties": {
+        "node": { "type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+$" },
+        "pnpm": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "python": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "uv": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "docker": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+" },
+        "os": { "type": "string", "minLength": 1 },
+        "platform": { "type": "string", "minLength": 1 }
+      },
+      "required": ["node", "pnpm", "python", "uv", "docker", "os", "platform"],
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "machineReadable": { "const": true },
+        "checker": { "type": "string", "minLength": 1 },
+        "checks": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "required": ["machineReadable", "checker", "checks"],
+      "additionalProperties": false
+    }
+  }
+}
