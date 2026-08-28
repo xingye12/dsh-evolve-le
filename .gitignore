@@ -1,0 +1,40 @@
+# Upstream pinned checkouts — tracked as git checkouts inside the repo dir but
+# NOT part of this git scope. They are verified read-only by `pnpm upstream:check`.
+deepseek-harness/
+harbor/
+tb/
+
+# Content-addressed external references materialized by setup:source.
+.references/
+
+# Dependencies and build output.
+node_modules/
+**/lib/
+**/.tsbuildinfo
+
+# Evidence and run artifacts (created in later gates).
+# Frozen calibration evidence (split commitment, budget model, samples) IS
+# tracked — it is a spec-required auditable artifact. Per-run mutable evidence
+# stays ignored.
+evidence/*
+!evidence/calibration/
+!evidence/calibration/**
+!evidence/pilot/
+!evidence/pilot/**
+!evidence/formal/
+evidence/formal/*
+!evidence/formal/STATUS.json
+!evidence/gate8/
+evidence/gate8/*
+!evidence/gate8/STATUS.json
+!evidence/gate4/
+evidence/gate4/*
+!evidence/gate4/STATUS.json
+runs/
+
+# Editor / OS noise.
+.DS_Store
+*.log
+
+# ZCode session/plan artifacts (not part of the project).
+.zcode/
