@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/run.config.schema.json",
+  "title": "dsh-evolve-le run configuration",
+  "description": "Versioned configuration frozen into the run manifest at PREFLIGHT (specs/06 §2, specs/07 §7). One config drives one run lineage; the stable-demo default is K=3, no sealed access, at most 15 solver trials (specs/03 §2). Credentials are never inlined: model routes reference external root-readable files (CLAUDE.md rule 8).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://dsh-evolve-le.local/schemas/run.config.schema.json"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{2,62}[a-z0-9]$",
+      "description": "Fresh per run; never reused across run directories."
+    },
+    "profile": {
+      "type": "string",
+      "enum": ["stable-demo"],
+      "description": "stable-demo proves stable iteration only; formal profiles arrive with later gates and their own configs."
+    },
+    "masterSeed": {
+      "$ref": "#/$defs/masterSeed",
+      "description": "Master seed commitment source for every RNG stream (split, scheduler-thompson, task-sampler)."
+    },
+    "search": {
+      "$ref": "#/$defs/search"
+    },
+    "modelRoutes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/modelRoute"
+      },
+      "description": "Frozen route table; route identity (including the compatible Zen/high/1M/32k route) is content-hashed into the run manifest and every gateway receipt."
+    },
+    "proposerRoute": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The model route id the proposal sandbox runs behind."
+    },
+    "benchmark": {
+      "$ref": "#/$defs/benchmark"
+    },
+    "budget": {
+      "$ref": "#/$defs/budget"
+    },
+    "sealedAccess": {
+      "type": "boolean",
+      "const": false,
+      "description": "stable-demo never touches sealed tasks; the field exists so a future profile must state it explicitly, not silently default."
+    }
+  },
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "runId",
+    "profile",
+    "masterSeed",
+    "search",
+    "modelRoutes",
+    "proposerRoute",
+    "benchmark",
+    "budget",
+    "sealedAccess"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "masterSeed": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256,
+      "description": "High-entropy secret kept out of evidence; only sha256(seed||dataset||protocol) commitments are recorded."
+    },
+    "search": {
+      "type": "object",
+      "properties": {
+        "kTarget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 80,
+          "description": "K: admitted non-baseline candidates target (specs/03 §2); stable-demo default 3."
+        },
+        "proposalWidth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "description": "W_p: independent children requested per expansion; default 3."
+        },
+        "coldStartTrials": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "q0: forced cold-start trials per admitted node; default 1."
+        },
+        "ucbAirAlphaPerMille": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000,
+          "description": "UCB-Air exponent in per-mille (600 = 0.6); frozen for the run."
+        },
+        "shortlistSize": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 5,
+          "description": "Final development tournament size; recorded but unused by stable-demo."
+        },
+        "maxSolverTrials": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15,
+          "description": "Hard cap on completed development agent-task trials for this profile (specs/07 §7: at most 15)."
+        },
+        "maxDiscoveryTrials": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "description": "Baseline failure-discovery cap (specs/04 §4.1 hard cap 12)."
+        },
+        "discoveryBatchSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Observed tasks per discovery batch before re-checking for failures; specs/04 §4.1 uses 6."
+        },
+        "maxConsecutiveExpansionFailures": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Frozen NO_ADMISSIBLE_CHILD guard (specs/03 §7); default 3."
+        }
+      },
+      "required": [
+        "kTarget",
+        "proposalWidth",
+        "coldStartTrials",
+        "ucbAirAlphaPerMille",
+        "shortlistSize",
+        "maxSolverTrials",
+        "maxDiscoveryTrials",
+        "discoveryBatchSize",
+        "maxConsecutiveExpansionFailures"
+      ],
+      "additionalProperties": false
+    },
+    "modelRoute": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9/._-]+$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["zen-compatible", "recorded"],
+          "description": "zen-compatible preserves the DeepSeek Zen-compatible Chat Completions route shape (high reasoning, 1M context, 32k output)."
+        },
+        "contextWindowTokens": {
+          "type": "integer",
+          "minimum": 8192,
+          "maximum": 100000000
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 256,
+          "maximum": 262144
+        },
+        "inputUsdMicrosPerMTok": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Frozen price in micro-USD per million prompt tokens."
+        },
+        "outputUsdMicrosPerMTok": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "credentialFile": {
+          "type": "string",
+          "pattern": "^/.*$",
+          "description": "Absolute path to a mode-0600 root-readable credential file; required for zen-compatible routes, forbidden to appear anywhere else (CLAUDE.md rule 8)."
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "contextWindowTokens",
+        "maxOutputTokens",
+        "inputUsdMicrosPerMTok",
+        "outputUsdMicrosPerMTok"
+      ],
+      "additionalProperties": false
+    },
+    "benchmark": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "const": "terminal-bench-2-1"
+        },
+        "tasksRoot": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory of materialized pinned task directories (content-verified by preflight against the dataset pin)."
+        },
+        "baselineSourceDir": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Lineage-root candidate package the trusted builder admits."
+        },
+        "harbor": {
+          "type": "object",
+          "properties": {
+            "bin": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "jobsRoot": { "type": "string", "pattern": "^/.*$" },
+            "concurrentTrials": { "type": "integer", "minimum": 1, "maximum": 8 }
+          },
+          "required": ["bin", "version", "jobsRoot", "concurrentTrials"],
+          "additionalProperties": false
+        },
+        "artifactEndpoint": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string", "minLength": 1 },
+            "port": { "type": "integer", "minimum": 1024, "maximum": 65535 }
+          },
+          "required": ["host", "port"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["provider", "tasksRoot", "baselineSourceDir", "harbor", "artifactEndpoint"],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "usd": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total run budget in USD micros."
+        },
+        "proposerTokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "proposalCalls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "taskTrials": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "wallClockMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 960,
+          "description": "16h acceptance ceiling (specs/07 §1); advisory for stable-demo, hard for formal profiles."
+        }
+      },
+      "required": ["usd", "proposerTokens", "proposalCalls", "taskTrials", "wallClockMinutes"],
+      "additionalProperties": false
+    }
+  }
+}

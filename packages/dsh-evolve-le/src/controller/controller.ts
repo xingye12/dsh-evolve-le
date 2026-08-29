@@ -28,12 +28,14 @@ import {
   waveDecisionSnapshot,
   type ActionState,
   type ActionStatus,
+  type CandidateStatus,
   type Observation,
   type ObservationOutcome,
   type RunPhase,
   type RunState,
   type WaveState,
 } from '../state/reducer.js'
+import type { RngReceipt } from '../state/rng.js'
 import { loadState, writeSnapshot } from '../state/snapshot.js'
 import { captureCanonicalSource } from '../candidate/canonical.js'
 import { storeCandidateSource } from '../candidate/store.js'
@@ -446,6 +448,27 @@ export class Controller {
     proposalActionId: string | null
   }): Promise<void> {
     await this.emit('candidate.registered', input)
+  }
+
+  /**
+   * Candidate lifecycle transition (Gate 5 driver): admission after a trusted
+   * rebuild, later gates' champion/lock/reveal steps. The reducer enforces the
+   * legal edges; the reason string is durable evidence.
+   */
+  async changeCandidateStatus(input: {
+    candidateId: string
+    to: CandidateStatus
+    reason: string
+  }): Promise<void> {
+    await this.emit('candidate.status.changed', input)
+  }
+
+  /**
+   * Durably record an RNG receipt (specs/06 §9): every scheduler draw the
+   * driver acted on lands in the journal, idempotent per stream+counter.
+   */
+  async recordRngDraw(receipt: RngReceipt): Promise<void> {
+    await this.emit('rng.drawn', { receipt })
   }
 
   /**

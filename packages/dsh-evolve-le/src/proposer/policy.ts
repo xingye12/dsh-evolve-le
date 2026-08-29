@@ -99,6 +99,14 @@ function failureModes(reads: readonly ReadResult[]): string[] {
     for (const match of read.content.matchAll(/"failureMode":\s*"([^"]+)"/g)) {
       modes.add(match[1]!)
     }
+    // Normalized development-trial facts (Gate 5 loop): a verifier-scored
+    // failure is a real failure signal even though the older fixture shape
+    // named it explicitly. Cluster by outcome category when the normalized
+    // trial carries one; reward-less infra outcomes ('missing') never cluster.
+    if (/"outcome":\s*"failure"|"status":\s*"fail"/.test(read.content)) {
+      const category = read.content.match(/"category":\s*"([^"]+)"/)
+      modes.add(category !== null ? `trial-${category[1]!}` : 'trial-failed')
+    }
   }
   return [...modes].sort()
 }

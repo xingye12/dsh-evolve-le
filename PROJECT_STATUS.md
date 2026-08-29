@@ -1,6 +1,6 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_8_PENDING`; `NO_SEALED_RESULTS`**
 **更新时间：2026-08-29（Asia/Tokyo）**
 
 ## Claim boundaries
@@ -10,24 +10,29 @@
   **Gate 2**（Terminal-Bench provider 纵切片：真实 Harbor job 在 pinned `extract-elf` 上经
   inline ACP binary distribution 运行真实 capsule，normalizer/idempotency/verifier-mode
   探针全部机器断言）、**Gate 3**（durable controller core：状态层、单写者
-  saga/recovery、SIGKILL fault matrix、Cordis service unload flush）与 **Gate 4**
+  saga/recovery、SIGKILL fault matrix、Cordis service unload flush）、**Gate 4**
   （agentic proposal 纵切片：label 过滤 evidence export + canary、model gateway +
   受限 tool 层 + recorded proposer policy、一次性 uid+netns proposal sandbox、
-  controller proposal saga + replay 验证 + bundle 校验 + 子代导入与重建）。Gate 1 的
+  controller proposal saga + replay 验证 + bundle 校验 + 子代导入与重建）与 **Gate 5**
+  （产品化迭代闭环：版本化 run config、split ceremony、CMP/Thompson/UCB-Air selection、
+  Harbor `BenchmarkProvider` 适配、preflight + iteration driver、`dsh-evolve` CLI 六命令，
+  一条命令走完 propose → build → 真实 Loader → Harbor 评测 → normalize → Archive commit，
+  全程由真实 Terminal-Bench 2.1 task 的真实 Harbor trial 驱动）。Gate 1 的
   `admitted` 只证明 **safety-runnability**；Gate 2 的全绿只证明
   **单 task 评测管线成立且 replay capsule 得到诚实的 reward 0**；Gate 3 的全绿只证明
   **崩溃一致性状态机成立（FileProvider 假体）**；Gate 4 的全绿只证明
-  **单次 proposal 闭环在合成 failure trace 上成立且沙箱/注入/canary 边界被机器断言**
+  **单次 proposal 闭环在合成 failure trace 上成立且沙箱/注入/canary 边界被机器断言**；
+  Gate 5 的全绿只证明 **开发集迭代闭环在一条命令下成立且复算/预算/隐蔽边界被机器断言**
   ——都**不是**性能验收。
 - mock replay 仍是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；Gate 1 曾把
   recorded-LLM 回放与 DSH 生产闭包 runner 归到 Gate 2，实际 Gate 2（`specs/07` §4）范围是
   provider 纵切片、不含 runner 替换 —— 该项顺延至 runner 相关的后续 Gate，此处显式记录，
   不算静默缩水。
 - Gate 4 的 proposer policy 是 **recorded 确定性策略**（model gateway adapter 槽位的参考
-  实现），不是真模型 proposer；真实模型路由仍属后续 gate。
-- 没有 baseline 分数、没有演化闭环、没有 sealed 结果；不得声称已提升、可部署、
-  无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 5–8 全部未开始。前代项目的通过记录不是本
+  实现），不是真模型 proposer；真实模型路由仍属后续 gate。Gate 5 的闭环评测因此是
+  recorded-proposer 驱动的**管线**证明，不是模型质量证明。
+- 没有 sealed 结果；不得声称已提升、可部署、无 reward hacking 或达到 SOTA。
+- `specs/07-implementation-plan.md` 的 Gate 6–8 未开始。前代项目的通过记录不是本
   仓库的完成证据（见 2026-08-28 节）。
 
 ## 2026-08-28 repository bootstrap
@@ -507,12 +512,94 @@ preservation 边界）。`pnpm gate4` 全绿（build + 282 测试 + provenance +
   （依赖 Harbor provider 接入 controller，见 Next）。
 - 子代只导入 store + 注册 lineage；child 的 development 评测 wave 尚未驱动（Gate 5 范围）。
 
+## 2026-08-29 Gate 5 implemented — productized iteration closure
+
+`specs/07` §7 全项落地：`dsh-evolve` 一条命令（`packages/cli`，bin `dsh-evolve`）把已验收的
+proposer、可信 builder、Harbor provider、durable controller 和 Archive 连成
+`init → run/resume → status/audit/doctor` 生命周期。evidence run 在 pinned Terminal-Bench
+2.1 数据集（89 handle 全集，48/12/29 split）上以真实 docker + harbor 0.21.0 走完
+discovery（2 个真实 trial，双失败冻结 failure pool）→ Thompson 父代抽取 → label 过滤
+evidence export → 一次性 uid+netns proposal sandbox → controller replay 验证 → 可信子代
+重建 + Archive admission，停止于 `K_REACHED`。`pnpm gate5` 全绿（build + 348 测试 +
+provenance + evidence，任一断言失败 exit 1）。
+
+### 组件
+
+- **Split ceremony**（`src/split/ceremony.ts`）：`(runId, masterSeed, 89 handles)` 确定性
+  派生 48 dev-observed / 12 guard / 29 sealed；controller 可见文档只含 observed 句柄、
+  opaque guard id、sealedCount 与 seed commitment；guard 映射只发给 provider bridge（TCB）。
+  `audit` 以同一输入重新派生并逐字节比对。
+- **Selection**（`src/selection/clade.ts`、`thompson.ts`、`ucbair.ts`）：clade Beta 后验 +
+  τ=1 Thompson 父代/节点抽样（receipt 的 θ 量化到千分位以满足 canonical-JSON 安全整数
+  规则）、UCB-Air expand/evaluate 决策（`admitted < K+1 ∧ trials^α ≥ admitted`）。
+- **版本化 run config**（`src/config/run-config.ts` + `schemas/run.config.schema.json`）：
+  stable-demo 默认（K=3、≤15 solver trial、sealedAccess=false、$500/16h 预算、兼容
+  Zen/high/1M/32k 可选路由）；加载即 JSON-Schema + 语义校验（discovery ≤ solver ≤
+  taskTrials、discovery+K·q0 ≤ solver、sealedAccess 必须为 false、zen 路由必须挂凭据
+  文件）；configHash 进 run manifest。
+- **Harbor `BenchmarkProvider` 适配**（`benchmark-adapters/terminal-bench/src/harbor-provider.ts`）：
+  复用 Gate 2 JobConfig/ledger/normalizer；capsule 注册表 → `acp` registry entry
+  （id `dsh-evolve-le-capsule`、version=archive sha256、HTTPS artifact URL）；launch 幂等
+  （SubmissionLedger append-only 记账）；guard 句柄在 launch 时才由 TCB guardMap 解析；
+  harbor 进度镜像到 stderr，CLI stdout 保持机器可解析。
+- **Preflight + iteration driver**（`src/iteration/preflight.ts`、`driver.ts`）：一条命令的
+  fail-closed 前置（config/凭据 stat-only 0600/run-root/baseline/tasks/docker/harbor 版本，
+  全量 finding 列表，任一失败即在任何付费 launch 前 exit）；driver 串行驱动
+  ceremony freeze → manifest freeze → search-state 加载（版本不符 fail-closed）→
+  baseline ensure（可信 build + capsule 持久化 + 注册 + admit）→ discovery 批扫描至首个
+  非成功（否则 `NO_REAL_FAILURE_SIGNAL`）→ UCB-Air 循环（expand：Thompson 父代 → export →
+  proposal saga → 可信重建 → admission；evaluate：cold-start + 节点 Thompson + 任务
+  sampler）→ archive catalog → drive-report；预算在每次 expand/evaluate 前检查，
+  `BUDGET_EXHAUSTED` 停在下一个付费 launch 之前（settle 不得超过 worst-case 预留的
+  ledger 不变量由测试钉住）。
+- **CLI**（`packages/cli/src/cli.ts`）：`init`（冻结 config + 89-handle population，拒绝
+  覆盖已冻结 run root）、`run`/`resume`（同一幂等 drive；`--provider terminal-bench|fake`
+  seam、`--set` 白名单覆盖）、`status`（只读冻结文档 + journal replay，进程重启后可用）、
+  `audit`（manifest config 重校验 + configHash、split ceremony 重派生、failure-pool 哈希、
+  capsule archive 内容寻址校验、drive-report vs fresh replay stateHash）、`doctor`
+  （与 run 相同的 preflight，✓/✗ 全列）。真实 provider 组合：本地 CA + HTTPS artifact
+  server（按 digest 动态服务 capsules）、CA bundle 挂载进 trial 容器（`SSL_CERT_FILE`）。
+
+### 验收证据（`evidence/gate5/STATUS.json`（tracked）+ `cli-e2e.json`（机器文档）+ `jobs/`（原始 Harbor job）；由 `pnpm evidence:gate5` 生成，任一断言失败 exit 1）
+
+| specs/07 Gate 5 Accept                                                                | 结果 | 证据                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 一条命令走完 propose → build → 真实 Loader → Harbor 评测 → normalize → Archive commit | ✅   | `run --run-root …` 单命令 685s 停在 `K_REACHED`：2 个真实 Harbor trial（`adaptive-rejection-sampler`、`break-filter-js-from-html`，均诚实失败 → pool 2）→ 1 次真实 proposal sandbox（`controller/sandboxes/prop-1`）→ 子代 `c_u5py7…` 可信重建 + Archive admission（catalog 2 entries）     |
+| 无效 config / 缺失凭据 / Docker/Harbor 不可用 / 预算耗尽在付费 launch 前失败          | ✅   | sealedAccess=true 的 tampered config → exit 2；删除 0600 凭据 → doctor `✗ credential:` + run exit 2；两者均无 controller/、无 run-manifest.json、jobs 目录为空（`failClosedBeforeAnyHarborJob`）；预算耗尽由 driver 单测钉住（`BUDGET_EXHAUSTED`：0 sandbox、0 新 launch、settle 记账精确） |
+| 重复 submit/resume 不复制 proposal、trial、score 或 cost                              | ✅   | resume 后 controller journal 逐字节相同、harbor-ledger 行数相同、Harbor trial 目录数相同、drive-report 逐字节相同（4 项独立断言）                                                                                                                                                           |
+| CLI status 全部来自持久证据、进程重启后可用                                           | ✅   | 新进程 `status`：controller replay observationCount=trials、stateHash 与 drive-report 一致、stopReason/admitted 一致（`statusFromDurableEvidenceAfterRestart`）                                                                                                                             |
+| selector/proposer 仍读不到 guard/sealed 材料                                          | ✅   | sealed 分配不出现在任何冻结文档/exports/controller/objects/jobs（`sealedAssignmentNeverOnDisk`）；guard 真名不出现在 exports/controller/objects 与全部选择文档（`guardInvisibleToProposerAndSelector`）；population 文档只含 89 全集、无分配提示（`populationDocCarriesNoAssignment`）      |
+| 逐 trial 可归因                                                                       | ✅   | 2/2 Harbor trial 的 per-trial config.json `agent.kwargs.registry_entry` = `dsh-evolve-le-capsule` + 本次 run 的 capsule archive sha256（`trialsAttributedToCapsuleArchive`）                                                                                                                |
+| 预算记账精确                                                                          | ✅   | `task-trials` spent=trials=2、`proposal-calls` spent=expansions=1、usd spent=74 223 µUSD、proposer-tokens spent=14 805、全维度 reserved=0（`budgetAccountingExact`）                                                                                                                        |
+
+### Gate 5 期间发现并修复的实现缺陷
+
+- **`defaultRunConfig` overrides 交叉泄漏**：共享 overrides 对象整展进 `search`，
+  `--set kTarget=1 --set usd=…` 这类混合覆盖会把预算键漏进 search 文档而被 schema 拒绝
+  （budget 侧此前已修，search 侧漏了）。修复为双侧白名单逐键拷贝（新单测覆盖混合覆盖）。
+- **harbor 进度污染 CLI stdout**：provider 把 harbor 子进程 stdout 直接写进
+  `process.stdout`，evidence 脚本 `JSON.parse(run.stdout)` 被 `1/1 Mean: 0.000 ━━━` 行
+  打断。修复为镜像到 stderr（job dir 自带 job.log 的持久副本不变）。
+- **settle ≤ 预留是 ledger 不变量**：构造预算耗尽用例时发现 settle 金额不得超过该 action
+  的 worst-case 预留（`budget: settle 400000 exceeds reserved 66666`）——这是设计内
+  不变量，测试改为按预留上界构造（并显式注释），未放宽 ledger。
+
+### 已知限制
+
+- proposer 仍是 recorded 确定性 policy；闭环证明的是管线与边界，不是模型质量。
+- evidence profile 显式冻结为 K=1、2 discovery trial（最小真实闭环）；stable-demo 默认
+  K=3/≤15 trial 未在真实 Harbor 上全量跑（属 Gate 6 的稳定迭代证明范围）。
+- kTarget=1 时子代在 admission 后即停（与 fake-provider 契约测试钉住的行为一致）；
+  子代的 development 评测 wave 要等 evaluate 分支被触达（K 提高后自然发生）。
+- discovery trial 均为诚实失败（agent 非零退出、reward 0）——recorded proposer 无法真正
+  解题，这正是 Gate 4 已知限制在数据集上的体现；真实模型路由属后续 gate。
+
 ## Next
 
-- Gate 5（`specs/07` §7）：development split 真实闭环 —— Harbor provider 适配
-  `BenchmarkProvider` 接口（复用 Gate 2 JobConfig/ledger/normalizer）、controller 规划
-  development wave、子代评测 + selection/archive admission；sealed 路径仍不触。
+- Gate 6（`specs/07` §8）：稳定 K=3 迭代证明 —— 在 stable-demo 默认 profile 下跑完整
+  development 迭代（子代 evaluation wave 触达 evaluate 分支）、跨 resume 的长跑稳定性、
+  development champion 判定；sealed 路径仍不触。
 - Gate 4 后续接线（显式记录，不静默）：真模型 proposer 路由（替换 recorded policy 的
   adapter 槽位）、proposer 预算维度并轨到整轮 $500/16h 预算模型。
 - 顺延项（显式记录，不静默）：recorded-LLM 回放、DSH 生产闭包 runner、真实模型 capsule
-  的 set_model 广告、development split 真实闭环（依赖 Gate 3 状态机与 Gate 4 budget）。
+  的 set_model 广告。

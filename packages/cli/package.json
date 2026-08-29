@@ -1,0 +1,30 @@
+{
+  "name": "@dsh-evolve-le/cli",
+  "version": "0.0.1",
+  "private": true,
+  "description": "dsh-evolve-le iteration CLI: init/run/resume/status/audit/doctor behind one command",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "dsh-evolve": "lib/main.js"
+  },
+  "main": "lib/cli.js",
+  "types": "lib/cli.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/cli.d.ts",
+      "default": "./lib/cli.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@dsh-evolve-le/core": "0.0.1",
+    "@dsh-evolve-le/tb-provider": "0.0.1"
+  }
+}

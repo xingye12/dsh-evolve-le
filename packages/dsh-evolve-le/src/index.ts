@@ -82,6 +82,74 @@ export {
   type MatrixCase,
   type MatrixResult,
 } from './controller/fault-matrix.js'
+export {
+  betaParametersFor,
+  cladeMembers,
+  cladeStats,
+  CMP_PRECISION,
+  nodeStats,
+  type CladeEntry,
+  type CladeInput,
+  type NodeStats,
+} from './selection/clade.js'
+export {
+  betaSample,
+  drawNodeThompson,
+  drawParentThompson,
+  DEFAULT_TAU,
+  type DrawParameters,
+  type ThompsonDraw,
+} from './selection/thompson.js'
+export { shouldExpand, UCB_AIR_ALPHA, type UcbAirInput } from './selection/ucbair.js'
+export type { Observation, ObservationOutcome } from './state/reducer.js'
+export { canonicalHash, canonicalJson, CanonicalJsonError } from './state/canonical.js'
+export {
+  runSplitCeremony,
+  SPLIT_COUNTS,
+  SPLIT_PROTOCOL,
+  type SealedSplitStore,
+  type SplitCeremony,
+  type SplitCeremonyInput,
+} from './split/ceremony.js'
+export {
+  defaultRunConfig,
+  loadRunConfig,
+  RUN_CONFIG_SCHEMA_ID,
+  RunConfigError,
+  STABLE_DEMO_DEFAULTS,
+  validateRunConfig,
+  type ModelRouteConfig,
+  type RunConfig,
+  type RunConfigErrorReport,
+  type RunConfigResult,
+} from './config/run-config.js'
+export {
+  ITERATION_PROTOCOL,
+  SEARCH_STATE_PROTOCOL,
+  FAILURE_POOL_PROTOCOL,
+  IterationDriver,
+  IterationDriverError,
+  type BuildCapsuleFn,
+  type BuiltCapsule,
+  type DriveReport,
+  type IterationDriverInput,
+  type ProviderBridge,
+  type StopReason,
+} from './iteration/driver.js'
+export {
+  assertPreflight,
+  baselineSourceCheck,
+  configCheck,
+  credentialChecks,
+  dockerCheck,
+  harborVersionCheck,
+  PreflightError,
+  runPreflight,
+  runRootCheck,
+  tasksRootCheck,
+  type PreflightCheck,
+  type PreflightFinding,
+} from './iteration/preflight.js'
 export type {
   Config as ControllerServiceConfig,
   DshEvolveControllerService,

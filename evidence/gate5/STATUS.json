@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "gate": 5,
+  "status": "PASS",
+  "failedChecks": [],
+  "evidence": "evidence/gate5/cli-e2e.json",
+  "recordedAt": "2026-08-29T10:49:39.071Z"
+}

@@ -23,11 +23,13 @@
     "e2e:gate2": "node --import tsx/esm scripts/run-gate2-e2e.ts",
     "evidence:gate3": "node --import tsx/esm scripts/record-gate3-evidence.ts",
     "evidence:gate4": "node --import tsx/esm scripts/record-gate4-evidence.ts",
+    "evidence:gate5": "node --import tsx/esm scripts/record-gate5-evidence.ts",
     "gate0": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate0",
     "gate1": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate1",
     "gate2": "pnpm build && pnpm test && pnpm provenance:check && pnpm e2e:gate2",
     "gate3": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate3",
-    "gate4": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate4"
+    "gate4": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate4",
+    "gate5": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate5"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",

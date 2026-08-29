@@ -130,7 +130,7 @@ export function hashDrawInput(description: unknown): string {
   return canonicalHash(description)
 }
 
-const RECEIPT_FIELDS = 'algorithm,counter,inputHash,raw,stream'
+const RECEIPT_FIELDS = 'algorithm,counter,inputHash,raw,result,stream'
 
 /**
  * Validate a receipt's shape (fail closed). Semantic linkage — that `raw` and

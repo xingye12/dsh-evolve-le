@@ -52,3 +52,11 @@ export {
   type ArtifactServer,
   type LocalCa,
 } from './artifact-server.js'
+export {
+  HarborProvider,
+  HarborProviderError,
+  TERMINAL_FACT_PROTOCOL,
+  type HarborEvaluationRequest,
+  type HarborProviderConfig,
+  type RegisteredCapsule,
+} from './harbor-provider.js'

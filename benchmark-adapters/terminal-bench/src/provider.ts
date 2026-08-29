@@ -16,6 +16,7 @@ import {
   idempotencyKey,
   jobNameForKey,
   type IdempotencyInputs,
+  type LedgerEntry,
   type SubmissionLedger,
 } from './idempotency.js'
 
@@ -33,6 +34,8 @@ export interface PlanSubmissionInput {
   mounts?: { source: string; target: string }[]
   env?: Record<string, string>
   ledger: SubmissionLedger
+  /** Controller action key to record alongside the paid key (Gate 5). */
+  controllerKey?: string
 }
 
 export interface SubmissionPlan {
@@ -45,6 +48,8 @@ export interface SubmissionPlan {
   inventory: TaskInventory
   /** Trial identity inputs (specs/04 §5), recorded in the run manifest. */
   identity: IdempotencyInputs
+  /** The durable ledger entry backing this plan (existing or newly reserved). */
+  entry: LedgerEntry
 }
 
 /** Plan one paid submission; reserves it in the ledger (idempotent). */
@@ -70,7 +75,7 @@ export async function planSubmission(input: PlanSubmissionInput): Promise<Submis
   const jobName = jobNameForKey(key)
   const jobDir = join(input.jobsRoot, jobName)
 
-  const { status } = await input.ledger.reserve({
+  const { status, entry } = await input.ledger.reserve({
     key,
     runId: input.runId,
     jobName,
@@ -80,6 +85,7 @@ export async function planSubmission(input: PlanSubmissionInput): Promise<Submis
     handles: identity.handles,
     attempts,
     harborVersion: input.harborVersion,
+    ...(input.controllerKey !== undefined ? { controllerKey: input.controllerKey } : {}),
   })
 
   const jobPlan = buildJobConfig({
@@ -105,5 +111,6 @@ export async function planSubmission(input: PlanSubmissionInput): Promise<Submis
     jobPlan,
     inventory,
     identity,
+    entry,
   }
 }

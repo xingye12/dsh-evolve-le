@@ -1,0 +1,64 @@
+{
+    "schema_version": 2,
+    "task": {
+        "name": "break-filter-js-from-html",
+        "type": "local",
+        "digest": "sha256:678008d1a4fd1e6e1b9b3cc9a327219fe4b410a31eafc52e9099bbf947eea600",
+        "path": "/tmp/dsh-gate5-B4Fz5z/tasks/break-filter-js-from-html"
+    },
+    "install_only": false,
+    "timeout_multiplier": 1.0,
+    "agent": {
+        "name": "acp",
+        "skills": [],
+        "resume_trajectory": false,
+        "extra_allowed_hosts": [],
+        "kwargs": {
+            "registry_entry": {
+                "id": "dsh-evolve-le-capsule",
+                "name": "dsh-evolve-le-capsule",
+                "version": "543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39",
+                "description": "dsh-evolve-le candidate capsule: Cordis composition booted through the real Loader, serving ACP with a deterministic recorded-LLM replay. Builder-authored, content-addressed.",
+                "distribution": {
+                    "binary": {
+                        "linux-x86_64": {
+                            "archive": "https://172.17.0.1:8443/543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39.tar.gz",
+                            "cmd": "./dsh-evolve-le-acp",
+                            "args": [],
+                            "checksum": "543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39"
+                        }
+                    }
+                }
+            },
+            "permission_mode": "deny",
+            "auth_policy": "disabled"
+        },
+        "mcp_servers": []
+    },
+    "skills": [],
+    "environment": {
+        "type": "docker",
+        "force_build": false,
+        "delete": true,
+        "cpu_enforcement_policy": "auto",
+        "memory_enforcement_policy": "auto",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/dsh-gate5-B4Fz5z/runs/gate5-cli-e2e/tls/ca-bundle.crt",
+                "target": "/opt/dsh-evolve-le/ca-bundle.crt",
+                "read_only": true
+            }
+        ],
+        "extra_docker_compose": [],
+        "env": {
+            "SSL_CERT_FILE": "/opt/dsh-evolve-le/ca-bundle.crt"
+        },
+        "kwargs": {},
+        "extra_allowed_hosts": []
+    },
+    "verifier": {
+        "disable": false,
+        "environment_mode": "shared"
+    }
+}

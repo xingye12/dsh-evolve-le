@@ -45,6 +45,15 @@ export interface LedgerEntry {
   handles: string[]
   attempts: number
   harborVersion: string
+  /**
+   * Controller-side idempotency key (`eval-<actionId>`) when the reservation
+   * was made through the Gate 5 provider adapter. Deliberately NOT part of
+   * the paid key: the ledger key names the paid outcome, this names the
+   * controller action that paid for it. The adapter fails closed when a
+   * second action tries to map onto an already-paid outcome (CLAUDE.md rule
+   * 8: attempt identity belongs to the paid outcome).
+   */
+  controllerKey?: string
   /** ISO timestamp; audit metadata only, never part of the key. */
   recordedAt: string
 }
@@ -95,6 +104,18 @@ export class SubmissionLedger {
   async lookup(key: string): Promise<LedgerEntry | undefined> {
     const entries = await this.entries()
     return entries.find((entry) => entry.key === key)
+  }
+
+  /** First entry reserved by a controller action key (Gate 5 adapter). */
+  async lookupByControllerKey(controllerKey: string): Promise<LedgerEntry | undefined> {
+    const entries = await this.entries()
+    return entries.find((entry) => entry.controllerKey === controllerKey)
+  }
+
+  /** First entry recorded for a job name (job names embed the paid key). */
+  async lookupByJobName(jobName: string): Promise<LedgerEntry | undefined> {
+    const entries = await this.entries()
+    return entries.find((entry) => entry.jobName === jobName)
   }
 
   async reserve(entry: Omit<LedgerEntry, 'protocol' | 'recordedAt'>): Promise<{

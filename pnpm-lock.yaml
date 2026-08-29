@@ -68,6 +68,15 @@ importers:
         specifier: 4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
 
+  packages/cli:
+    dependencies:
+      '@dsh-evolve-le/core':
+        specifier: 0.0.1
+        version: link:../dsh-evolve-le
+      '@dsh-evolve-le/tb-provider':
+        specifier: 0.0.1
+        version: link:../../benchmark-adapters/terminal-bench
+
   packages/dsh-evolve-le:
     dependencies:
       '@agentclientprotocol/sdk':

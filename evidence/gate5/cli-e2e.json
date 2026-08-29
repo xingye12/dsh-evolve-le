@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/gate5-cli-e2e/v1",
+  "generatedAt": "2026-08-29T10:49:39.071Z",
+  "runId": "gate5-cli-e2e",
+  "masterSeed": "gate5-cli-e2e-master-seed",
+  "configHash": "sha256:64b0c5c389db22c08232565ca72ee3ac6d999f90bcd5dedbdf995648ee13ec3e",
+  "searchSets": [
+    "kTarget=1",
+    "maxDiscoveryTrials=2",
+    "discoveryBatchSize=2",
+    "maxSolverTrials=4"
+  ],
+  "cliBin": "packages/cli/lib/main.js",
+  "dataset": {
+    "tarball": "terminal-bench-2-1-7131e43.tar.gz",
+    "handles": 89
+  },
+  "report": {
+    "runId": "gate5-cli-e2e",
+    "phase": "SEARCHING",
+    "stopReason": "K_REACHED",
+    "trials": 2,
+    "discoveryTrials": 2,
+    "admittedNonBaseline": 1,
+    "expansionAttempts": 1,
+    "consecutiveExpansionFailures": 0,
+    "failurePool": [
+      "adaptive-rejection-sampler",
+      "break-filter-js-from-html"
+    ],
+    "stateHash": "6e061dd0d6ddb4c766921ca9c52b0abd69a76185a5b3379b5058b73f34febcfd",
+    "budget": {
+      "usd": {
+        "spent": 74223,
+        "reserved": 0
+      },
+      "task-trials": {
+        "spent": 2,
+        "reserved": 0
+      },
+      "proposer-tokens": {
+        "spent": 14805,
+        "reserved": 0
+      },
+      "proposal-calls": {
+        "spent": 1,
+        "reserved": 0
+      }
+    }
+  },
+  "runSeconds": 685,
+  "capsules": [
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_3tenwl4kcclkvpjxtwjpstglga",
+      "sourceDigest": "sha256:dcc8db2f8a1096aabd379d92f94ccb30011864f86bc2b4ec139c35a469e0cbc8",
+      "archiveSha256": "67293904feba76febee9bb5bba1afd91897b5af42e28eb506de402eb92b4c925",
+      "capsuleDir": "capsules/c_3tenwl4kcclkvpjxtwjpstglga/capsule",
+      "stagedSourceDir": "capsules/c_3tenwl4kcclkvpjxtwjpstglga/src",
+      "archivePath": "capsules/67293904feba76febee9bb5bba1afd91897b5af42e28eb506de402eb92b4c925.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "sourceDigest": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+      "archiveSha256": "543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39",
+      "capsuleDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/capsule",
+      "stagedSourceDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/src",
+      "archivePath": "capsules/543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39.tar.gz"
+    }
+  ],
+  "harborTrialDirs": 2,
+  "attributedTrials": 2,
+  "ledgerLines": 2,
+  "sealedCount": 29,
+  "guardCount": 12,
+  "flags": {
+    "initFrozeConfigAndHandles": true,
+    "initRefusesOverwrite": true,
+    "doctorAllGreen": true,
+    "doctorReportsMissingCredential": true,
+    "runFailsClosedOnMissingCredential": true,
+    "noRunStateCreatedOnPreflightFailure": true,
+    "runFailsClosedOnInvalidConfig": true,
+    "noRunStateCreatedOnInvalidConfig": true,
+    "failClosedBeforeAnyHarborJob": true,
+    "runExitZero": true,
+    "stopReasonDocumented": true,
+    "proposalRanInRealOneShotSandbox": true,
+    "harborTrialsReal": true,
+    "archiveCommitted": true,
+    "trialsAttributedToCapsuleArchive": true,
+    "resumeExitZero": true,
+    "resumeJournalByteIdentical": true,
+    "resumeLedgerUnchanged": true,
+    "resumeNoNewHarborTrial": true,
+    "resumeReportIdentical": true,
+    "statusFromDurableEvidenceAfterRestart": true,
+    "auditAllGreen": true,
+    "sealedAssignmentNeverOnDisk": true,
+    "guardInvisibleToProposerAndSelector": true,
+    "populationDocCarriesNoAssignment": true,
+    "budgetAccountingExact": true
+  },
+  "notes": []
+}
