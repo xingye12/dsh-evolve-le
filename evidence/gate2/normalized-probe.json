@@ -1,7 +1,7 @@
 {
   "protocol": "dsh-evolve-le/tb-run/v1",
   "jobName": "dsh-8043b244bc58f3f3ddbbc9d9",
-  "jobDir": "/tmp/dsh-gate2-m81lFP/jobs/dsh-8043b244bc58f3f3ddbbc9d9",
+  "jobDir": "/tmp/dsh-gate2-mGm6KR/jobs/dsh-8043b244bc58f3f3ddbbc9d9",
   "idempotencyKey": "8043b244bc58f3f3ddbbc9d981fbb86f3ea6433b35fdc56137f5447ce19fb4b7",
   "identity": {
     "runId": "gate2-dev",
@@ -24,26 +24,26 @@
         "handle": "extract-elf-separate-probe",
         "attempt": 0
       },
-      "trialName": "extract-elf-separate-probe__efZRQGe",
+      "trialName": "extract-elf-separate-probe__vAijMJG",
       "taskName": "terminal-bench/extract-elf",
       "agentInfo": {
         "name": "dsh-evolve-le-capsule",
         "version": "86a657b752a0983f149e3acddbf439df5aae436a6c86eca7edd477c9d2874792"
       },
       "usage": {
-        "agentExecutionMs": 2055,
-        "verifierMs": 17762,
+        "agentExecutionMs": 2695,
+        "verifierMs": 19468,
         "nInputTokens": null,
         "nOutputTokens": null,
         "costUsd": null
       },
-      "resultDigest": "d762989b1c3416c009ffadbf9ebd7e9ea40c7ef97c3c872e9497cd2fdaa0583b",
+      "resultDigest": "801fe708369b30bb6c6287c58db410a1124a51025a4ab5798f5787ffec91ac15",
       "status": "fail",
       "outcome": {
         "category": "exception",
         "reward": null,
         "exceptionType": "RewardFileNotFoundError",
-        "reason": "No reward file found at /tmp/dsh-gate2-m81lFP/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__efZRQGe/verifier/reward.txt or /tmp/dsh-gate2-m81lFP/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__efZRQGe/verifier/reward.json"
+        "reason": "No reward file found at /tmp/dsh-gate2-mGm6KR/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__vAijMJG/verifier/reward.txt or /tmp/dsh-gate2-mGm6KR/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__vAijMJG/verifier/reward.json"
       }
     }
   ],
@@ -56,5 +56,5 @@
     "denominator": 1,
     "passRate": 0
   },
-  "artifactSha256": "cc540faed1211051e103a1e4994abae63dcdc08d1941994797a4ed1a1db4adc8"
+  "artifactSha256": "6171d542056a6f2aa0d802ab71baf48d0ef9ede615e3507a5b43294ba6033dee"
 }

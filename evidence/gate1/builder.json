@@ -1,11 +1,11 @@
 {
   "gate": "gate1",
   "kind": "builder-capsule-acp",
-  "generatedAt": "2026-08-28T19:42:45.213Z",
+  "generatedAt": "2026-08-29T06:03:54.230Z",
   "environment": {
     "node": "v24.14.0",
     "platform": "linux x64",
-    "repositoryHead": "694d28da2e929e628c38291d803c277d5f770fda",
+    "repositoryHead": "cd296ff7825bd0be988b9f8e19a77c38aff1dd4c",
     "builderVersion": "dsh-evolve-le-builder-0.0.1",
     "builderSandbox": {
       "kind": "namespace",
@@ -26,9 +26,9 @@
       "candidateId": "c_yrs7qltqipkfgo2hxh4gynxhnq",
       "sourceDigest": "sha256:c465f82e7043d4533b47b9f86c36e76c3f1942e6e7e9a72abbeb4231356dbb54",
       "bundleTarSha256": "2cc3c9b39f4d35c84a5ea3dc9f65559ad7ccab24e4285f4e7d91fcc332a4458c",
-      "capsuleTarSha256": "6d75b63fc69a7cd543d6249bf90437beab326ec2dbb3d40a3ab8b034f48f3d8d",
+      "capsuleTarSha256": "bbf69a990d08fc3b0e5b3daa86ea4da1a69f2941f45196566a19916d4c6a45dc",
       "capsuleSbomSha256": "f0badb085ac945f69c39f6699a0b4d002d6a4fa75761022a854e3c667b8ba86e",
-      "capsuleProvenanceSha256": "97d33f86f002f10ee54464b8679656cf6d090245a6f8b0367514b0f3a2596678",
+      "capsuleProvenanceSha256": "2b3572bc0c09bd3217bbb31599e2a586c15ffde44d1d2986e408e5fad984b3ba",
       "receipts": {
         "containment": {
           "status": "pass",
@@ -56,7 +56,7 @@
         },
         "loaderBoot": {
           "status": "pass",
-          "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 28ms"
+          "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 25ms"
         },
         "unloadInvariant": {
           "status": "pass",
@@ -68,7 +68,7 @@
         },
         "capsuleDoubleBuild": {
           "status": "pass",
-          "detail": "two capsule assemblies byte-identical (942 files, 7929687 bytes); tar 6d75b63fc69a7cd5…"
+          "detail": "two capsule assemblies byte-identical (tar and tar.gz; 944 files, 7933962 bytes); tar bbf69a990d08fc3b…, archive 86a657b752a0983f…"
         }
       }
     },
@@ -76,9 +76,9 @@
       "candidateId": "c_yrs7qltqipkfgo2hxh4gynxhnq",
       "sourceDigest": "sha256:c465f82e7043d4533b47b9f86c36e76c3f1942e6e7e9a72abbeb4231356dbb54",
       "bundleTarSha256": "2cc3c9b39f4d35c84a5ea3dc9f65559ad7ccab24e4285f4e7d91fcc332a4458c",
-      "capsuleTarSha256": "6d75b63fc69a7cd543d6249bf90437beab326ec2dbb3d40a3ab8b034f48f3d8d",
+      "capsuleTarSha256": "bbf69a990d08fc3b0e5b3daa86ea4da1a69f2941f45196566a19916d4c6a45dc",
       "capsuleSbomSha256": "f0badb085ac945f69c39f6699a0b4d002d6a4fa75761022a854e3c667b8ba86e",
-      "capsuleProvenanceSha256": "97d33f86f002f10ee54464b8679656cf6d090245a6f8b0367514b0f3a2596678"
+      "capsuleProvenanceSha256": "2b3572bc0c09bd3217bbb31599e2a586c15ffde44d1d2986e408e5fad984b3ba"
     }
   },
   "adversarialFixtures": [
@@ -260,6 +260,6 @@
     "unloadInvariantHeld": true,
     "tarDigestMatchesManifest": true,
     "nodeVersion": "v24.20.0",
-    "stderrTail": "dsh-evolve-le-runner-report:{\"config\":\"/capsule/cordis.yml\",\"sections\":{\"afterBoot\":[\"candidate:identity\"],\"afterUnload\":[]},\"quiescent\":true,\"timings\":{\"bootMs\":34.029742,\"unloadMs\":2.533040000000028}}\n"
+    "stderrTail": "dsh-evolve-le-runner-report:{\"config\":\"/capsule/cordis.yml\",\"sections\":{\"afterBoot\":[\"candidate:identity\"],\"afterUnload\":[]},\"quiescent\":true,\"timings\":{\"bootMs\":27.376644,\"unloadMs\":2.9354470000000106}}\n"
   }
 }

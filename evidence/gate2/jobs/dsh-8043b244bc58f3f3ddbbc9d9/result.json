@@ -1,8 +1,8 @@
 {
-    "id": "e84fd77e-d00d-46c0-adaf-91ef298c283d",
-    "started_at": "2026-08-29T05:14:04.497737",
-    "updated_at": "2026-08-29T05:15:36.855553",
-    "finished_at": "2026-08-29T05:15:36.855553",
+    "id": "cb838b8c-9be5-4155-98ba-40a448755b6b",
+    "started_at": "2026-08-29T14:13:40.072836",
+    "updated_at": "2026-08-29T14:16:18.782903",
+    "finished_at": "2026-08-29T14:16:18.782903",
     "n_total_trials": 1,
     "stats": {
         "n_completed_trials": 1,
@@ -24,7 +24,7 @@
                 "reward_stats": {},
                 "exception_stats": {
                     "RewardFileNotFoundError": [
-                        "extract-elf-separate-probe__efZRQGe"
+                        "extract-elf-separate-probe__vAijMJG"
                     ]
                 }
             }

@@ -9,8 +9,13 @@
       "type": "string",
       "const": "https://dsh-evolve-le.local/schemas/build.manifest.schema.json"
     },
-    "schemaVersion": { "type": "integer", "const": 1 },
-    "candidateId": { "$ref": "#/$defs/candidateId" },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "candidateId": {
+      "$ref": "#/$defs/candidateId"
+    },
     "outcome": {
       "enum": ["admitted", "rejected"],
       "description": "Admitted means pipeline stages 1-10 all passed; admission is safety-runnability, never performance acceptance."
@@ -18,8 +23,13 @@
     "rejection": {
       "type": "object",
       "properties": {
-        "stage": { "$ref": "#/$defs/stageName" },
-        "reason": { "type": "string", "minLength": 1 }
+        "stage": {
+          "$ref": "#/$defs/stageName"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "required": ["stage", "reason"],
       "additionalProperties": false
@@ -27,9 +37,18 @@
     "identity": {
       "type": "object",
       "properties": {
-        "sourceDigest": { "$ref": "#/$defs/sha256Ref" },
+        "sourceDigest": {
+          "$ref": "#/$defs/sha256Ref"
+        },
         "canonicalParent": {
-          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256Ref" }]
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256Ref"
+            }
+          ]
         }
       },
       "required": ["sourceDigest", "canonicalParent"],
@@ -38,9 +57,19 @@
     "source": {
       "type": "object",
       "properties": {
-        "fileCount": { "type": "integer", "minimum": 1, "maximum": 25 },
-        "bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
-        "treeDigest": { "$ref": "#/$defs/treeDigest" }
+        "fileCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "treeDigest": {
+          "$ref": "#/$defs/treeDigest"
+        }
       },
       "required": ["fileCount", "bytes", "treeDigest"],
       "additionalProperties": false
@@ -48,10 +77,20 @@
     "bundle": {
       "type": "object",
       "properties": {
-        "tarSha256": { "$ref": "#/$defs/sha256Hex" },
-        "entrySha256": { "$ref": "#/$defs/sha256Hex" },
-        "fileCount": { "type": "integer", "minimum": 1 },
-        "bytes": { "type": "integer", "minimum": 1 }
+        "tarSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "entrySha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "fileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "required": ["tarSha256", "entrySha256", "fileCount", "bytes"],
       "additionalProperties": false
@@ -59,13 +98,19 @@
     "capsule": {
       "type": "object",
       "properties": {
-        "tarSha256": { "$ref": "#/$defs/sha256Hex" },
+        "tarSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
         "archiveSha256": {
           "$ref": "#/$defs/sha256Hex",
           "description": "Deterministic tar.gz of the same tree; the artifact Harbor's inline ACP binary registry entry downloads and sha256-checks (Gate 2)."
         },
-        "sbomSha256": { "$ref": "#/$defs/sha256Hex" },
-        "provenanceSha256": { "$ref": "#/$defs/sha256Hex" }
+        "sbomSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "provenanceSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        }
       },
       "required": ["tarSha256", "archiveSha256", "sbomSha256", "provenanceSha256"],
       "additionalProperties": false
@@ -74,12 +119,55 @@
       "type": "object",
       "properties": {
         "parent": {
-          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256Ref" }]
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256Ref"
+            }
+          ]
         },
-        "diffHash": { "$ref": "#/$defs/sha256Hex" },
-        "filesChanged": { "type": "integer", "minimum": 0 },
-        "linesAdded": { "type": "integer", "minimum": 0 },
-        "linesRemoved": { "type": "integer", "minimum": 0 }
+        "diffHash": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "filesChanged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "linesAdded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "linesRemoved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "differingFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "enum": ["added", "removed", "modified"]
+              },
+              "linesAdded": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "linesRemoved": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["path", "status", "linesAdded", "linesRemoved"],
+            "additionalProperties": false
+          }
+        }
       },
       "required": ["parent", "diffHash", "filesChanged", "linesAdded", "linesRemoved"],
       "additionalProperties": false
@@ -87,10 +175,21 @@
     "fingerprints": {
       "type": "object",
       "properties": {
-        "node": { "type": "string", "minLength": 1 },
-        "pnpm": { "type": "string", "minLength": 1 },
-        "typescript": { "type": "string", "minLength": 1 },
-        "dependencyClosureSha256": { "$ref": "#/$defs/sha256Hex" },
+        "node": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pnpm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "typescript": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependencyClosureSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
         "tsconfigSha256": {
           "$ref": "#/$defs/sha256Hex",
           "description": "Hash of the builder-generated effective tsconfig; the candidate's own tsconfig.json is identity material only and never executed."
@@ -101,26 +200,42 @@
     },
     "receipts": {
       "type": "object",
-      "propertyNames": { "$ref": "#/$defs/stageName" },
-      "additionalProperties": { "$ref": "#/$defs/receipt" },
+      "propertyNames": {
+        "$ref": "#/$defs/stageName"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/receipt"
+      },
       "minProperties": 10,
       "maxProperties": 10
     },
     "builder": {
       "type": "object",
       "properties": {
-        "builtAt": { "type": "string", "format": "date-time" },
+        "builtAt": {
+          "type": "string",
+          "format": "date-time"
+        },
         "sandbox": {
           "type": "object",
           "properties": {
-            "kind": { "enum": ["container", "namespace", "host-restricted"] },
-            "detail": { "type": "string", "minLength": 1 }
+            "kind": {
+              "enum": ["container", "namespace", "host-restricted"]
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "required": ["kind", "detail"],
           "additionalProperties": false
         },
-        "networkAccess": { "const": false },
-        "executedCandidateLifecycleScript": { "const": false }
+        "networkAccess": {
+          "const": false
+        },
+        "executedCandidateLifecycleScript": {
+          "const": false
+        }
       },
       "required": ["builtAt", "sandbox", "networkAccess", "executedCandidateLifecycleScript"],
       "additionalProperties": false
@@ -137,14 +252,30 @@
   ],
   "allOf": [
     {
-      "if": { "properties": { "outcome": { "const": "rejected" } } },
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "rejected"
+          }
+        }
+      },
       "then": {
         "required": ["rejection"],
-        "properties": { "rejection": { "$ref": "#/$defs/rejection" } }
+        "properties": {
+          "rejection": {
+            "$ref": "#/$defs/rejection"
+          }
+        }
       }
     },
     {
-      "if": { "properties": { "outcome": { "const": "admitted" } } },
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "admitted"
+          }
+        }
+      },
       "then": {
         "required": ["source", "bundle", "capsule", "parentDiff", "fingerprints"],
         "properties": {
@@ -163,8 +294,13 @@
     "rejection": {
       "type": "object",
       "properties": {
-        "stage": { "$ref": "#/$defs/stageName" },
-        "reason": { "type": "string", "minLength": 1 }
+        "stage": {
+          "$ref": "#/$defs/stageName"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "required": ["stage", "reason"],
       "additionalProperties": false
@@ -184,8 +320,12 @@
     "treeDigest": {
       "type": "object",
       "properties": {
-        "algo": { "const": "dsh-evolve-tree-v1" },
-        "value": { "$ref": "#/$defs/sha256Hex" }
+        "algo": {
+          "const": "dsh-evolve-tree-v1"
+        },
+        "value": {
+          "$ref": "#/$defs/sha256Hex"
+        }
       },
       "required": ["algo", "value"],
       "additionalProperties": false
@@ -207,8 +347,13 @@
     "receipt": {
       "type": "object",
       "properties": {
-        "status": { "enum": ["pass", "fail", "skipped"] },
-        "detail": { "type": "string", "minLength": 1 },
+        "status": {
+          "enum": ["pass", "fail", "skipped"]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        },
         "artifact": {
           "type": "string",
           "pattern": "^evidence://[A-Za-z0-9._/-]+$"

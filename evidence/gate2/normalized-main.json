@@ -1,7 +1,7 @@
 {
   "protocol": "dsh-evolve-le/tb-run/v1",
   "jobName": "dsh-4706def5f0a9fc52b15f566c",
-  "jobDir": "/tmp/dsh-gate2-m81lFP/jobs/dsh-4706def5f0a9fc52b15f566c",
+  "jobDir": "/tmp/dsh-gate2-mGm6KR/jobs/dsh-4706def5f0a9fc52b15f566c",
   "idempotencyKey": "4706def5f0a9fc52b15f566c3d621b89738bc512612de3cf5bc0b8ff14c58720",
   "identity": {
     "runId": "gate2-dev",
@@ -24,20 +24,20 @@
         "handle": "extract-elf",
         "attempt": 0
       },
-      "trialName": "extract-elf__3UBseoG",
+      "trialName": "extract-elf__LJBfkgn",
       "taskName": "terminal-bench/extract-elf",
       "agentInfo": {
         "name": "dsh-evolve-le-capsule",
         "version": "86a657b752a0983f149e3acddbf439df5aae436a6c86eca7edd477c9d2874792"
       },
       "usage": {
-        "agentExecutionMs": 2192,
-        "verifierMs": 129218,
+        "agentExecutionMs": 2955,
+        "verifierMs": 138607,
         "nInputTokens": null,
         "nOutputTokens": null,
         "costUsd": null
       },
-      "resultDigest": "ba648700f8bf74cc5f1eec2e3490971bb9a41e60657e2fed12861b7034c1cf1d",
+      "resultDigest": "1f5e672f6e94e9986bd9b7ba195d26862e53de8b2a69973ab96593c7fc86998e",
       "status": "fail",
       "outcome": {
         "category": "reward",
@@ -56,5 +56,5 @@
     "denominator": 1,
     "passRate": 0
   },
-  "artifactSha256": "c8298c0937ab38074c62c2ff93204cbfe55dc4aa4466d27085ad309a788ac7d0"
+  "artifactSha256": "78fd898aebbaf34c8d75205baace6b4a5a773a8ce1a90aaefe3a803e8033c6b4"
 }

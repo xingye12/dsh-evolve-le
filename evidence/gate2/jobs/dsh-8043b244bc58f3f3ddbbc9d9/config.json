@@ -1,6 +1,6 @@
 {
     "job_name": "dsh-8043b244bc58f3f3ddbbc9d9",
-    "jobs_dir": "/tmp/dsh-gate2-m81lFP/jobs",
+    "jobs_dir": "/tmp/dsh-gate2-mGm6KR/jobs",
     "n_concurrent_trials": 1,
     "quiet": true,
     "environment": {
@@ -8,7 +8,7 @@
         "mounts": [
             {
                 "type": "bind",
-                "source": "/tmp/dsh-gate2-m81lFP/tls/ca-bundle.crt",
+                "source": "/tmp/dsh-gate2-mGm6KR/tls/ca-bundle.crt",
                 "target": "/opt/dsh-evolve-le/ca-bundle.crt",
                 "read_only": true
             }
@@ -44,7 +44,7 @@
     ],
     "tasks": [
         {
-            "path": "/tmp/dsh-gate2-m81lFP/tasks/extract-elf-separate-probe"
+            "path": "/tmp/dsh-gate2-mGm6KR/tasks/extract-elf-separate-probe"
         }
     ]
 }

@@ -78,6 +78,6 @@ Note: The output values should be integers, not strings.
 Command outputs captured
 Collecting main service artifacts
 Uploading environment/ to /app
-Trial extract-elf-separate-probe__efZRQGe failed: No reward file found at /tmp/dsh-gate2-m81lFP/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__efZRQGe/verifier/reward.txt or /tmp/dsh-gate2-m81lFP/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__efZRQGe/verifier/reward.json
+Trial extract-elf-separate-probe__vAijMJG failed: No reward file found at /tmp/dsh-gate2-mGm6KR/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__vAijMJG/verifier/reward.txt or /tmp/dsh-gate2-mGm6KR/jobs/dsh-8043b244bc58f3f3ddbbc9d9/extract-elf-separate-probe__vAijMJG/verifier/reward.json
 Exception RewardFileNotFoundError is in exclude_exceptions, not retrying
 Not retrying trial because the exception is not in include_exceptions or the maximum number of retries has been reached

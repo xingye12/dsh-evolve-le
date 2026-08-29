@@ -1,6 +1,6 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
 **更新时间：2026-08-29（Asia/Tokyo）**
 
 ## Claim boundaries
@@ -9,18 +9,25 @@
   **Gate 1**（candidate SDK + 十阶段可信 admission builder + 离线 capsule + ACP E2E）、
   **Gate 2**（Terminal-Bench provider 纵切片：真实 Harbor job 在 pinned `extract-elf` 上经
   inline ACP binary distribution 运行真实 capsule，normalizer/idempotency/verifier-mode
-  探针全部机器断言）与 **Gate 3**（durable controller core：状态层、单写者
-  saga/recovery、SIGKILL fault matrix、Cordis service unload flush）。Gate 1 的 `admitted`
-  只证明 **safety-runnability**；Gate 2 的全绿只证明
+  探针全部机器断言）、**Gate 3**（durable controller core：状态层、单写者
+  saga/recovery、SIGKILL fault matrix、Cordis service unload flush）与 **Gate 4**
+  （agentic proposal 纵切片：label 过滤 evidence export + canary、model gateway +
+  受限 tool 层 + recorded proposer policy、一次性 uid+netns proposal sandbox、
+  controller proposal saga + replay 验证 + bundle 校验 + 子代导入与重建）。Gate 1 的
+  `admitted` 只证明 **safety-runnability**；Gate 2 的全绿只证明
   **单 task 评测管线成立且 replay capsule 得到诚实的 reward 0**；Gate 3 的全绿只证明
-  **崩溃一致性状态机成立（FileProvider 假体）**——都**不是**性能验收。
+  **崩溃一致性状态机成立（FileProvider 假体）**；Gate 4 的全绿只证明
+  **单次 proposal 闭环在合成 failure trace 上成立且沙箱/注入/canary 边界被机器断言**
+  ——都**不是**性能验收。
 - mock replay 仍是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；Gate 1 曾把
   recorded-LLM 回放与 DSH 生产闭包 runner 归到 Gate 2，实际 Gate 2（`specs/07` §4）范围是
   provider 纵切片、不含 runner 替换 —— 该项顺延至 runner 相关的后续 Gate，此处显式记录，
   不算静默缩水。
+- Gate 4 的 proposer policy 是 **recorded 确定性策略**（model gateway adapter 槽位的参考
+  实现），不是真模型 proposer；真实模型路由仍属后续 gate。
 - 没有 baseline 分数、没有演化闭环、没有 sealed 结果；不得声称已提升、可部署、
   无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 4–8 全部未开始。前代项目的通过记录不是本
+- `specs/07-implementation-plan.md` 的 Gate 5–8 全部未开始。前代项目的通过记录不是本
   仓库的完成证据（见 2026-08-28 节）。
 
 ## 2026-08-28 repository bootstrap
@@ -387,13 +394,13 @@ TypeScript DSH/Cordis 组件（CLAUDE.md rule 2）：`@dsh-evolve-le/core` 承�
 
 ### 验收证据（`evidence/gate3/fault-matrix.json`；矩阵由 `pnpm evidence:gate3` 生成，任一断言失败 exit 1）
 
-| specs/07 Gate 3 Accept                                                         | 结果 | 证据                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| property tests 覆盖 arbitrary valid event sequences                            | ✅   | `reducer.test.ts` 种子 PRNG 12 个随机合法 saga（1–3 wave × 1–3 action、混合 outcome）双次重放同 hash、seq 链式递增；`property.test.ts` 种子 1–10 随机崩溃链（≤12 段）+ 保证收尾 clean pass，stateHash/observationCount/budget/launchEffects 与 clean run 全等                                                                                                                                                                           |
+| specs/07 Gate 3 Accept                                                         | 结果 | 证据                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------ | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| property tests 覆盖 arbitrary valid event sequences                            | ✅   | `reducer.test.ts` 种子 PRNG 12 个随机合法 saga（1–3 wave × 1–3 action、混合 outcome）双次重放同 hash、seq 链式递增；`property.test.ts` 种子 1–10 随机崩溃链（≤12 段）+ 保证收尾 clean pass，stateHash/observationCount/budget/launchEffects 与 clean run 全等                                                                                                                                                                            |
 | 每个 intent/launch/collect/commit 边界 kill 后 resume 不重复 effect/score/cost | ✅   | fault matrix 10 例（8 边界单杀 + `launch-effect-done` 双杀 + clean baseline）全过：每例恰 3 个 distinct launch effect、3 条 observation、usd `{spent:200, unpriced:1}`、trials `{spent:3}`、无重复 score/cost；全部收敛到同一 state hash `5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668`。进程内逐边界恢复另有 `controller.test.ts` 10 例（pending-launch/key 认领/collect existing/LOST→missing/running 稍后终态等） |
-| event completion order permutation 在同 wave 得到相同 state hash               | ✅   | `reducer.test.ts` permutation 组：journal 提交序 a1,a2,a3 vs a3,a1,a2（实测断言顺序确不同），stateHash 相等且 waveDecisionSnapshot 相等 —— hash 排除 seq/lastEventHash 等 bookkeeping、集合排序、reservationSeq 在预约时赋值                                                                                                                                                                                                            |
-| corrupt journal/object/snapshot fail closed                                    | ✅   | journal：tampered 行/断链/空行/残差全拒（`journal.test.ts`）；object：字节篡改后 `Controller.open` 拒绝（`controller.test.ts` r7 + `object-store.test.ts` digest/size）；snapshot：损坏/篡改/过期回退 genesis 重放而非信任（`snapshot.test.ts`）；ledger 篡改 entryHash 不覆盖即拒（`budget.test.ts`）                                                                                                                                  |
-| controller unload flush 后无 worker/process handle                             | ✅   | `controller-service.subprocess.test.ts`：真实 Loader boot service、驱动整 wave、`fiber.dispose()` 后 Cordis inventory 与 `process.getActiveResourcesInfo()` 均回到 boot 前基线、lock 已释放、最新 snapshot seq == journal 终 seq、进程自然退出（残留句柄会挂起并被超时捕获）                                                                                                                                                            |
+| event completion order permutation 在同 wave 得到相同 state hash               | ✅   | `reducer.test.ts` permutation 组：journal 提交序 a1,a2,a3 vs a3,a1,a2（实测断言顺序确不同），stateHash 相等且 waveDecisionSnapshot 相等 —— hash 排除 seq/lastEventHash 等 bookkeeping、集合排序、reservationSeq 在预约时赋值                                                                                                                                                                                                             |
+| corrupt journal/object/snapshot fail closed                                    | ✅   | journal：tampered 行/断链/空行/残差全拒（`journal.test.ts`）；object：字节篡改后 `Controller.open` 拒绝（`controller.test.ts` r7 + `object-store.test.ts` digest/size）；snapshot：损坏/篡改/过期回退 genesis 重放而非信任（`snapshot.test.ts`）；ledger 篡改 entryHash 不覆盖即拒（`budget.test.ts`）                                                                                                                                   |
+| controller unload flush 后无 worker/process handle                             | ✅   | `controller-service.subprocess.test.ts`：真实 Loader boot service、驱动整 wave、`fiber.dispose()` 后 Cordis inventory 与 `process.getActiveResourcesInfo()` 均回到 boot 前基线、lock 已释放、最新 snapshot seq == journal 终 seq、进程自然退出（残留句柄会挂起并被超时捕获）                                                                                                                                                             |
 
 ### 设计要点（都由测试钉住）
 
@@ -422,13 +429,90 @@ TypeScript DSH/Cordis 组件（CLAUDE.md rule 2）：`@dsh-evolve-le/core` 承�
 - `budget-ledger.jsonl` 单文件 append-only：多写者仲裁即 writer lock 本身（单写者约束），
   只读路径不写 ledger。
 
+## 2026-08-29 Gate 4 implemented — agentic proposal vertical slice
+
+`specs/07` §6 全项落地：从两条合成 failure trace（其一内嵌 prompt injection）出发，
+baseline parent 经可信 builder 产 capsule，在一次性 uid+netns 沙箱内以 `propose` mode 经
+真实 Cordis Loader 启动，proposer 只经受限 tool 层读写，controller 侧逐字节 replay 验证 +
+bundle 校验后把 admitted 子代导入内容寻址 store 并再次通过可信 builder 重建（parent diff +
+preservation 边界）。`pnpm gate4` 全绿（build + 282 测试 + provenance + evidence，任一断言
+失败 exit 1）。
+
+### 组件
+
+- **Builder parent-diff admission**（`src/builder/pipeline.ts`）：candidate.json 声明
+  `canonicalParent` 时 diffBoundary 阶段强制要求 controller 侧 parent tree、重捕获验哈希、
+  `checkSectionPreservation`（子代不得丢父代任何 mode section）+ canonical diff 落
+  manifest；lineage root（`canonicalParent: null`）路径不变。
+- **Evidence export / archive catalog / canary**（`src/proposer/export.ts`、`catalog.ts`、
+  `canary.ts`）：controller 按 principal 选择对象、label 白名单（PUBLIC_SPEC/DEV_OBSERVED）
+  fail closed、merkle root、canary 逐对象扫描后才物化只读 export 目录；catalog 以
+  sourceHash 为 dedup/donor 依据；canary 只以 sha256 fingerprint 出现在 receipt/error。
+- **Model gateway / tool 层 / agent loop / recorded policy**（`src/proposer/gateway.ts`、
+  `tools.ts`、`agent-loop.ts`、`policy.ts`）：frozen route 计价 + 预算硬停；tool 层是沙箱
+  唯一文件通道（containment 证明用 realpath 前缀、symlink/绝对路径/`..` 全拒，读写各自
+  封根 + 文件数/字节上限）；loop 把每次 prompt hash/response/tool 调用/refusal/token/费用
+  写 append-only transcript；recorded policy 是 prompt→response 纯函数（注入 detour 故意
+  先服从一次，由 tool 层拒绝）。
+- **Proposal sandbox**（`src/proposer/sandbox.ts` + `src/bin/proposer-worker.ts`）：
+  supervisor 以 root 起 `unshare --net`（最外层）→ `setpriv --reuid=65534` → node worker
+  （worker 拒绝 uid 0）；input root（capsule + parent tree + export + config）seal 只读后
+  chown nobody，work root 可写；DAC canary（controller credentials 0600、`<sandbox>-sibling`
+  sealed 0700）实测 EACCES；capsule digest 排除 include-plugin boot overlay 后前后一致；
+  `work/worker-result.json` **最后写**，其存在性即外部效果的幂等标记；controller 侧
+  `verifyProposalSandboxReplay` 用冻结输入 + recorded TCB policy 重导出全部产物并逐字节比对
+  （section 名再对照 root-owned config.json 的 declaredProposeSections）。
+- **Proposal saga + 校验器**（`src/controller/controller.ts`、`src/proposer/validate.ts`）：
+  reserve（kind `proposal`）→ launch（manifest-last 幂等）→ terminal 观察 + artifact 收集
+  （失败也留证）→ hard-failure 阶梯（root uid / worker 失败 / DAC 未保持 / capsule 漂移）→
+  replay 验证 → `validateProposalBundle`（parent 哈希、canary、donor 存在性、evidence ref
+  属于该 export、no-change、5000 行上限、批内 diffHash 重复、archive sourceHash 重复；批级
+  错误整 bundle 拒但保留全部 verdict 证据）→ `storeCandidateSource` 导入 + `candidate.registered`
+  lineage → summary artifact → budget settle（proposal-calls/proposer-tokens/usd 有界 settle +
+  release）。recovery 对 proposal action 以 worker manifest 存在性判定 running/pending-launch。
+- **diffHash 内容敏感化**（`src/candidate/diff.ts`）：hash 覆盖排序后的变更行多重集而非
+  行数形状 —— 行数相同内容不同的子代不再被误判为同一机制（specs/03 §9 "semantic diff 相同
+  才 dedup"），字节相同的多胞胎仍去重；行数指标不变。
+
+### 验收证据（`evidence/gate4/STATUS.json`（tracked）+ `proposal-e2e.json`（本地全量，含 sha256）；由 `pnpm evidence:gate4` 生成，任一断言失败 exit 1）
+
+| specs/07 Gate 4 Accept                                         | 结果 | 证据                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| baseline parent 从两条合成 trace 产出 ≥1 非平凡 admitted child | ✅   | E2E：parent `c_u5py7…` admitted → sandbox 6 turns/19 087 tokens/114 669 µUSD → 2 个 child（各 2 files +20/−8）admitted + 注册 lineage；`nontrivialChildrenAdmitted`/`childrenRegistered`                                                    |
+| proposer 读不到 controller/guard canary/凭据/sibling 输出      | ✅   | worker uid 65534（非 0）+ netns；DAC probes 全 EACCES（`dacBoundaryHeld`）；capsule digest 前后一致（overlay 除外）；`sandboxUidNetns`                                                                                                      |
+| trace 内 prompt injection 不能改写可写根/manifest policy       | ✅   | recorded policy 故意执行注入指令：`read ../controller/credentials.json` 与 `writeChild ../escape/stolen.txt` 均被 tool 层拒绝并渲染回 refusal；全 run 无 stolen.txt；transcript/proposal 无 canary（`injectionRefused`/`canaryDiscipline`） |
+| child 在 mock task 上行为符合 hypothesis                       | ✅   | 每个 child 的 `<mode> checklist (child N)` 同时出现在源码与真实 Loader ACP 流式回放 chunk 中（`checklistInSource`/`checklistStreamedByLoader`）；child 十阶段 build 全 pass                                                                 |
+| parent preservation 测试通过                                   | ✅   | child build `diffBoundary` pass（parent 重捕获验哈希 + section preservation + parentDiff 落 manifest）；`parentPreserved`                                                                                                                   |
+| transcript/tool use/token/cost/source ref 完整                 | ✅   | 6 turn 全带 promptSha256/sections/userDigest/token/费用，14 条 tool 记录（成功读写全带内容寻址 sourceRef），gateway receipts 6 条与请求数一致，两条 export 对象全部经 tool 层读取（`transcriptComplete`）                                   |
+| rejected proposal 证据保留                                     | ✅   | E2E 0 拒绝（批级无错误）；拒收路径由 `proposal-saga.test.ts`（worker 失败/transcript 篡改/重放失配）与 validator 6 例（no-change、canary、越界 evidence ref、未知 donor、批内重复、archive 重复）钉住                                       |
+
+### Gate 4 期间发现并修复的实现缺陷
+
+- **diffHash 只哈希行数形状**：`tool-selection` 与 `context-loss` 两个内容不同的子代被判
+  同一机制、第二个被误拒。修复为哈希排序后的变更行多重集（`canonical.test.ts` 回归测试：
+  同形状不同内容不同 hash、字节相同同 hash）。
+- **`action-committed` 边界在 try/catch 内**：crash 注入在该点被 catch 转成 proposal
+  failure 而非向上传播。修复为 commit 后在 catch 外触发（`proposal-saga.test.ts` 4 个
+  crash-resume 点全过）。
+- **oxlint 遵守仓库 .gitignore**：evidence/（被 ignore）下的 staged tree lint 到 0 文件
+  而 fail closed —— builder scratch 必须放 repo 外（gate4 evidence 脚本用 /tmp mkdtemp，
+  gate1 脚本本就如此）。
+
+### 已知限制
+
+- proposer 是 recorded 确定性 policy（纯函数），非真模型；真实路由/秘钥管理属后续 gate。
+- 沙箱边界是 Linux uid+netns+DAC（需 root supervisor 与 setpriv）；容器/seccomp profile、
+  非 root 宿主降级路径未实现（fail-closed ladder 会拒绝运行）。
+- E2E 的 failure trace 是合成的；真实 DEV_OBSERVED 轨迹要等 development split 闭环
+  （依赖 Harbor provider 接入 controller，见 Next）。
+- 子代只导入 store + 注册 lineage；child 的 development 评测 wave 尚未驱动（Gate 5 范围）。
+
 ## Next
 
-- Gate 4（agentic proposal vertical slice，`specs/07` §6）：proposal sandbox 的
-  filesystem/network/model-gateway policy、parent candidate `propose` mode 经真实 DSH
-  Loader、label 过滤的 evidence export/catalog、proposal 输出协议（width/diversity/
-  dedup/donor provenance）、builder handoff 与 rejected evidence。
-- Gate 3 后续接线（显式记录，不静默）：Harbor provider 适配 `BenchmarkProvider` 接口、
-  controller 接 Gate 2 dataset inventory 规划 development wave。
+- Gate 5（`specs/07` §7）：development split 真实闭环 —— Harbor provider 适配
+  `BenchmarkProvider` 接口（复用 Gate 2 JobConfig/ledger/normalizer）、controller 规划
+  development wave、子代评测 + selection/archive admission；sealed 路径仍不触。
+- Gate 4 后续接线（显式记录，不静默）：真模型 proposer 路由（替换 recorded policy 的
+  adapter 槽位）、proposer 预算维度并轨到整轮 $500/16h 预算模型。
 - 顺延项（显式记录，不静默）：recorded-LLM 回放、DSH 生产闭包 runner、真实模型 capsule
   的 set_model 广告、development split 真实闭环（依赖 Gate 3 状态机与 Gate 4 budget）。

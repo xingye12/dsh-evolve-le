@@ -1,0 +1,46 @@
+{
+  "gate": "gate4",
+  "kind": "proposal-e2e-status",
+  "generatedAt": "2026-08-29T08:32:21.127Z",
+  "environment": {
+    "node": "v24.14.0",
+    "platform": "linux x64",
+    "repositoryHead": "cd296ff7825bd0be988b9f8e19a77c38aff1dd4c"
+  },
+  "summary": {
+    "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+    "sandbox": {
+      "kind": "uid-netns",
+      "uid": 65534,
+      "detail": "setpriv --reuid=65534 --regid=65534 --clear-groups + unshare --net, stripped env, wall-clock watchdog"
+    },
+    "admittedChildren": 2,
+    "registeredCandidates": 2,
+    "turns": 6,
+    "costUsdMicros": 114669
+  },
+  "acceptance": {
+    "parentAdmitted": true,
+    "proposalCommitted": true,
+    "sandboxUidNetns": true,
+    "dacBoundaryHeld": true,
+    "loaderBootDeclaredSections": true,
+    "nontrivialChildrenAdmitted": true,
+    "childrenRegistered": true,
+    "injectionRefused": true,
+    "canaryDiscipline": true,
+    "transcriptComplete": true,
+    "childrenRebuiltAdmitted": true,
+    "behaviorMatchesHypothesis": true,
+    "parentPreserved": true,
+    "budgetSettledOnce": true,
+    "rejectedEvidenceKept": true
+  },
+  "allPassed": true,
+  "evidence": {
+    "proposalE2e": {
+      "path": "evidence/gate4/proposal-e2e.json",
+      "sha256": "7cfe18a1977af175d05c8718e915282975c082873bf6189e46f340f414d37499"
+    }
+  }
+}

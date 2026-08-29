@@ -12,7 +12,12 @@ import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { candidateIdFromDigest, type CanonicalSource } from '../candidate/canonical.js'
+import {
+  candidateIdFromDigest,
+  captureCanonicalSource,
+  type CanonicalSource,
+} from '../candidate/canonical.js'
+import { diffCanonicalSources } from '../candidate/diff.js'
 import { scanCanonicalSource, defaultScanPolicy } from '../candidate/scan.js'
 import { runAcpSession } from '../acp/driver.js'
 import { computeTreeDigest, TREE_DIGEST_ALGO } from '../digest.js'
@@ -60,6 +65,12 @@ export interface BuildInput {
   sourceDir: string
   /** Builder-owned scratch directory; created fresh, caller cleans up. */
   workRoot: string
+  /**
+   * Canonical parent source tree (Gate 4): required whenever candidate.json
+   * declares a non-null canonicalParent. Identity-bound — the capture must
+   * hash to the declared parent digest or admission fails closed.
+   */
+  parentTreeDir?: string
 }
 
 export interface BuildResult {
@@ -104,11 +115,83 @@ function emptyReceipts(): Receipts {
   return receipts
 }
 
+/** True when two name sequences are equal as multisets (order-insensitive). */
+function sameSequence(actual: string[], expected: string[]): boolean {
+  if (actual.length !== expected.length) return false
+  const sorted = [...actual].sort()
+  const target = [...expected].sort()
+  return sorted.every((name, index) => name === target[index])
+}
+
 interface ProbeReport {
   sections: { afterBoot: string[]; afterUnload: string[] }
   quiescent: boolean
   error?: string
   timings: { bootMs: number; unloadMs: number }
+}
+
+/** One declared prompt section (candidate.json runtime.promptSections). */
+interface DeclaredSection {
+  name: string
+  order: number
+}
+
+/** Section names a candidate declares for one mode, in (order, name) order. */
+function declaredSections(
+  manifest: Record<string, unknown> | undefined,
+  mode: 'solve' | 'propose',
+): DeclaredSection[] {
+  const runtime = manifest?.['runtime'] as
+    { promptSections?: Record<string, DeclaredSection[]> } | undefined
+  const list = runtime?.promptSections?.[mode]
+  if (!Array.isArray(list)) return []
+  return [...list]
+    .filter((section) => section !== null && typeof section === 'object')
+    .map((section) => ({ name: String(section.name), order: Number(section.order) }))
+    .sort((a, b) => a.order - b.order || (a.name < b.name ? -1 : 1))
+}
+
+/** The exact section-name sequence boot must expose for a mode. */
+function expectedSectionNames(
+  manifest: Record<string, unknown> | undefined,
+  mode: 'solve' | 'propose',
+): string[] {
+  return declaredSections(manifest, mode).map((section) => section.name)
+}
+
+/**
+ * Parent preservation (specs/02 §10, specs/03 §9): a child must retain every
+ * prompt section name its canonical parent declared, in both modes. Sections
+ * may be re-ordered or their text changed as the mechanism itself — names are
+ * the preserved surface the controller can attribute and revoke.
+ */
+function checkSectionPreservation(
+  parentSource: CanonicalSource,
+  childManifest: Record<string, unknown> | undefined,
+): string | undefined {
+  const parentManifestFile = parentSource.files.find((file) => file.path === 'candidate.json')
+  if (parentManifestFile === undefined) {
+    return 'parent source has no candidate.json to check preservation against'
+  }
+  let parentManifest: Record<string, unknown>
+  try {
+    parentManifest = JSON.parse(parentManifestFile.content.toString('utf8')) as Record<
+      string,
+      unknown
+    >
+  } catch (error) {
+    return `parent candidate.json is not JSON: ${String(error)}`
+  }
+  for (const mode of ['solve', 'propose'] as const) {
+    const parentNames = new Set(expectedSectionNames(parentManifest, mode))
+    const childNames = new Set(expectedSectionNames(childManifest, mode))
+    for (const name of parentNames) {
+      if (!childNames.has(name)) {
+        return `child drops parent ${mode} section "${name}" (preservation violation)`
+      }
+    }
+  }
+  return undefined
 }
 
 /**
@@ -196,7 +279,10 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
 
   // ---- stage 3: diff boundary ------------------------------------------
   let parentDiff: Record<string, unknown> | undefined
-  if (failed === undefined) {
+  if (failed === undefined && source === undefined) {
+    failStage('diffBoundary', 'internal: diff boundary reached without a captured source')
+  } else if (failed === undefined && source !== undefined) {
+    const childSource = source
     if (canonicalParent === null) {
       parentDiff = {
         parent: null,
@@ -209,11 +295,42 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
         status: 'pass',
         detail: 'lineage root (canonicalParent null): no parent diff required',
       }
-    } else {
+    } else if (input.parentTreeDir === undefined) {
       failStage(
         'diffBoundary',
-        'non-root candidates require the parent canonical source from the archive; archive lookup lands with the Gate 3 proposer flow',
+        'candidate declares canonicalParent but no parent source tree was supplied',
       )
+    } else {
+      try {
+        const parentSource = await captureCanonicalSource(input.parentTreeDir)
+        if (`sha256:${parentSource.sha256}` !== canonicalParent) {
+          failStage(
+            'diffBoundary',
+            `supplied parent tree hashes to sha256:${parentSource.sha256}, candidate.json declares ${canonicalParent}`,
+          )
+        } else {
+          const preservation = checkSectionPreservation(parentSource, candidateManifest)
+          if (preservation !== undefined) {
+            failStage('diffBoundary', preservation)
+          } else {
+            const diff = diffCanonicalSources(parentSource, childSource)
+            parentDiff = {
+              parent: canonicalParent,
+              diffHash: diff.diffHash,
+              filesChanged: diff.filesChanged,
+              linesAdded: diff.linesAdded,
+              linesRemoved: diff.linesRemoved,
+              differingFiles: diff.differingFiles,
+            }
+            receipts.diffBoundary = {
+              status: 'pass',
+              detail: `parent ${canonicalParent.slice(0, 16)}… verified by re-capture; ${diff.filesChanged} files +${diff.linesAdded}/-${diff.linesRemoved} within the pre-registered boundary; parent sections preserved`,
+            }
+          }
+        }
+      } catch (error) {
+        failStage('diffBoundary', error instanceof Error ? error.message : String(error))
+      }
     }
   }
 
@@ -344,7 +461,9 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
       runnerSourceDir: coreLibDir,
     })
 
-    // stage 7: real Loader boot of the packed capsule (solve mode).
+    // stage 7: real Loader boot of the packed capsule (solve mode). The
+    // exposed sections must be exactly what candidate.json declares — the
+    // declaration is the admission contract, not the baseline's shape.
     const solveRun = await runProbe(capsuleDir, 'cordis.yml', 60_000)
     if (solveRun.report === undefined) {
       failStage('loaderBoot', `capsule probe failed: ${solveRun.stderrOrError}`)
@@ -355,16 +474,22 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
         `${JSON.stringify(solveRun.raw, null, 2)}\n`,
         'utf8',
       )
-      if (solveRun.report.error !== undefined) {
+      const expectedSolve = expectedSectionNames(candidateManifest, 'solve')
+      const expectedPropose = expectedSectionNames(candidateManifest, 'propose')
+      if (expectedSolve.length === 0) {
+        failStage('loaderBoot', 'candidate.json declares no solve promptSections to verify')
+      } else if (solveRun.report.error !== undefined) {
         failStage(
           'loaderBoot',
           `boot failed inside capsule: ${solveRun.report.error.slice(0, 1000)}`,
         )
-      } else if (solveRun.report.sections.afterBoot.join(',') !== 'candidate:identity') {
+      } else if (!sameSequence(solveRun.report.sections.afterBoot, expectedSolve)) {
         failStage(
           'loaderBoot',
-          `solve-mode sections ${JSON.stringify(solveRun.report.sections.afterBoot)} != ["candidate:identity"]`,
+          `solve-mode sections ${JSON.stringify(solveRun.report.sections.afterBoot)} != declared ${JSON.stringify(expectedSolve)}`,
         )
+      } else if (expectedPropose.length === 0) {
+        failStage('loaderBoot', 'candidate.json declares no propose promptSections to verify')
       } else {
         receipts.loaderBoot = {
           status: 'pass',
@@ -422,10 +547,12 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
             'mockReplay',
             `propose-mode boot failed: ${proposeRun.report.error.slice(0, 1000)}`,
           )
-        } else if (sections.afterBoot.join(',') !== 'candidate:proposal-policy') {
+        } else if (
+          !sameSequence(sections.afterBoot, expectedSectionNames(candidateManifest, 'propose'))
+        ) {
           failStage(
             'mockReplay',
-            `propose-mode sections ${JSON.stringify(sections.afterBoot)} != ["candidate:proposal-policy"]`,
+            `propose-mode sections ${JSON.stringify(sections.afterBoot)} != declared ${JSON.stringify(expectedSectionNames(candidateManifest, 'propose'))}`,
           )
         } else if (!proposeRun.report.quiescent || sections.afterUnload.length !== 0) {
           failStage('mockReplay', 'propose-mode unload did not return to baseline')
@@ -461,11 +588,6 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
           )
         } else if (acp.stopReason !== 'end_turn') {
           failStage('mockReplay', `ACP prompt stopReason ${acp.stopReason} != end_turn`)
-        } else if (!chunks.some((text) => text.includes('[candidate:identity]'))) {
-          failStage(
-            'mockReplay',
-            `candidate:identity section absent from the ACP turn stream: ${JSON.stringify(chunks)}`,
-          )
         } else if (
           acp.report === undefined ||
           !acp.report.quiescent ||
@@ -473,10 +595,22 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
         ) {
           failStage('mockReplay', 'ACP runner did not return to baseline after client disconnect')
         } else {
+          // Every declared solve section must stream back in the turn.
+          const missing = expectedSectionNames(candidateManifest, 'solve').filter(
+            (name) => !chunks.some((text) => text.includes(`[${name}]`)),
+          )
+          if (missing.length > 0) {
+            failStage(
+              'mockReplay',
+              `declared solve sections absent from the ACP turn stream: ${missing.join(',')}`,
+            )
+          }
+        }
+        if (failed === undefined) {
           receipts.mockReplay = {
             status: 'pass',
             detail:
-              'ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: candidate:identity streamed in the turn, end_turn, unload invariant held; propose overlay dispatched candidate:proposal-policy with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2)',
+              'ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2)',
           }
         }
       }

@@ -35,6 +35,30 @@ import {
   type WaveState,
 } from '../state/reducer.js'
 import { loadState, writeSnapshot } from '../state/snapshot.js'
+import { captureCanonicalSource } from '../candidate/canonical.js'
+import { storeCandidateSource } from '../candidate/store.js'
+import type { ArchiveCatalog } from '../proposer/catalog.js'
+import type { GatewayUsage } from '../proposer/gateway.js'
+import { parseProposalOutput, type ProposalOutput } from '../proposer/protocol.js'
+import {
+  capsuleDigestExcludingOverlay,
+  runProposalSandbox,
+  supervisorManifestPath,
+  verifyProposalSandboxReplay,
+  workerResultPath,
+  type ProposalSandboxOutcome,
+  type RunProposalSandboxOptions,
+  type SupervisorManifest,
+  type WorkerResultDoc,
+} from '../proposer/sandbox.js'
+import {
+  readExportManifest,
+  validateProposalBundle,
+  type ChildVerdict,
+} from '../proposer/validate.js'
+import { existsSync } from 'node:fs'
+import { readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { acquireWriterLock } from './lock.js'
 import type { BenchmarkProvider } from './provider.js'
 
@@ -58,7 +82,15 @@ export interface ControllerConfig {
    * kills the process here.
    */
   onBoundary?: (point: BoundaryPoint, actionId: string | null) => void | Promise<void>
+  /**
+   * Sandbox runner seam for the proposal saga: defaults to the real one-shot
+   * uid+netns sandbox; tests substitute a lightweight materializer.
+   */
+  proposalRunner?: ProposalRunner
 }
+
+/** The sandbox external effect behind a proposal action. */
+export type ProposalRunner = (options: RunProposalSandboxOptions) => Promise<ProposalSandboxOutcome>
 
 /** Controller-level evaluation request (opaque payload to the reducer). */
 export interface EvaluationRequest {
@@ -76,6 +108,62 @@ export interface EvaluationInput extends EvaluationRequest {
 }
 
 export const TRAJECTORY_MEDIA_TYPE = 'application/vnd.dsh-evolve-le.trajectory+json'
+
+export const PROPOSAL_TRANSCRIPT_MEDIA_TYPE =
+  'application/vnd.dsh-evolve-le.proposal-transcript+jsonl'
+export const PROPOSAL_RECEIPTS_MEDIA_TYPE = 'application/vnd.dsh-evolve-le.proposal-receipts+jsonl'
+export const PROPOSAL_BUNDLE_MEDIA_TYPE = 'application/vnd.dsh-evolve-le.proposal-bundle+json'
+export const PROPOSAL_VALIDATION_MEDIA_TYPE =
+  'application/vnd.dsh-evolve-le.proposal-validation+json'
+
+/** Controller-level proposal request (the durable journal payload). */
+export interface ProposalRequest {
+  parentCandidateId: string
+  /** Canonical source digest of the parent the children derive from. */
+  parentSourceHash: string
+  /** The label-filtered export id the sandbox read. */
+  exportId: string
+  width: number
+}
+
+export interface ProposalInput {
+  actionId: string
+  request: ProposalRequest
+  /** Worst-case reservation (proposal-calls ≥ 1, proposer-tokens, usd). */
+  estimate: Array<{ dimension: BudgetDimension; amount: number }>
+  /** Controller-side sandbox materials, never trusted from the sandbox. */
+  capsuleDir: string
+  parentTreeDir: string
+  exportDir: string
+  /** Archive catalog for dedup + donor existence (dev-observed only). */
+  catalog: ArchiveCatalog
+  /** Canary tokens no proposal field or child source may carry. */
+  canaryTokens: readonly string[]
+  maxTurns?: number
+  timeoutMs?: number
+}
+
+/** The durable summary of one proposal action (also its evidence artifact). */
+export interface ProposalSummaryDoc {
+  schemaVersion: 1
+  actionId: string
+  sandbox: SupervisorManifest['sandbox']
+  capsuleDigest: string
+  turns: number | null
+  usage: GatewayUsage | null
+  admitted: ChildVerdict[]
+  rejected: ChildVerdict[]
+  batchErrors: string[]
+  registeredCandidateIds: string[]
+}
+
+export interface ProposalResult {
+  actionId: string
+  status: ActionStatus
+  failureReason: string | null
+  sandboxRoot: string
+  summary: ProposalSummaryDoc
+}
 
 export class ControllerError extends Error {
   constructor(message: string) {
@@ -205,6 +293,20 @@ export class Controller {
           actionId: action.actionId,
           externalJobId: null,
           disposition: 'pending-launch',
+        })
+        continue
+      }
+      if (action.kind === 'proposal') {
+        // Proposal "jobs" are sandbox roots, not provider jobs. The worker
+        // result manifest is written last: present → the effect is done and
+        // runProposal resumes collection; absent → the effect never
+        // completed and re-running it is safe (deterministic re-stage).
+        this.recovery.inspected.push({
+          actionId: action.actionId,
+          externalJobId: action.externalJobId,
+          disposition: existsSync(workerResultPath(action.externalJobId))
+            ? 'running'
+            : 'pending-launch',
         })
         continue
       }
@@ -359,6 +461,371 @@ export class Controller {
     await this.launch(input.actionId)
     await this.awaitTerminal(input.actionId)
     return this.collectAndCommit(input.actionId)
+  }
+
+  // ---------------------------------------------------------------------
+  // Proposal saga (Gate 4, specs/07 §6): one sandboxed proposer call per
+  // action. The external effect is the one-shot sandbox run; its worker
+  // result manifest is written LAST, so "manifest present" is the keyed
+  // idempotency marker for the effect and a crash before it is safe to
+  // re-run (the sandbox re-stages deterministically from scratch). Nothing
+  // the sandbox produced is trusted until the controller-side replay and
+  // bundle validation pass.
+  // ---------------------------------------------------------------------
+
+  async runProposal(input: ProposalInput): Promise<ProposalResult> {
+    const existing = this.current.actions[input.actionId]
+    if (existing !== undefined && TERMINAL_ACTIONS.has(existing.status)) {
+      return this.proposalResultOf(input.actionId)
+    }
+    await this.reserveProposalAction(input)
+    const sandboxRoot = join(this.runDir, 'sandboxes', input.actionId)
+    await this.launchProposalSandbox(input, sandboxRoot)
+    return this.collectProposal(input, sandboxRoot)
+  }
+
+  private async reserveProposalAction(input: ProposalInput): Promise<void> {
+    if (this.current.actions[input.actionId] !== undefined) {
+      return // intent already durable
+    }
+    await this.emit('action.reserved', {
+      actionId: input.actionId,
+      kind: 'proposal',
+      idempotencyKey: `propose-${input.actionId}`,
+      request: input.request,
+      waveId: null,
+      budget: input.estimate,
+    })
+    for (const { dimension, amount } of input.estimate) {
+      await this.mirrorBudget({ kind: 'reserve', dimension, actionId: input.actionId, amount })
+    }
+    await this.boundary('intent-durable', input.actionId)
+  }
+
+  /** Manifest-last idempotency: the effect ran iff its result manifest exists. */
+  private async launchProposalSandbox(input: ProposalInput, sandboxRoot: string): Promise<void> {
+    if (this.current.externalJobs[input.actionId] !== undefined) {
+      return // launch receipt already durable
+    }
+    await this.boundary('launch-before-effect', input.actionId)
+    if (!existsSync(workerResultPath(sandboxRoot))) {
+      const runner = this.config.proposalRunner ?? runProposalSandbox
+      await runner({
+        sandboxRoot,
+        capsuleDir: input.capsuleDir,
+        exportDir: input.exportDir,
+        parentTreeDir: input.parentTreeDir,
+        parentSourceHash: input.request.parentSourceHash,
+        width: input.request.width,
+        ...(input.maxTurns !== undefined ? { maxTurns: input.maxTurns } : {}),
+        ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+      })
+    }
+    await this.boundary('launch-effect-done', input.actionId)
+    await this.emit('action.launched', {
+      actionId: input.actionId,
+      externalJobId: sandboxRoot,
+      provider: 'proposal-sandbox',
+    })
+    await this.boundary('launch-receipt-durable', input.actionId)
+  }
+
+  /** Read the sandbox's durable facts (supervisor manifest + worker result). */
+  private async readSandboxFacts(
+    sandboxRoot: string,
+  ): Promise<{ supervisor: SupervisorManifest; worker: WorkerResultDoc }> {
+    const supervisor = JSON.parse(
+      await readFile(supervisorManifestPath(sandboxRoot), 'utf8'),
+    ) as SupervisorManifest
+    const worker = JSON.parse(
+      await readFile(workerResultPath(sandboxRoot), 'utf8'),
+    ) as WorkerResultDoc
+    return { supervisor, worker }
+  }
+
+  private async collectProposal(
+    input: ProposalInput,
+    sandboxRoot: string,
+  ): Promise<ProposalResult> {
+    let facts: { supervisor: SupervisorManifest; worker: WorkerResultDoc }
+    try {
+      facts = await this.readSandboxFacts(sandboxRoot)
+    } catch (error) {
+      // Missing or corrupt manifests: the effect is unattributable — fail
+      // the action (rule 7), keeping whatever the sandbox dir still holds.
+      await this.observeExternalTerminal(input.actionId, { kind: 'proposal-sandbox' })
+      await this.putSandboxArtifacts(input.actionId, sandboxRoot)
+      return this.failProposal(
+        input.actionId,
+        `sandbox manifests unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    const { supervisor, worker } = facts
+    const capsule = await capsuleDigestExcludingOverlay(join(sandboxRoot, 'input', 'capsule'))
+    const capsuleVerified = capsule.digest === supervisor.capsuleDigest
+    const dacProbes = worker.dacProbes ?? []
+    const dacHeld = dacProbes.length > 0 && dacProbes.every((probe) => probe.outcome === 'EACCES')
+    await this.observeExternalTerminal(input.actionId, {
+      kind: 'proposal-sandbox',
+      sandbox: supervisor.sandbox.kind,
+      uid: worker.uid,
+      workerOk: worker.ok,
+      dacHeld,
+      capsuleVerified,
+      turns: worker.turns ?? null,
+    })
+    await this.putSandboxArtifacts(input.actionId, sandboxRoot)
+
+    const hardFailure =
+      worker.uid === 0
+        ? 'worker ran as root'
+        : !worker.ok
+          ? `worker failed: ${worker.error?.slice(0, 300) ?? 'no error recorded'}`
+          : !dacHeld
+            ? 'DAC boundary did not hold against the controller/sealed canaries'
+            : !capsuleVerified
+              ? 'capsule tree drifted during the run'
+              : null
+    if (hardFailure !== null) {
+      return this.failProposal(input.actionId, hardFailure)
+    }
+    return this.validateAndCommitProposal(input, sandboxRoot, supervisor, worker)
+  }
+
+  /** Persist whatever the sandbox produced — failed runs keep evidence too. */
+  private async putSandboxArtifacts(actionId: string, sandboxRoot: string): Promise<void> {
+    if (this.action(actionId).artifacts.length > 0) {
+      for (const ref of this.action(actionId).artifacts) await this.store.verify(ref)
+      return
+    }
+    const put = async (path: string, mediaType: string): Promise<void> => {
+      const bytes = await readFile(path).catch(() => undefined)
+      if (bytes === undefined) return
+      const ref = await this.store.put(bytes, { mediaType, label: 'CONTROLLER_INTERNAL' })
+      await this.emit('artifact.collected', { actionId, artifact: ref })
+    }
+    await put(join(sandboxRoot, 'work', 'transcript.jsonl'), PROPOSAL_TRANSCRIPT_MEDIA_TYPE)
+    await put(join(sandboxRoot, 'work', 'gateway-receipts.jsonl'), PROPOSAL_RECEIPTS_MEDIA_TYPE)
+    await put(join(sandboxRoot, 'work', 'proposal.json'), PROPOSAL_BUNDLE_MEDIA_TYPE)
+    await this.boundary('artifact-stored', actionId)
+  }
+
+  private async validateAndCommitProposal(
+    input: ProposalInput,
+    sandboxRoot: string,
+    supervisor: SupervisorManifest,
+    worker: WorkerResultDoc,
+  ): Promise<ProposalResult> {
+    const usage = worker.usage ?? null
+    let summary: ProposalSummaryDoc | undefined
+    try {
+      const proposal: ProposalOutput =
+        worker.proposal ??
+        (JSON.parse(await readFile(join(sandboxRoot, 'work', 'proposal.json'), 'utf8')) as never)
+      parseProposalOutput(proposal)
+
+      // Controller-side replay: rebuild the transcript/proposal/children from
+      // the frozen sandbox inputs and demand byte equality.
+      const replayDir = join(this.runDir, 'replays', input.actionId)
+      await rm(replayDir, { recursive: true, force: true })
+      const replay = await verifyProposalSandboxReplay(sandboxRoot, { replayDir })
+      if (
+        !replay.sectionsMatch ||
+        !replay.transcriptMatches ||
+        !replay.proposalMatches ||
+        !replay.childrenMatch
+      ) {
+        return this.failProposal(
+          input.actionId,
+          `replay verification failed (sections ${replay.sectionsMatch}, transcript ${replay.transcriptMatches}, proposal ${replay.proposalMatches}, children ${replay.childrenMatch})`,
+          usage,
+        )
+      }
+
+      const parentSource = await captureCanonicalSource(input.parentTreeDir)
+      if (`sha256:${parentSource.sha256}` !== input.request.parentSourceHash) {
+        return this.failProposal(
+          input.actionId,
+          'parent tree no longer hashes to the declared parentSourceHash',
+          usage,
+        )
+      }
+      const exportManifest = await readExportManifest(input.exportDir)
+      const validation = await validateProposalBundle({
+        proposal,
+        childrenRoot: join(sandboxRoot, 'work', 'children'),
+        parentSource,
+        exportManifest,
+        catalog: input.catalog,
+        canaryTokens: input.canaryTokens,
+      })
+      if (validation.batchErrors.length > 0) {
+        return this.failProposal(
+          input.actionId,
+          `bundle rejected: ${validation.batchErrors.join('; ').slice(0, 500)}`,
+          usage,
+        )
+      }
+
+      // Import admitted children into the content-addressed candidate store;
+      // each import registers the lineage in the folded state exactly once.
+      const candidatesRoot = join(this.runDir, 'candidates')
+      const registeredCandidateIds: string[] = []
+      for (const verdict of validation.admitted) {
+        const stored = await storeCandidateSource(
+          candidatesRoot,
+          join(sandboxRoot, 'work', 'children', verdict.childName),
+        )
+        if (stored.sourceHash !== verdict.sourceHash) {
+          return this.failProposal(
+            input.actionId,
+            `stored child ${verdict.childName} hash ${stored.sourceHash} != validated ${verdict.sourceHash}`,
+            usage,
+          )
+        }
+        if (this.current.candidates[stored.candidateId] === undefined) {
+          await this.registerCandidate({
+            candidateId: stored.candidateId,
+            sourceHash: stored.sourceHash,
+            parentCandidateId: input.request.parentCandidateId,
+            proposalActionId: input.actionId,
+          })
+        }
+        registeredCandidateIds.push(stored.candidateId)
+      }
+
+      const summaryDoc: ProposalSummaryDoc = {
+        schemaVersion: 1,
+        actionId: input.actionId,
+        sandbox: supervisor.sandbox,
+        capsuleDigest: supervisor.capsuleDigest,
+        turns: worker.turns ?? null,
+        usage,
+        admitted: validation.admitted,
+        rejected: validation.rejected,
+        batchErrors: validation.batchErrors,
+        registeredCandidateIds,
+      }
+      summary = summaryDoc
+      await this.putProposalSummary(input.actionId, summaryDoc)
+      if (TERMINAL_ACTIONS.has(this.action(input.actionId).status)) {
+        return this.proposalResultOf(input.actionId)
+      }
+      await this.emit('action.committed', { actionId: input.actionId, observation: null })
+      await this.settleProposalBudget(input.actionId, usage)
+    } catch (error) {
+      return this.failProposal(
+        input.actionId,
+        `proposal collection failed: ${error instanceof Error ? error.message : String(error)}`,
+        usage,
+      )
+    }
+    // Outside the catch: a fault injected at this boundary must surface, not
+    // be converted into a proposal failure (the commit is already durable).
+    await this.boundary('action-committed', input.actionId)
+    return { ...this.proposalResultOfSync(input.actionId), summary: summary! }
+  }
+
+  /** Store the validation summary artifact (idempotent by digest). */
+  private async putProposalSummary(actionId: string, summary: ProposalSummaryDoc): Promise<void> {
+    const existing = this.action(actionId).artifacts.find(
+      (ref) => ref.mediaType === PROPOSAL_VALIDATION_MEDIA_TYPE,
+    )
+    if (existing !== undefined) {
+      await this.store.verify(existing)
+      return
+    }
+    const ref = await this.store.put(Buffer.from(`${JSON.stringify(summary, null, 2)}\n`, 'utf8'), {
+      mediaType: PROPOSAL_VALIDATION_MEDIA_TYPE,
+      label: 'CONTROLLER_INTERNAL',
+    })
+    await this.emit('artifact.collected', { actionId, artifact: ref })
+  }
+
+  /**
+   * Settle a proposal action's budget: one proposal call, the gateway's own
+   * token accounting, and its frozen-route USD cost. Settles are bounded by
+   * the per-action reservation, mirroring the evaluation saga.
+   */
+  private async settleProposalBudget(actionId: string, usage: GatewayUsage | null): Promise<void> {
+    const reserved = this.current.budgetByAction[actionId] ?? {}
+    const bounded = (dimension: BudgetDimension, amount: number): number =>
+      Math.min(amount, reserved[dimension]?.reserved ?? 0)
+    await this.mirrorBudget({
+      kind: 'settle',
+      dimension: 'proposal-calls',
+      actionId,
+      amount: bounded('proposal-calls', 1),
+    })
+    await this.mirrorBudget({
+      kind: 'settle',
+      dimension: 'proposer-tokens',
+      actionId,
+      amount: bounded('proposer-tokens', usage?.totalTokens ?? 0),
+      unpricedUnits: usage === null ? 1 : 0,
+    })
+    const cost = usage?.costUsdMicros
+    await this.mirrorBudget({
+      kind: 'settle',
+      dimension: 'usd',
+      actionId,
+      amount: bounded('usd', cost ?? 0),
+      unpricedUnits: cost === undefined ? 1 : 0,
+    })
+    await this.releaseRemainder(actionId)
+  }
+
+  /** Fail a proposal action terminally, settling its budget (rule 7: keep it). */
+  private async failProposal(
+    actionId: string,
+    reason: string,
+    usage: GatewayUsage | null = null,
+  ): Promise<ProposalResult> {
+    if (!TERMINAL_ACTIONS.has(this.action(actionId).status)) {
+      await this.emit('action.terminal', { actionId, reason, status: 'FAILED' })
+      await this.settleProposalBudget(actionId, usage)
+      await this.boundary('action-committed', actionId)
+    }
+    return this.proposalResultOf(actionId)
+  }
+
+  /** Rebuild the result view from durable state + the summary artifact. */
+  private proposalResultOfSync(actionId: string): Omit<ProposalResult, 'summary'> {
+    const action = this.action(actionId)
+    return {
+      actionId,
+      status: action.status,
+      failureReason: action.failure?.reason ?? null,
+      sandboxRoot: join(this.runDir, 'sandboxes', actionId),
+    }
+  }
+
+  private async proposalResultOf(actionId: string): Promise<ProposalResult> {
+    const action = this.action(actionId)
+    const summaryRef = action.artifacts.find(
+      (ref) => ref.mediaType === PROPOSAL_VALIDATION_MEDIA_TYPE,
+    )
+    if (summaryRef === undefined) {
+      return {
+        ...this.proposalResultOfSync(actionId),
+        summary: {
+          schemaVersion: 1,
+          actionId,
+          sandbox: { kind: 'netns', uid: null, detail: 'no summary recorded' },
+          capsuleDigest: '',
+          turns: null,
+          usage: null,
+          admitted: [],
+          rejected: [],
+          batchErrors: [action.failure?.reason ?? 'failed without a summary'],
+          registeredCandidateIds: [],
+        },
+      }
+    }
+    const summary = JSON.parse(
+      (await this.store.read(summaryRef)).toString('utf8'),
+    ) as ProposalSummaryDoc
+    return { ...this.proposalResultOfSync(actionId), summary }
   }
 
   private async reserve(input: EvaluationInput): Promise<void> {

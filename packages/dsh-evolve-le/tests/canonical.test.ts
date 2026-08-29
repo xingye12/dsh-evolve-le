@@ -232,6 +232,35 @@ describe('canonical diff', () => {
     expect(diffCanonicalSources(parent, child).diffHash).toBe(diff.diffHash)
   })
 
+  it('hashes the change multiset, not the diff shape (specs/03 §9 dedup key)', async () => {
+    const parentRoot = await dir('dedup-parent')
+    await writeFile(join(parentRoot, 'checklist.txt'), 'parent has no checklist\n')
+    const parent = await captureCanonicalSource(parentRoot)
+
+    const makeChild = async (name: string, line: string): Promise<void> => {
+      const root = await dir(name)
+      await writeFile(join(root, 'checklist.txt'), `${line}\n`)
+    }
+    await makeChild('dedup-child-a', 'tool-selection checklist')
+    await makeChild('dedup-child-b', 'context-loss checklist')
+    const childA = await captureCanonicalSource(join(work, 'dedup-child-a'))
+    const childB = await captureCanonicalSource(join(work, 'dedup-child-b'))
+
+    const diffA = diffCanonicalSources(parent, childA)
+    const diffB = diffCanonicalSources(parent, childB)
+    // Same shape: one modified file, one line swapped each way.
+    expect(diffA.linesAdded).toBe(1)
+    expect(diffB.linesAdded).toBe(1)
+    expect(diffA.linesRemoved).toBe(diffB.linesRemoved)
+    // Different content: different mechanisms, so different diff hashes.
+    expect(diffA.diffHash).not.toBe(diffB.diffHash)
+
+    // Byte-identical twins are the same mechanism and hash identically.
+    await makeChild('dedup-child-twin', 'tool-selection checklist')
+    const twin = await captureCanonicalSource(join(work, 'dedup-child-twin'))
+    expect(diffCanonicalSources(parent, twin).diffHash).toBe(diffA.diffHash)
+  })
+
   it('enforces the changed-lines cap', async () => {
     const parentRoot = await dir('cap-parent')
     await writeFile(join(parentRoot, 'a.txt'), '')

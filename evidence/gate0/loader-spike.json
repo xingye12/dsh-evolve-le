@@ -1,11 +1,11 @@
 {
   "gate": "gate0",
   "kind": "loader-spike",
-  "generatedAt": "2026-08-28T19:06:25.908Z",
+  "generatedAt": "2026-08-29T05:54:58.798Z",
   "environment": {
     "node": "v24.14.0",
     "platform": "linux x64",
-    "repositoryHead": "694d28da2e929e628c38291d803c277d5f770fda"
+    "repositoryHead": "cd296ff7825bd0be988b9f8e19a77c38aff1dd4c"
   },
   "acceptance": {
     "baselineQuiescent": true,
@@ -213,8 +213,8 @@
           "afterUnload": {}
         },
         "timings": {
-          "bootMs": 105.060496,
-          "unloadMs": 1.6441299999999899
+          "bootMs": 105.444367,
+          "unloadMs": 1.9059669999999755
         },
         "quiescent": true
       },
@@ -287,7 +287,7 @@
           "afterUnload": {}
         },
         "timings": {
-          "bootMs": 73.68256299999999,
+          "bootMs": 82.38163199999998,
           "unloadMs": 0
         },
         "quiescent": false,
@@ -474,8 +474,8 @@
           "afterUnload": {}
         },
         "timings": {
-          "bootMs": 68.85300799999999,
-          "unloadMs": 1.6126739999999984
+          "bootMs": 85.179364,
+          "unloadMs": 1.293880999999999
         },
         "quiescent": true
       },

@@ -39,6 +39,7 @@ evidence/gate8/*
 !evidence/gate4/
 evidence/gate4/*
 !evidence/gate4/STATUS.json
+!evidence/gate4/proposal-e2e.json
 runs/
 
 # Editor / OS noise.

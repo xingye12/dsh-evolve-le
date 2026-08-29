@@ -15,7 +15,21 @@
     "requiredServices": ["systemPrompt"],
     "optionalServices": [],
     "newToolNames": [],
-    "supportsModes": ["solve", "propose"]
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [
+        {
+          "name": "candidate:identity",
+          "order": 100
+        }
+      ],
+      "propose": [
+        {
+          "name": "candidate:proposal-policy",
+          "order": 100
+        }
+      ]
+    }
   },
   "tests": {
     "mechanismAssertions": [

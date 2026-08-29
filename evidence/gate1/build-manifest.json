@@ -22,9 +22,10 @@
     "bytes": 6182
   },
   "capsule": {
-    "tarSha256": "6d75b63fc69a7cd543d6249bf90437beab326ec2dbb3d40a3ab8b034f48f3d8d",
+    "tarSha256": "bbf69a990d08fc3b0e5b3daa86ea4da1a69f2941f45196566a19916d4c6a45dc",
+    "archiveSha256": "86a657b752a0983f149e3acddbf439df5aae436a6c86eca7edd477c9d2874792",
     "sbomSha256": "f0badb085ac945f69c39f6699a0b4d002d6a4fa75761022a854e3c667b8ba86e",
-    "provenanceSha256": "97d33f86f002f10ee54464b8679656cf6d090245a6f8b0367514b0f3a2596678"
+    "provenanceSha256": "2b3572bc0c09bd3217bbb31599e2a586c15ffde44d1d2986e408e5fad984b3ba"
   },
   "parentDiff": {
     "parent": null,
@@ -67,7 +68,7 @@
     },
     "loaderBoot": {
       "status": "pass",
-      "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 28ms"
+      "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 25ms"
     },
     "unloadInvariant": {
       "status": "pass",
@@ -79,11 +80,11 @@
     },
     "capsuleDoubleBuild": {
       "status": "pass",
-      "detail": "two capsule assemblies byte-identical (942 files, 7929687 bytes); tar 6d75b63fc69a7cd5…"
+      "detail": "two capsule assemblies byte-identical (tar and tar.gz; 944 files, 7933962 bytes); tar bbf69a990d08fc3b…, archive 86a657b752a0983f…"
     }
   },
   "builder": {
-    "builtAt": "2026-08-28T19:42:21.705Z",
+    "builtAt": "2026-08-29T06:03:26.483Z",
     "sandbox": {
       "kind": "namespace",
       "detail": "unshare --net (network namespace, no interfaces)"

@@ -16,15 +16,29 @@ import { join } from 'node:path'
 
 export const TREE_DIGEST_ALGO = 'dsh-evolve-tree-v1' as const
 
+/** Options for {@link computeTreeDigest}. */
+export interface TreeDigestOptions {
+  /**
+   * Skip paths (POSIX-relative, `/`-separated) for which this returns true.
+   * Used by the proposal sandbox to exclude the boot overlay the Cordis
+   * include plugin legitimately rewrites beside the Loader config; callers
+   * without a filter get the frozen full-tree format unchanged.
+   */
+  exclude?: (relativePath: string) => boolean
+}
+
 /** Compute the deterministic digest and file count of a tree. */
 export async function computeTreeDigest(
   root: string,
+  options?: TreeDigestOptions,
 ): Promise<{ digest: string; fileCount: number }> {
   const paths: string[] = []
   await collect(root, '', paths)
-  paths.sort()
+  const exclude = options?.exclude
+  const included = exclude ? paths.filter((rel) => !exclude(rel)) : paths
+  included.sort()
   const hash = createHash('sha256')
-  for (const rel of paths) {
+  for (const rel of included) {
     const stats = await lstat(join(root, rel))
     if (stats.isSymbolicLink()) {
       const target = await readlink(join(root, rel))
@@ -38,7 +52,7 @@ export async function computeTreeDigest(
       throw new Error(`unsupported dirent type at ${rel} under ${root}`)
     }
   }
-  return { digest: hash.digest('hex'), fileCount: paths.length }
+  return { digest: hash.digest('hex'), fileCount: included.length }
 }
 
 async function collect(root: string, prefix: string, out: string[]): Promise<void> {

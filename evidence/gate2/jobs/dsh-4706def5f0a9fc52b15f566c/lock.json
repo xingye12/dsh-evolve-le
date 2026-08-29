@@ -1,6 +1,6 @@
 {
     "schema_version": 3,
-    "created_at": "2026-08-28T21:10:28.979678Z",
+    "created_at": "2026-08-29T06:06:18.416082Z",
     "harbor": {
         "version": "0.21.0",
         "is_editable": false
@@ -9,15 +9,15 @@
     "retry": {
         "max_retries": 0,
         "exclude_exceptions": [
-            "VerifierOutputParseError",
-            "ApiUsageLimitError",
             "RewardFileNotFoundError",
+            "RewardFileEmptyError",
+            "ApiUsageLimitError",
             "AgentSafetyRefusalError",
             "ModelNotFoundError",
-            "RewardFileEmptyError",
-            "AgentTimeoutError",
+            "VerifierTimeoutError",
             "AgentAuthenticationError",
-            "VerifierTimeoutError"
+            "VerifierOutputParseError",
+            "AgentTimeoutError"
         ],
         "wait_multiplier": 1.0,
         "min_wait_sec": 1.0,
@@ -30,7 +30,7 @@
                 "name": "extract-elf",
                 "type": "local",
                 "digest": "sha256:1ef31d566be4fe3459d5368621ae7ef7a31b23ef675737e473bbc43c8c7b3fce",
-                "path": "/tmp/dsh-gate2-m81lFP/tasks/extract-elf"
+                "path": "/tmp/dsh-gate2-mGm6KR/tasks/extract-elf"
             },
             "install_only": false,
             "timeout_multiplier": 1.0,
@@ -71,7 +71,7 @@
                 "mounts": [
                     {
                         "type": "bind",
-                        "source": "/tmp/dsh-gate2-m81lFP/tls/ca-bundle.crt",
+                        "source": "/tmp/dsh-gate2-mGm6KR/tls/ca-bundle.crt",
                         "target": "/opt/dsh-evolve-le/ca-bundle.crt",
                         "read_only": true
                     }

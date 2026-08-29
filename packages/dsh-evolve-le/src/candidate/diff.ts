@@ -4,7 +4,9 @@
  * canonical file sets, so build output, dependency trees and undeclared files
  * cannot hide inside it. Line deltas are computed as deterministic multiset
  * differences (child-minus-parent and parent-minus-child), not a minimal edit
- * script — the metric is monotone, cheap, and stable by construction.
+ * script — the metric is monotone, cheap, and stable by construction. The
+ * diff hash covers the sorted change multiset itself, so children with equal
+ * line counts but different content are distinct mechanisms (specs/03 §9).
  * @module @dsh-evolve-le/core/candidate/diff
  */
 
@@ -36,15 +38,15 @@ function toLines(content: Buffer): string[] {
   return lines
 }
 
-/** Multiset difference: how many occurrences of each line lack a partner. */
-function multisetSurplus(base: string[], over: string[]): number {
+/** Multiset difference: the lines of `over` without a partner in `base`. */
+function multisetSurplusLines(base: string[], over: string[]): string[] {
   const counts = new Map<string, number>()
   for (const line of base) counts.set(line, (counts.get(line) ?? 0) + 1)
-  let surplus = 0
+  const surplus: string[] = []
   for (const line of over) {
     const remaining = counts.get(line) ?? 0
     if (remaining > 0) counts.set(line, remaining - 1)
-    else surplus += 1
+    else surplus.push(line)
   }
   return surplus
 }
@@ -73,25 +75,37 @@ export function diffCanonicalSources(
     const after = childFiles.get(path)
     if (before !== undefined && after !== undefined) {
       if (before.content.equals(after.content) && before.mode === after.mode) continue
-      const added = multisetSurplus(toLines(before.content), toLines(after.content))
-      const removed = multisetSurplus(toLines(after.content), toLines(before.content))
-      linesAdded += added
-      linesRemoved += removed
-      differingFiles.push({ path, status: 'modified', linesAdded: added, linesRemoved: removed })
-      hashLines.push(`~ ${path} +${added} -${removed}`)
+      // Sorted for order-independence: the hash covers the change multiset, so
+      // equal line counts with different content hash differently (specs/03 §9
+      // dedups identical semantic diffs, not identical diff shapes).
+      const added = multisetSurplusLines(toLines(before.content), toLines(after.content)).sort()
+      const removed = multisetSurplusLines(toLines(after.content), toLines(before.content)).sort()
+      linesAdded += added.length
+      linesRemoved += removed.length
+      differingFiles.push({
+        path,
+        status: 'modified',
+        linesAdded: added.length,
+        linesRemoved: removed.length,
+      })
+      hashLines.push(`~ ${path}`)
+      for (const line of added) hashLines.push(`+ ${line}`)
+      for (const line of removed) hashLines.push(`- ${line}`)
       continue
     }
     if (after !== undefined) {
-      const added = toLines(after.content).length
-      linesAdded += added
-      differingFiles.push({ path, status: 'added', linesAdded: added, linesRemoved: 0 })
-      hashLines.push(`+ ${path} ${added}`)
+      const added = toLines(after.content)
+      linesAdded += added.length
+      differingFiles.push({ path, status: 'added', linesAdded: added.length, linesRemoved: 0 })
+      hashLines.push(`+ ${path}`)
+      for (const line of added) hashLines.push(`+ ${line}`)
       continue
     }
-    const removed = toLines(before!.content).length
-    linesRemoved += removed
-    differingFiles.push({ path, status: 'removed', linesAdded: 0, linesRemoved: removed })
-    hashLines.push(`- ${path} ${removed}`)
+    const removed = toLines(before!.content)
+    linesRemoved += removed.length
+    differingFiles.push({ path, status: 'removed', linesAdded: 0, linesRemoved: removed.length })
+    hashLines.push(`- ${path}`)
+    for (const line of removed) hashLines.push(`- ${line}`)
   }
 
   const changed = linesAdded + linesRemoved
