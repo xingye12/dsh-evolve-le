@@ -1,0 +1,43 @@
+{
+  "runId": "gate8-pilot",
+  "phase": "SEARCHING",
+  "stopReason": "K_REACHED",
+  "status": "STOPPED:K_REACHED",
+  "trials": 13,
+  "discoveryTrials": 10,
+  "admittedNonBaseline": 3,
+  "lineageDepthMax": 1,
+  "expansionAttempts": 1,
+  "consecutiveExpansionFailures": 0,
+  "failurePool": [
+    "adaptive-rejection-sampler",
+    "bn-fit-modify",
+    "build-pmars",
+    "caffe-cifar-10",
+    "chess-best-move",
+    "circuit-fibsqrt",
+    "configure-git-webserver",
+    "count-dataset-tokens",
+    "custom-memory-heap-crash",
+    "dna-insert"
+  ],
+  "stateHash": "512f10b75af375ffde9a461c240d0fde3626b693400c07812058abfc00b5aa6e",
+  "budget": {
+    "usd": {
+      "spent": 23392,
+      "reserved": 0
+    },
+    "task-trials": {
+      "spent": 13,
+      "reserved": 0
+    },
+    "proposer-tokens": {
+      "spent": 109580,
+      "reserved": 0
+    },
+    "proposal-calls": {
+      "spent": 1,
+      "reserved": 0
+    }
+  }
+}

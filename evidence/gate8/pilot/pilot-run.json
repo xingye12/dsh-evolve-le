@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/gate8-pilot/v1",
+  "generatedAt": "2026-08-29T20:12:46.773Z",
+  "runId": "gate8-pilot",
+  "masterSeed": "gate8-pilot-master-seed-1",
+  "configHash": "sha256:89656f3c6c9793c50d13e246459a74dbf3a424eca9b744c5b2d0e94122d1e3c6",
+  "verificationMode": "verify-only (DSH_GATE8_PILOT_RUN_ROOT over the completed run root)",
+  "configProfile": "stable-demo + zen-compatible proposer route + K=10 discovery",
+  "route": {
+    "id": "deepseek/zen-compatible",
+    "baseUrl": "http://one-api.wattman.cn:805/v1",
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "routeHash": "892fad67d823bd42a1754a4b9e8e71474d48924c8b7023fb73e66b45181eb5e7",
+    "credentialFile": "/root/.config/dsh-evolve-le/zen-compatible.key"
+  },
+  "dataset": {
+    "tarball": "terminal-bench-2-1-7131e43.tar.gz",
+    "handles": 89
+  },
+  "preRegistration": {
+    "kDev": 10,
+    "sample": [
+      "adaptive-rejection-sampler",
+      "bn-fit-modify",
+      "build-pmars",
+      "caffe-cifar-10",
+      "chess-best-move",
+      "circuit-fibsqrt",
+      "configure-git-webserver",
+      "count-dataset-tokens",
+      "custom-memory-heap-crash",
+      "dna-insert"
+    ],
+    "selectionRule": "first 10 observed handles in the frozen ceremony order",
+    "seedCommitment": "288222f82c22cca3e9549bbdb145df6fb6dd023df97aeb29d6f7bc41937d2bf3"
+  },
+  "baselineFreeze": [
+    {
+      "opaqueTaskId": "adaptive-rejection-sampler",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "bn-fit-modify",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "build-pmars",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "caffe-cifar-10",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "chess-best-move",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "circuit-fibsqrt",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "configure-git-webserver",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "count-dataset-tokens",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "custom-memory-heap-crash",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    },
+    {
+      "opaqueTaskId": "dna-insert",
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1,
+      "outcome": "FAIL"
+    }
+  ],
+  "failurePool": [
+    "adaptive-rejection-sampler",
+    "bn-fit-modify",
+    "build-pmars",
+    "caffe-cifar-10",
+    "chess-best-move",
+    "circuit-fibsqrt",
+    "configure-git-webserver",
+    "count-dataset-tokens",
+    "custom-memory-heap-crash",
+    "dna-insert"
+  ],
+  "report": {
+    "runId": "gate8-pilot",
+    "phase": "SEARCHING",
+    "stopReason": "K_REACHED",
+    "status": "STOPPED:K_REACHED",
+    "trials": 13,
+    "discoveryTrials": 10,
+    "admittedNonBaseline": 3,
+    "lineageDepthMax": 1,
+    "expansionAttempts": 1,
+    "consecutiveExpansionFailures": 0,
+    "failurePool": [
+      "adaptive-rejection-sampler",
+      "bn-fit-modify",
+      "build-pmars",
+      "caffe-cifar-10",
+      "chess-best-move",
+      "circuit-fibsqrt",
+      "configure-git-webserver",
+      "count-dataset-tokens",
+      "custom-memory-heap-crash",
+      "dna-insert"
+    ],
+    "stateHash": "512f10b75af375ffde9a461c240d0fde3626b693400c07812058abfc00b5aa6e",
+    "budget": {
+      "usd": {
+        "spent": 23392,
+        "reserved": 0
+      },
+      "task-trials": {
+        "spent": 13,
+        "reserved": 0
+      },
+      "proposer-tokens": {
+        "spent": 109580,
+        "reserved": 0
+      },
+      "proposal-calls": {
+        "spent": 1,
+        "reserved": 0
+      }
+    }
+  },
+  "runSeconds": 3763,
+  "proposals": [
+    {
+      "actionId": "prop-1",
+      "modelKind": "remote",
+      "routeHash": "892fad67d823bd42a1754a4b9e8e71474d48924c8b7023fb73e66b45181eb5e7",
+      "receipts": 6,
+      "allOk": true,
+      "promptTokens": 52067,
+      "completionTokens": 57513,
+      "costUsdMicros": 23392
+    }
+  ],
+  "proposerCostUsdMicros": 23392,
+  "perTrialSeconds": 289,
+  "lineage": {
+    "depthMax": 1,
+    "childDepths": [
+      1,
+      1,
+      1
+    ]
+  },
+  "poolCoverage": [
+    {
+      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
+      "poolTrials": 1
+    },
+    {
+      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
+      "poolTrials": 1
+    },
+    {
+      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
+      "poolTrials": 1
+    }
+  ],
+  "capsules": [
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
+      "sourceDigest": "sha256:f124537ea4ed88a7f9516f953c922219ba0902e58d66f6f851ab276038600f61",
+      "archiveSha256": "517f11598641bad04729f0a1ece6bab7c86491994d038d782bcb6abde581aab7",
+      "capsuleDir": "capsules/c_6esfg7ve5wekp6krn6ktzercdg/capsule",
+      "stagedSourceDir": "capsules/c_6esfg7ve5wekp6krn6ktzercdg/src",
+      "archivePath": "capsules/517f11598641bad04729f0a1ece6bab7c86491994d038d782bcb6abde581aab7.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
+      "sourceDigest": "sha256:292f9a7546eccc72add06f9181a8ce92d3c840792e3f60bd775da49d3e2e61c1",
+      "archiveSha256": "fc1c67fdedd325370a85bfed1bfb764eed9c6cdaec395fc4469a9fa18dac931d",
+      "capsuleDir": "capsules/c_fexzu5kg5tghfloqn6iydkgosl/capsule",
+      "stagedSourceDir": "capsules/c_fexzu5kg5tghfloqn6iydkgosl/src",
+      "archivePath": "capsules/fc1c67fdedd325370a85bfed1bfb764eed9c6cdaec395fc4469a9fa18dac931d.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
+      "sourceDigest": "sha256:298866e5177bcc40abd74829256ead20605899497bfe5088b5e5b7a26cf894ba",
+      "archiveSha256": "4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69",
+      "capsuleDir": "capsules/c_fgegnzixppgebk6xjausk3vneb/capsule",
+      "stagedSourceDir": "capsules/c_fgegnzixppgebk6xjausk3vneb/src",
+      "archivePath": "capsules/4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "sourceDigest": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+      "archiveSha256": "543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39",
+      "capsuleDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/capsule",
+      "stagedSourceDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/src",
+      "archivePath": "capsules/543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39.tar.gz"
+    }
+  ],
+  "harborTrialDirs": 13,
+  "attributedTrials": 13,
+  "ledgerLines": 13,
+  "evidenceCitations": [
+    {
+      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
+      "refs": 3,
+      "verified": 3
+    },
+    {
+      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
+      "refs": 4,
+      "verified": 4
+    },
+    {
+      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
+      "refs": 2,
+      "verified": 2
+    }
+  ],
+  "sealedCount": 29,
+  "guardCount": 12,
+  "flags": {
+    "configFrozeTheRealModelRoute": true,
+    "configIsK10PilotShape": true,
+    "doctorAllGreen": true,
+    "stopReasonKReached": true,
+    "discoveryWasExactlyTheK10Sample": true,
+    "ceremonyRe_derivesFromSeedAndDataset": true,
+    "baselineRanExactlyThePreRegisteredSample": true,
+    "failurePoolFrozenFromTheK10BaselineOnly": true,
+    "oneSandboxPerExpansion": true,
+    "sandbox_prop-1_remote_route_frozen": true,
+    "sandbox_prop-1_receipt_chain_verifies": true,
+    "realModelDroveEveryExpansion": true,
+    "budgetCoversTheAuthoritativeProposerCost": true,
+    "threeUniqueChildrenAdmitted": true,
+    "everyChildColdStartedFromFrozenPool": true,
+    "childrenCiteHistoricalRawEvidence": true,
+    "oneHarborTrialDirPerCommittedTrial": true,
+    "oneLedgerLinePerLaunch": true,
+    "secondResumeDuplicatesNothing": true,
+    "normalizedTrialsAttributedToCapsuleArchive": true,
+    "auditAllGreen": true,
+    "statusFromDurableEvidence": true,
+    "sealedAssignmentNeverOnDisk": true,
+    "guardInvisibleToProposerAndSelector": true,
+    "credentialNeverOnDisk": true,
+    "budgetAccountingExact": true
+  },
+  "notes": [
+    "verify-only pass over the completed run root /tmp/dsh-gate8-pilot-EBb9TZ/runs/gate8-pilot",
+    "wall-clock re-derived from the controller journal (164 events): 3763s",
+    "lineageDepthMax=1: the live proposer admitted all K=3 children from a single expansion, so K was reached at depth 1 and the driver honestly reported STOPPED:K_REACHED; the ≥2-depth bar belongs to the Gate 6 stable-demo profile"
+  ],
+  "claimBoundary": "pilot profile only: tuning stability and budget actuals on a K=10 development sample; no sealed unblinding, no search/sealed/official profile, no performance claim"
+}

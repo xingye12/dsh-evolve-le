@@ -1,0 +1,53 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "Adding diagnose-first-error and incremental re-run guidance to the solve prompt reduces non-zero-exit implementation failures.",
+    "evidenceRefs": [
+      "evidence://export/f9253c6cdd9a8f1b344681177f8e6b78d3d72afca65ffd4f20091f10f5aa00d6",
+      "evidence://export/279c34b3d29658b24aaaa43ab0eaacfe13c4d20beecb8153eb41f23bd244fb2d",
+      "evidence://export/6afd7e548da7fa56931ab71742d2e315f2890fb3cb29be8abd46d3a4b97b4a6e"
+    ],
+    "targetFailureModes": [
+      "NonZeroAgentExitCodeError in coding-implementation tasks",
+      "release-only crashes masked in debug builds"
+    ],
+    "expectedBehaviorChange": "Solve-mode prompt text additionally directs first-error diagnosis and incremental re-runs; no tools, services or section inventory change.",
+    "regressionRisks": [
+      "The added guidance may lengthen solve sessions on simple tasks by encouraging extra re-runs."
+    ],
+    "touchedSurfaces": ["system-prompt"]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [
+        {
+          "name": "candidate:identity",
+          "order": 100
+        }
+      ],
+      "propose": [
+        {
+          "name": "candidate:proposal-policy",
+          "order": 100
+        }
+      ]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "The solve section text prescribes diagnosing the first reported compiler or runtime error before re-running.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

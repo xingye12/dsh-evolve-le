@@ -70,10 +70,14 @@ export function openRemoteModel(options: {
           })
         })
         socket.on('timeout', () =>
-          finish(() => reject(new Error(`model gateway socket timed out after ${String(timeoutMs)}ms`))),
+          finish(() =>
+            reject(new Error(`model gateway socket timed out after ${String(timeoutMs)}ms`)),
+          ),
         )
         socket.on('error', (error) => finish(() => reject(error)))
-        socket.on('close', () => finish(() => reject(new Error('model gateway socket closed before a reply'))))
+        socket.on('close', () =>
+          finish(() => reject(new Error('model gateway socket closed before a reply'))),
+        )
       })
     },
   }

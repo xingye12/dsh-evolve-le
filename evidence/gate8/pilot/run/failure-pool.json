@@ -1,0 +1,17 @@
+{
+  "protocol": "dsh-evolve-le/failure-pool/v1",
+  "handles": [
+    "adaptive-rejection-sampler",
+    "bn-fit-modify",
+    "build-pmars",
+    "caffe-cifar-10",
+    "chess-best-move",
+    "circuit-fibsqrt",
+    "configure-git-webserver",
+    "count-dataset-tokens",
+    "custom-memory-heap-crash",
+    "dna-insert"
+  ],
+  "frozenFromObservations": 10,
+  "poolHash": "sha256:34461b6403e201517c176f33094c5cd52b7555a755347447c8c482ff44f10c70"
+}

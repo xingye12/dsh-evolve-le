@@ -25,6 +25,7 @@ import { parseArgs } from 'node:util'
 import {
   defaultRunConfig,
   loadRunConfig,
+  LIVE_ROUTE_REQUEST_TIMEOUT_MS,
   remoteProposalRunner,
   validateRunConfig,
   type ProposalRunner,
@@ -522,7 +523,12 @@ async function remoteRunnerFor(env: RunEnv): Promise<ProposalRunner | undefined>
   }
   const credential = (await readFile(route.credentialFile, 'utf8')).trim()
   if (credential.length === 0) throw new CliError(`${route.credentialFile} is empty`, 2)
-  return remoteProposalRunner({ route, credential })
+  // Live reasoning-model turns exceed the 120s proxy default (Gate 8 smoke).
+  return remoteProposalRunner({
+    route,
+    credential,
+    requestTimeoutMs: LIVE_ROUTE_REQUEST_TIMEOUT_MS,
+  })
 }
 
 // ---------------------------------------------------------------------------

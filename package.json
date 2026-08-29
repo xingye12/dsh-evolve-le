@@ -37,6 +37,7 @@
     "install:verify": "node --import tsx/esm scripts/verify-fresh-install.ts",
     "evidence:gate7": "node --import tsx/esm scripts/record-gate7-evidence.ts",
     "evidence:gate8-smoke": "node --import tsx/esm scripts/record-gate8-smoke.ts",
+    "evidence:gate8-pilot": "node --import tsx/esm scripts/record-gate8-pilot.ts",
     "gate7": "pnpm build && pnpm test && pnpm lint && pnpm format:check && pnpm provenance:check && pnpm upstream:check && pnpm evidence:gate7"
   },
   "devDependencies": {

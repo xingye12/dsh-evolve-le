@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "dsh-evolve-le/archive-catalog/v1",
+  "runId": "gate8-pilot",
+  "entries": [
+    {
+      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
+      "sourceHash": "sha256:f124537ea4ed88a7f9516f953c922219ba0902e58d66f6f851ab276038600f61",
+      "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "proposalActionId": "prop-1",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 1,
+      "totalSuccesses": 0,
+      "totalFailures": 1,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
+      "sourceHash": "sha256:292f9a7546eccc72add06f9181a8ce92d3c840792e3f60bd775da49d3e2e61c1",
+      "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "proposalActionId": "prop-1",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 1,
+      "totalSuccesses": 0,
+      "totalFailures": 1,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
+      "sourceHash": "sha256:298866e5177bcc40abd74829256ead20605899497bfe5088b5e5b7a26cf894ba",
+      "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "proposalActionId": "prop-1",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 1,
+      "totalSuccesses": 0,
+      "totalFailures": 1,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "sourceHash": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+      "parentCandidateId": null,
+      "proposalActionId": null,
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "bn-fit-modify",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "build-pmars",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "circuit-fibsqrt",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "configure-git-webserver",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "count-dataset-tokens",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "custom-memory-heap-crash",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "dna-insert",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 10,
+      "totalSuccesses": 0,
+      "totalFailures": 10,
+      "guardObservationsExcluded": 0
+    }
+  ],
+  "createdFromStateHash": "sha256:512f10b75af375ffde9a461c240d0fde3626b693400c07812058abfc00b5aa6e"
+}

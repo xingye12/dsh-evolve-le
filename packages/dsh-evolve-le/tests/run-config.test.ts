@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest'
 import {
   defaultRunConfig,
   loadRunConfig,
+  proposalSandboxLimits,
+  REMOTE_PROPOSAL_SANDBOX_LIMITS,
   RUN_CONFIG_SCHEMA_ID,
   STABLE_DEMO_DEFAULTS,
   validateRunConfig,
@@ -102,6 +104,29 @@ describe('run config schema (specs/07 §7)', () => {
     if (!result.ok) expect(result.error.errors.join('\n')).toContain('maxSolverTrials')
   })
 
+  it('accepts the K=10 pilot profile: one discovery batch of 10, funded cold starts', () => {
+    // specs/04 §4.2 + specs/07 §10: the pilot freezes its own baseline on the
+    // first 10 observed handles — a single batch, hard-capped at 10 trials.
+    const config = validConfig()
+    const result = validateRunConfig({
+      ...config,
+      search: { ...config.search, discoveryBatchSize: 10, maxDiscoveryTrials: 10 },
+    })
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects a discovery batch larger than the discovery trial cap', () => {
+    const config = validConfig()
+    const result = validateRunConfig({
+      ...config,
+      search: { ...config.search, discoveryBatchSize: 11, maxDiscoveryTrials: 10 },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.errors.join('\n')).toContain('discoveryBatchSize')
+    }
+  })
+
   it('rejects budget.taskTrials below the solver-trial cap and sealed access on', () => {
     const trials = validateRunConfig({
       ...validConfig(),
@@ -121,5 +146,34 @@ describe('run config schema (specs/07 §7)', () => {
     const result = loadRunConfig(path)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.errors[0]).toContain('cannot read')
+  })
+})
+
+describe('proposal sandbox limits by proposer route (Gate 8)', () => {
+  const base = (): RunConfig =>
+    defaultRunConfig({
+      runId: 'sandbox-limits-test',
+      masterSeed: 'sandbox-limits-seed',
+      tasksRoot: '/nonexistent/tasks',
+      baselineSourceDir: '/nonexistent/baseline',
+      jobsRoot: '/nonexistent/jobs',
+    })
+
+  it('gives networked proposer routes the raised one-shot budget', () => {
+    const document = base()
+    document.proposerRoute = 'deepseek/zen-compatible'
+    document.modelRoutes = document.modelRoutes.map((route) =>
+      route.id === 'deepseek/zen-compatible'
+        ? { ...route, baseUrl: 'http://127.0.0.1:9/v1', model: 'deepseek-v4-flash', temperature: 0 }
+        : route,
+    )
+    // Real-model turns are slow (Gate 8 smoke: >120s requests, ~10 min per
+    // proposal) — the sandbox must not kill the worker at the 300s default.
+    expect(proposalSandboxLimits(document)).toEqual({ ...REMOTE_PROPOSAL_SANDBOX_LIMITS })
+    expect(REMOTE_PROPOSAL_SANDBOX_LIMITS.timeoutMs).toBeGreaterThan(300_000)
+  })
+
+  it('keeps the fast recorded-route defaults untouched', () => {
+    expect(proposalSandboxLimits(base())).toEqual({})
   })
 })

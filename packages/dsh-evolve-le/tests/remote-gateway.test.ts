@@ -214,7 +214,9 @@ describe('remote model gateway: TCB proxy firewall (specs/05 §7)', () => {
     upstream.serve(() => ({
       status: 200,
       payload: {
-        choices: [{ message: { content: '', reasoning_content: 'thinking…' }, finish_reason: 'length' }],
+        choices: [
+          { message: { content: '', reasoning_content: 'thinking…' }, finish_reason: 'length' },
+        ],
         usage: { prompt_tokens: 88, completion_tokens: 32 },
       },
     }))

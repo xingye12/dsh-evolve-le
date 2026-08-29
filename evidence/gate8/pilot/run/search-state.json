@@ -1,0 +1,7 @@
+{
+  "protocol": "dsh-evolve-le/search-state/v1",
+  "protocolVersion": 1,
+  "expansionAttempts": 1,
+  "consecutiveExpansionFailures": 0,
+  "maxConsecutiveExpansionFailures": 3
+}

@@ -1,0 +1,43 @@
+{
+    "id": "5a8113a9-8264-47b5-83f5-16066c9e5a2f",
+    "started_at": "2026-08-30T03:45:13.035970",
+    "updated_at": "2026-08-30T03:49:47.631905",
+    "finished_at": "2026-08-30T03:49:47.631905",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 1,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "dsh-evolve-le-capsule__adhoc": {
+                "n_trials": 1,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "dna-insert__uLVn4si"
+                        ]
+                    }
+                },
+                "exception_stats": {
+                    "NonZeroAgentExitCodeError": [
+                        "dna-insert__uLVn4si"
+                    ]
+                }
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}

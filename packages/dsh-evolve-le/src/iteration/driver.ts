@@ -41,6 +41,7 @@ import { buildArchiveCatalog } from '../proposer/catalog.js'
 import { createEvidenceExport, PROPOSER_READ_LABELS } from '../proposer/export.js'
 import { deriveCanaryTokens } from '../proposer/canary.js'
 import type { RunConfig } from '../config/run-config.js'
+import { proposalSandboxLimits } from '../config/run-config.js'
 import { drawNodeThompson, drawParentThompson } from '../selection/thompson.js'
 import { shouldExpand } from '../selection/ucbair.js'
 import { runSplitCeremony, type SplitCeremony } from '../split/ceremony.js'
@@ -955,6 +956,9 @@ export class IterationDriver {
         width: this.config.search.proposalWidth,
       },
       estimate: this.proposalEstimate(),
+      // Networked routes get the raised one-shot budget (Gate 8); recorded
+      // routes keep the fast sandbox defaults.
+      ...proposalSandboxLimits(this.config),
       capsuleDir: join(this.runRoot, parentRecord.capsuleDir),
       parentTreeDir: join(this.runRoot, parentRecord.stagedSourceDir),
       exportDir: created.dir,

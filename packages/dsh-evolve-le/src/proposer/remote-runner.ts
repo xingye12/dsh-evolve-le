@@ -47,6 +47,13 @@ export const REMOTE_PROPOSER_BUDGET: GatewayBudget = {
   maxCostUsdMicros: 4_000_000, // $4.00 per proposal action at frozen prices
 }
 
+/**
+ * Per-request upstream timeout for live routes: observed in the Gate 8 smoke,
+ * reasoning-model turns on large writeChild directives exceed the 120s proxy
+ * default. The worker's socket client gets this + margin automatically.
+ */
+export const LIVE_ROUTE_REQUEST_TIMEOUT_MS = 600_000
+
 /** Map a frozen route document onto the proxy's route plan. */
 export function remoteRoutePlanOf(route: ModelRouteConfig): RemoteRoutePlan {
   if (route.provider !== 'zen-compatible') {

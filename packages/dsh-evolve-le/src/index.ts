@@ -128,6 +128,7 @@ export {
   remoteProposalRunner,
   remoteRoutePlanOf,
   REMOTE_PROPOSER_BUDGET,
+  LIVE_ROUTE_REQUEST_TIMEOUT_MS,
 } from './proposer/remote-runner.js'
 export {
   openRemoteModelProxy,

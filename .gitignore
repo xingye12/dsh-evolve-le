@@ -39,6 +39,27 @@ evidence/gate8/*
 !evidence/gate8/smoke/
 !evidence/gate8/smoke/STATUS.json
 !evidence/gate8/smoke/real-model-proposal.json
+!evidence/gate8/pilot/
+evidence/gate8/pilot/*
+!evidence/gate8/pilot/STATUS.json
+!evidence/gate8/pilot/pilot-run.json
+!evidence/gate8/pilot/jobs/
+!evidence/gate8/pilot/jobs/**
+!evidence/gate8/pilot/run/
+evidence/gate8/pilot/run/*
+!evidence/gate8/pilot/run/*.json
+!evidence/gate8/pilot/run/*.jsonl
+!evidence/gate8/pilot/run/capsules/
+!evidence/gate8/pilot/run/capsules/**
+!evidence/gate8/pilot/run/controller/
+evidence/gate8/pilot/run/controller/*
+!evidence/gate8/pilot/run/controller/sandboxes/
+!evidence/gate8/pilot/run/controller/sandboxes/**
+# Sandbox capsule staging is bulky and content-addressed in capsules/ +
+# objects/ anyway; the proposal audit trail (supervisor, transcript, receipts,
+# the children the model wrote) stays tracked.
+evidence/gate8/pilot/run/controller/sandboxes/*/input/capsule/
+evidence/gate8/pilot/run/controller/sandboxes/*/input/capsule/**
 !evidence/gate4/
 evidence/gate4/*
 !evidence/gate4/STATUS.json
@@ -71,6 +92,7 @@ runs/
 # (rule 7: failed trials stay, with their logs), not editor noise.
 !evidence/gate2/**/*.log
 !evidence/gate6/jobs/**/*.log
+!evidence/gate8/pilot/jobs/**/*.log
 
 # ZCode session/plan artifacts (not part of the project).
 .zcode/

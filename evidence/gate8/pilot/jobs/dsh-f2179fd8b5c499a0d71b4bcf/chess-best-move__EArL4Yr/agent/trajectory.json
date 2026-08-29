@@ -1,0 +1,25 @@
+{
+  "schema_version": "ATIF-v1.6",
+  "session_id": "dsh-evolve-le-capsule-unknown-session",
+  "agent": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69",
+    "extra": {
+      "auth_policy": "disabled",
+      "selected_authenticate_method_id": null,
+      "selected_distribution": "binary",
+      "source": null
+    }
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "The file chess_board.png has an image of a chess board. It is currently white to move. Write the best move for white to play to /app/move.txt in the form [src][dst], for example, e2e4 or h1h8. If there are multiple winning moves, print them all, one per line.\n"
+    }
+  ],
+  "notes": "Converted from ACP session updates captured in acp-events.jsonl. Step boundaries are inferred best-effort from chunked ACP events.",
+  "final_metrics": {
+    "total_steps": 1
+  }
+}

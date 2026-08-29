@@ -202,6 +202,9 @@ function semanticProblems(config: RunConfig): string[] {
   if (config.search.maxDiscoveryTrials > config.search.maxSolverTrials) {
     problems.push('search.maxDiscoveryTrials exceeds search.maxSolverTrials')
   }
+  if (config.search.discoveryBatchSize > config.search.maxDiscoveryTrials) {
+    problems.push('search.discoveryBatchSize exceeds search.maxDiscoveryTrials')
+  }
   // The stable-demo profile must be able to fund its own protocol: discovery
   // plus every admitted node's cold start inside the trial cap.
   const coldStartFloor =
@@ -321,4 +324,27 @@ export function defaultRunConfig(input: {
     budget,
     sealedAccess: false,
   }
+}
+
+/**
+ * One-shot proposal sandbox limits for networked proposer routes (Gate 8):
+ * real-model turns are slow — reasoning models spend minutes per turn and the
+ * writeChild directives are large — so the sandbox default 300s kill would
+ * turn every real proposal into a timeout. The recorded policy stays on the
+ * fast default (it finishes in seconds and must keep failing fast).
+ */
+export const REMOTE_PROPOSAL_SANDBOX_LIMITS = {
+  maxTurns: 24,
+  timeoutMs: 3_600_000,
+} as const
+
+/** Sandbox limits for the run's proposer route (empty = recorded defaults). */
+export function proposalSandboxLimits(config: Pick<RunConfig, 'modelRoutes' | 'proposerRoute'>): {
+  maxTurns?: number
+  timeoutMs?: number
+} {
+  const route = config.modelRoutes.find((candidate) => candidate.id === config.proposerRoute)
+  return route !== undefined && route.provider === 'zen-compatible'
+    ? { ...REMOTE_PROPOSAL_SANDBOX_LIMITS }
+    : {}
 }

@@ -1,0 +1,45 @@
+{
+    "task": {
+        "path": "/tmp/dsh-gate8-pilot-EBb9TZ/tasks/chess-best-move"
+    },
+    "trial_name": "chess-best-move__EArL4Yr",
+    "trials_dir": "/tmp/dsh-gate8-pilot-EBb9TZ/jobs/dsh-f2179fd8b5c499a0d71b4bcf",
+    "agent": {
+        "name": "acp",
+        "kwargs": {
+            "registry_entry": {
+                "id": "dsh-evolve-le-capsule",
+                "name": "dsh-evolve-le-capsule",
+                "version": "4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69",
+                "description": "dsh-evolve-le candidate capsule: Cordis composition booted through the real Loader, serving ACP with a deterministic recorded-LLM replay. Builder-authored, content-addressed.",
+                "distribution": {
+                    "binary": {
+                        "linux-x86_64": {
+                            "archive": "https://172.17.0.1:8443/4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69.tar.gz",
+                            "cmd": "./dsh-evolve-le-acp",
+                            "args": [],
+                            "checksum": "4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69"
+                        }
+                    }
+                }
+            },
+            "permission_mode": "deny",
+            "auth_policy": "disabled"
+        }
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/tmp/dsh-gate8-pilot-EBb9TZ/runs/gate8-pilot/tls/ca-bundle.crt",
+                "target": "/opt/dsh-evolve-le/ca-bundle.crt",
+                "read_only": true
+            }
+        ],
+        "env": {
+            "SSL_CERT_FILE": "/opt/dsh-evolve-le/ca-bundle.crt"
+        }
+    },
+    "job_id": "be76aa05-9414-4b94-957a-02a49ab0d638"
+}

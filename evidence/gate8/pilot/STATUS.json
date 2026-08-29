@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "gate": 8,
+  "profile": "pilot",
+  "status": "PASS",
+  "failedChecks": [],
+  "evidence": "evidence/gate8/pilot/pilot-run.json",
+  "evidenceSha256": "5fa5a1faee765aab3c322581cb8bd4d4bcf03eec75734450f8c10776708510bd",
+  "recordedAt": "2026-08-29T20:12:46.773Z",
+  "summary": {
+    "route": "deepseek/zen-compatible → deepseek-v4-flash",
+    "driverStatus": "STOPPED:K_REACHED",
+    "discoveryTrials": 10,
+    "expansions": 1,
+    "admittedChildren": 3,
+    "lineageDepthMax": 1,
+    "trials": 13,
+    "proposerCostUsdMicros": 23392,
+    "runSeconds": 3763
+  }
+}

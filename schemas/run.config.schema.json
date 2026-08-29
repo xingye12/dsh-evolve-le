@@ -124,8 +124,8 @@
         "discoveryBatchSize": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 6,
-          "description": "Observed tasks per discovery batch before re-checking for failures; specs/04 §4.1 uses 6."
+          "maximum": 12,
+          "description": "Observed tasks per discovery batch before re-checking for failures; specs/04 §4.1 stable-demo uses 6, the K=10 pilot profile (specs/04 §4.2, specs/07 §10) uses one batch of 10; a batch may never exceed the specs/04 §4.1 hard cap of 12."
         },
         "maxConsecutiveExpansionFailures": {
           "type": "integer",
