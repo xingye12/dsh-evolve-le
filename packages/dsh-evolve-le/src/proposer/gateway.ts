@@ -67,9 +67,13 @@ export interface GatewayRequest {
   userText: string
 }
 
-/** The deterministic "model" behind the gateway (TCB model adapter slot). */
+/**
+ * The model behind the gateway (TCB model adapter slot). The recorded policy
+ * returns synchronously; the networked adapter (remote-model.ts) returns a
+ * promise — the gateway awaits either.
+ */
 export interface RecordedModel {
-  complete(request: GatewayRequest): string
+  complete(request: GatewayRequest): string | Promise<string>
 }
 
 export interface GatewayUsage {
@@ -146,7 +150,7 @@ export function openModelGateway(options: {
       // Completion size is bounded by the model output itself; account the
       // response after producing it and check the combined budget before
       // accepting the request into the ledger.
-      const response = options.model.complete(request)
+      const response = await options.model.complete(request)
       const completionTokens = tokenCount(response)
       const totalAfter = usage.totalTokens + promptTokens + completionTokens
       const costAfter = usage.costUsdMicros + costMicros(promptTokens, completionTokens)

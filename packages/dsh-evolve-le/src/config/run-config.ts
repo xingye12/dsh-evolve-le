@@ -59,6 +59,12 @@ export interface ModelRouteConfig {
   inputUsdMicrosPerMTok: number
   outputUsdMicrosPerMTok: number
   credentialFile?: string
+  /** OpenAI-compatible endpoint; required when this route is the proposerRoute. */
+  baseUrl?: string
+  /** Exact upstream model id, frozen into the route plan hash. */
+  model?: string
+  /** Sampling temperature the TCB proxy locks on every outbound request. */
+  temperature?: number
 }
 
 export interface RunConfig {
@@ -172,6 +178,27 @@ function semanticProblems(config: RunConfig): string[] {
       problems.push(`route ${route.id}: zen-compatible routes require credentialFile`)
     }
   }
+  // A networked proposer route must be fully specified before preflight — an
+  // under-specified endpoint must fail closed, not fall back silently.
+  const proposerRoute = config.modelRoutes.find((route) => route.id === config.proposerRoute)
+  if (proposerRoute?.provider === 'zen-compatible') {
+    if (
+      proposerRoute.baseUrl === undefined ||
+      !/^https?:\/\/[^/]+.*$/.test(proposerRoute.baseUrl)
+    ) {
+      problems.push(
+        `proposer route ${proposerRoute.id}: zen-compatible requires an http(s) baseUrl`,
+      )
+    }
+    if (proposerRoute.model === undefined || proposerRoute.model.length === 0) {
+      problems.push(
+        `proposer route ${proposerRoute.id}: zen-compatible requires the exact model id`,
+      )
+    }
+    if (proposerRoute.temperature === undefined) {
+      problems.push(`proposer route ${proposerRoute.id}: zen-compatible requires a temperature`)
+    }
+  }
   if (config.search.maxDiscoveryTrials > config.search.maxSolverTrials) {
     problems.push('search.maxDiscoveryTrials exceeds search.maxSolverTrials')
   }
@@ -223,6 +250,12 @@ export function defaultRunConfig(input: {
   harborVersion?: string
   artifactHost?: string
   artifactPort?: number
+  /** Select the proposer route by id (default: the recorded route). */
+  proposerRoute?: string
+  /** Endpoint facts for a zen-compatible proposer route (Gate 8). */
+  modelBaseUrl?: string
+  modelName?: string
+  modelTemperature?: number
   overrides?: Partial<RunConfig['search']> & Partial<RunConfig['budget']> & { kTarget?: number }
 }): RunConfig {
   // Only genuine search keys may enter search — the overrides object may mix
@@ -249,6 +282,18 @@ export function defaultRunConfig(input: {
     if (value !== undefined) budgetOverrides[key] = value
   }
   const budget: RunConfig['budget'] = { ...budgetDefaults, ...budgetOverrides }
+  // Optional zen-compatible endpoint facts land on the zen route document;
+  // the proposer route selection is applied after the route table is built.
+  const modelRoutes: ModelRouteConfig[] = [
+    { ...STABLE_DEMO_DEFAULTS.recordedRoute },
+    {
+      ...STABLE_DEMO_DEFAULTS.zenCompatibleRoute,
+      credentialFile: '/etc/dsh-evolve-le/zen-compatible.key',
+      ...(input.modelBaseUrl !== undefined ? { baseUrl: input.modelBaseUrl } : {}),
+      ...(input.modelName !== undefined ? { model: input.modelName } : {}),
+      ...(input.modelTemperature !== undefined ? { temperature: input.modelTemperature } : {}),
+    },
+  ]
   return {
     $schema: RUN_CONFIG_SCHEMA_ID,
     schemaVersion: 1,
@@ -256,14 +301,8 @@ export function defaultRunConfig(input: {
     profile: 'stable-demo',
     masterSeed: input.masterSeed,
     search,
-    modelRoutes: [
-      { ...STABLE_DEMO_DEFAULTS.recordedRoute },
-      {
-        ...STABLE_DEMO_DEFAULTS.zenCompatibleRoute,
-        credentialFile: '/etc/dsh-evolve-le/zen-compatible.key',
-      },
-    ],
-    proposerRoute: STABLE_DEMO_DEFAULTS.recordedRoute.id,
+    modelRoutes,
+    proposerRoute: input.proposerRoute ?? STABLE_DEMO_DEFAULTS.recordedRoute.id,
     benchmark: {
       provider: 'terminal-bench-2-1',
       tasksRoot: input.tasksRoot,

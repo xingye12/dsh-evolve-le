@@ -55,6 +55,7 @@ export {
   type ControllerConfig,
   type EvaluationInput,
   type EvaluationRequest,
+  type ProposalRunner,
   type RecoveryDisposition,
   type RecoveryReport,
   type RunStatus,
@@ -123,6 +124,22 @@ export {
   type RunConfigErrorReport,
   type RunConfigResult,
 } from './config/run-config.js'
+export {
+  remoteProposalRunner,
+  remoteRoutePlanOf,
+  REMOTE_PROPOSER_BUDGET,
+} from './proposer/remote-runner.js'
+export {
+  openRemoteModelProxy,
+  remoteRoutePlanHash,
+  verifyRemoteReceipts,
+  type RemoteProxy,
+  type RemoteReceipt,
+  type RemoteReceiptOk,
+  type RemoteReceiptError,
+  type RemoteReceiptVerification,
+  type RemoteRoutePlan,
+} from './proposer/remote-gateway.js'
 export {
   ITERATION_PROTOCOL,
   SEARCH_STATE_PROTOCOL,

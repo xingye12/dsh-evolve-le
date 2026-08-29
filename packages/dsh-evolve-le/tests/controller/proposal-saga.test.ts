@@ -184,6 +184,7 @@ async function materializeSandbox(
         width: 3,
         capsuleDigest: capsule.digest,
         capsuleFileCount: capsule.fileCount,
+        model: { kind: 'recorded' },
       },
       null,
       2,

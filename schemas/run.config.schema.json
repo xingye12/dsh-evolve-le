@@ -183,6 +183,22 @@
           "type": "string",
           "pattern": "^/.*$",
           "description": "Absolute path to a mode-0600 root-readable credential file; required for zen-compatible routes, forbidden to appear anywhere else (CLAUDE.md rule 8)."
+        },
+        "baseUrl": {
+          "type": "string",
+          "pattern": "^https?://[^/]+.*$",
+          "description": "OpenAI-compatible base URL (.../v1); required when this route is the proposerRoute."
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact upstream model id, frozen into the route plan hash and every remote receipt."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature locked by the TCB proxy on every outbound request."
         }
       },
       "required": [

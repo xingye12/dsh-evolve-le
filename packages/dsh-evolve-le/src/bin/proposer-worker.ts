@@ -25,6 +25,7 @@ import {
   type ProcessHandleInventory,
 } from '../cordis/inventory.js'
 import { openModelGateway, type GatewayUsage } from '../proposer/gateway.js'
+import { openRemoteModel } from '../proposer/remote-model.js'
 import { openProposerTools } from '../proposer/tools.js'
 import { buildProposalInstruction, createRecordedProposerPolicy } from '../proposer/policy.js'
 import { runProposerAgentLoop } from '../proposer/agent-loop.js'
@@ -46,6 +47,12 @@ interface WorkerConfig {
   parentSourceHash: string
   width: number
   maxTurns?: number
+  /**
+   * AF_UNIX socket of the controller-side TCB proxy (Gate 8 networked route).
+   * Present → the model adapter is the socket client; absent → the recorded
+   * deterministic policy. Either way this process never touches the network.
+   */
+  modelSocket?: string
   /** Declared propose sections from the parent capsule's candidate.json. */
   declaredProposeSections: string[]
   /** Root-only paths (relative to the sandbox parent) the worker must NOT read. */
@@ -166,7 +173,10 @@ async function main(argv: string[]): Promise<number> {
     })
     await mkdir(join(workRoot, 'children'), { recursive: true })
     const gateway = openModelGateway({
-      model: createRecordedProposerPolicy({ width: config.width }),
+      model:
+        config.modelSocket !== undefined
+          ? openRemoteModel({ socketPath: config.modelSocket })
+          : createRecordedProposerPolicy({ width: config.width }),
       receiptsPath: join(workRoot, 'gateway-receipts.jsonl'),
     })
     const loop = await runProposerAgentLoop({

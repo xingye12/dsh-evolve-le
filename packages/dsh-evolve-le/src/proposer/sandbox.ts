@@ -105,6 +105,14 @@ export interface SupervisorManifest {
   width: number
   capsuleDigest: string
   capsuleFileCount: number
+  /**
+   * The model route the worker's gateway spoke to (Gate 8). `remote` routes
+   * are verified by the controller against the proxy receipt chain; recorded
+   * routes by byte-replay.
+   */
+  model:
+    | { kind: 'recorded' }
+    | { kind: 'remote'; routeId: string; routeHash: string; receiptsPath: string }
 }
 
 /** The worker's completion manifest — written LAST: its presence means done. */
@@ -126,6 +134,7 @@ const coreLibDir = existsSync(join(moduleDir, '..', 'bin/candidate-probe.js'))
 const WORKER_RUNTIME_FILES = [
   'bin/proposer-worker.js',
   'proposer/gateway.js',
+  'proposer/remote-model.js',
   'proposer/tools.js',
   'proposer/policy.js',
   'proposer/agent-loop.js',
@@ -212,6 +221,16 @@ export function capsuleDigestExcludingOverlay(
   return computeTreeDigest(capsuleDir, { exclude: (rel) => CAPSULE_OVERLAY.has(rel) })
 }
 
+export interface RemoteSandboxModel {
+  kind: 'remote'
+  /** AF_UNIX socket of the controller-side TCB proxy (see remote-runner.ts). */
+  socketPath: string
+  routeId: string
+  routeHash: string
+  /** Durable proxy receipts, verified by the controller after the run. */
+  receiptsPath: string
+}
+
 export interface RunProposalSandboxOptions {
   sandboxRoot: string
   /** Controller-side parent capsule directory (from the trusted builder). */
@@ -224,6 +243,8 @@ export interface RunProposalSandboxOptions {
   width: number
   maxTurns?: number
   timeoutMs?: number
+  /** Networked route (Gate 8); default is the recorded deterministic policy. */
+  model?: RemoteSandboxModel
 }
 
 /**
@@ -333,6 +354,7 @@ export async function runProposalSandbox(
         parentSourceHash: options.parentSourceHash,
         width: options.width,
         ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {}),
+        ...(options.model !== undefined ? { modelSocket: options.model.socketPath } : {}),
         declaredProposeSections,
         dacProbePaths,
       },
@@ -359,6 +381,15 @@ export async function runProposalSandbox(
     width: options.width,
     capsuleDigest: capsuleBefore.digest,
     capsuleFileCount: capsuleBefore.fileCount,
+    model:
+      options.model === undefined
+        ? { kind: 'recorded' }
+        : {
+            kind: 'remote',
+            routeId: options.model.routeId,
+            routeHash: options.model.routeHash,
+            receiptsPath: options.model.receiptsPath,
+          },
   }
   await writeFile(
     supervisorManifestPath(sandboxRoot),

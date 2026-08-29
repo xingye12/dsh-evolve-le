@@ -217,6 +217,7 @@ function fakeSandboxRunner(opts: { failWorker?: boolean } = {}) {
           width: options.width,
           capsuleDigest: capsule.digest,
           capsuleFileCount: capsule.fileCount,
+          model: { kind: 'recorded' },
         },
         null,
         2,

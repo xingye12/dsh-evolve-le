@@ -53,6 +53,7 @@ import {
   type SupervisorManifest,
   type WorkerResultDoc,
 } from '../proposer/sandbox.js'
+import { verifyRemoteReceipts } from '../proposer/remote-gateway.js'
 import {
   readExportManifest,
   validateProposalBundle,
@@ -121,6 +122,8 @@ export const TRAJECTORY_MEDIA_TYPE = 'application/vnd.dsh-evolve-le.trajectory+j
 export const PROPOSAL_TRANSCRIPT_MEDIA_TYPE =
   'application/vnd.dsh-evolve-le.proposal-transcript+jsonl'
 export const PROPOSAL_RECEIPTS_MEDIA_TYPE = 'application/vnd.dsh-evolve-le.proposal-receipts+jsonl'
+export const PROPOSAL_REMOTE_RECEIPTS_MEDIA_TYPE =
+  'application/vnd.dsh-evolve-le.proposal-remote-receipts+jsonl'
 export const PROPOSAL_BUNDLE_MEDIA_TYPE = 'application/vnd.dsh-evolve-le.proposal-bundle+json'
 export const PROPOSAL_VALIDATION_MEDIA_TYPE =
   'application/vnd.dsh-evolve-le.proposal-validation+json'
@@ -625,7 +628,7 @@ export class Controller {
       capsuleVerified,
       turns: worker.turns ?? null,
     })
-    await this.putSandboxArtifacts(input.actionId, sandboxRoot)
+    await this.putSandboxArtifacts(input.actionId, sandboxRoot, supervisor)
 
     const hardFailure =
       worker.uid === 0
@@ -644,7 +647,11 @@ export class Controller {
   }
 
   /** Persist whatever the sandbox produced — failed runs keep evidence too. */
-  private async putSandboxArtifacts(actionId: string, sandboxRoot: string): Promise<void> {
+  private async putSandboxArtifacts(
+    actionId: string,
+    sandboxRoot: string,
+    supervisor?: SupervisorManifest,
+  ): Promise<void> {
     if (this.action(actionId).artifacts.length > 0) {
       for (const ref of this.action(actionId).artifacts) await this.store.verify(ref)
       return
@@ -658,6 +665,11 @@ export class Controller {
     await put(join(sandboxRoot, 'work', 'transcript.jsonl'), PROPOSAL_TRANSCRIPT_MEDIA_TYPE)
     await put(join(sandboxRoot, 'work', 'gateway-receipts.jsonl'), PROPOSAL_RECEIPTS_MEDIA_TYPE)
     await put(join(sandboxRoot, 'work', 'proposal.json'), PROPOSAL_BUNDLE_MEDIA_TYPE)
+    if (supervisor?.model?.kind === 'remote') {
+      // The controller-side proxy receipt chain — the authoritative usage and
+      // integrity anchor for networked routes (specs/05 §7).
+      await put(supervisor.model.receiptsPath, PROPOSAL_REMOTE_RECEIPTS_MEDIA_TYPE)
+    }
     await this.boundary('artifact-stored', actionId)
   }
 
@@ -667,7 +679,7 @@ export class Controller {
     supervisor: SupervisorManifest,
     worker: WorkerResultDoc,
   ): Promise<ProposalResult> {
-    const usage = worker.usage ?? null
+    let usage = worker.usage ?? null
     let summary: ProposalSummaryDoc | undefined
     try {
       const proposal: ProposalOutput =
@@ -675,22 +687,48 @@ export class Controller {
         (JSON.parse(await readFile(join(sandboxRoot, 'work', 'proposal.json'), 'utf8')) as never)
       parseProposalOutput(proposal)
 
-      // Controller-side replay: rebuild the transcript/proposal/children from
-      // the frozen sandbox inputs and demand byte equality.
-      const replayDir = join(this.runDir, 'replays', input.actionId)
-      await rm(replayDir, { recursive: true, force: true })
-      const replay = await verifyProposalSandboxReplay(sandboxRoot, { replayDir })
-      if (
-        !replay.sectionsMatch ||
-        !replay.transcriptMatches ||
-        !replay.proposalMatches ||
-        !replay.childrenMatch
-      ) {
-        return this.failProposal(
-          input.actionId,
-          `replay verification failed (sections ${replay.sectionsMatch}, transcript ${replay.transcriptMatches}, proposal ${replay.proposalMatches}, children ${replay.childrenMatch})`,
-          usage,
-        )
+      // Controller-side integrity verification. Recorded routes: rebuild the
+      // transcript/proposal/children from the frozen sandbox inputs with the
+      // recorded TCB policy and demand byte equality. Remote routes: the
+      // controller cannot re-derive a networked model's responses, so anchor
+      // the worker transcript to the proxy's receipt chain instead (specs/05
+      // §7) — every turn must match a successful receipt with the same prompt
+      // hash and a response whose sha256 equals the recorded one, on the
+      // frozen route, with no gaps. Section identity is already enforced inside
+      // the worker (declaredMatch) and re-anchored by the trusted builder when
+      // each admitted child re-boots. (`model` is optional on read so a
+      // pre-Gate-8 run root still resumes through the recorded-replay branch.)
+      if (supervisor.model?.kind === 'remote') {
+        const verification = await verifyRemoteReceipts({
+          receiptsPath: supervisor.model.receiptsPath,
+          transcriptPath: join(sandboxRoot, 'work', 'transcript.jsonl'),
+          routeHash: supervisor.model.routeHash,
+        })
+        if (!verification.ok) {
+          return this.failProposal(
+            input.actionId,
+            `remote receipt verification failed: ${verification.problems.join('; ').slice(0, 500)}`,
+            usage,
+          )
+        }
+        // Authoritative accounting: API-reported tokens at frozen prices.
+        usage = verification.usage
+      } else {
+        const replayDir = join(this.runDir, 'replays', input.actionId)
+        await rm(replayDir, { recursive: true, force: true })
+        const replay = await verifyProposalSandboxReplay(sandboxRoot, { replayDir })
+        if (
+          !replay.sectionsMatch ||
+          !replay.transcriptMatches ||
+          !replay.proposalMatches ||
+          !replay.childrenMatch
+        ) {
+          return this.failProposal(
+            input.actionId,
+            `replay verification failed (sections ${replay.sectionsMatch}, transcript ${replay.transcriptMatches}, proposal ${replay.proposalMatches}, children ${replay.childrenMatch})`,
+            usage,
+          )
+        }
       }
 
       const parentSource = await captureCanonicalSource(input.parentTreeDir)

@@ -25,7 +25,9 @@ import { parseArgs } from 'node:util'
 import {
   defaultRunConfig,
   loadRunConfig,
+  remoteProposalRunner,
   validateRunConfig,
+  type ProposalRunner,
   type RunConfig,
 } from '@dsh-evolve-le/core'
 import {
@@ -81,6 +83,8 @@ function usage(): string {
     '  dsh-evolve init    --runs-root DIR --run-id ID --master-seed SEED \\',
     '                    --tasks-root DIR --baseline-source DIR --jobs-root DIR',
     '                    [--credential-file PATH] [--set key=value]…',
+    '                    [--proposer-route ID --model-base-url URL --model-name NAME',
+    '                     --model-temperature N]   # zen-compatible route',
     '  dsh-evolve run     (--run-root DIR | --runs-root DIR --run-id ID)',
     '                    [--provider terminal-bench|fake] [--fake-failure-period N]',
     '  dsh-evolve resume  (same arguments as run)',
@@ -239,6 +243,14 @@ async function commandInit(values: CliValues, io: CliIo): Promise<number> {
   const sets = parseSets((values['set'] as string[] | undefined) ?? [])
   const overrides = searchBudgetOverrides(sets)
   const handles = await enumerateHandles(resolve(tasksRoot as string))
+  const modelTemperature =
+    values['model-temperature'] !== undefined ? Number(values['model-temperature']) : undefined
+  if (
+    modelTemperature !== undefined &&
+    (!Number.isFinite(modelTemperature) || modelTemperature < 0)
+  ) {
+    throw new CliError(`--model-temperature expects a number ≥ 0`, 2)
+  }
 
   const document = defaultRunConfig({
     runId: runId as string,
@@ -256,6 +268,14 @@ async function commandInit(values: CliValues, io: CliIo): Promise<number> {
     ...(values['artifact-port'] !== undefined
       ? { artifactPort: Number(values['artifact-port']) }
       : {}),
+    ...(typeof values['proposer-route'] === 'string'
+      ? { proposerRoute: values['proposer-route'] }
+      : {}),
+    ...(typeof values['model-base-url'] === 'string'
+      ? { modelBaseUrl: values['model-base-url'] }
+      : {}),
+    ...(typeof values['model-name'] === 'string' ? { modelName: values['model-name'] } : {}),
+    ...(modelTemperature !== undefined ? { modelTemperature } : {}),
     overrides,
   })
   if (typeof values['credential-file'] === 'string') {
@@ -467,6 +487,7 @@ async function commandRun(values: CliValues, io: CliIo): Promise<number> {
 
   let report
   try {
+    const proposalRunner = await remoteRunnerFor(env)
     const driver = new IterationDriver({
       config: env.config,
       configHash: env.configHash,
@@ -474,6 +495,7 @@ async function commandRun(values: CliValues, io: CliIo): Promise<number> {
       handles: env.handles,
       provider: composition.provider,
       bridge: composition.bridge,
+      ...(proposalRunner !== undefined ? { proposalRunner } : {}),
       ...(onBoundary !== undefined ? { onBoundary } : {}),
     })
     report = await driver.drive()
@@ -482,6 +504,25 @@ async function commandRun(values: CliValues, io: CliIo): Promise<number> {
   }
   io.stdout(`${JSON.stringify(report, null, 2)}\n`)
   return 0
+}
+
+/**
+ * The proposer route's runner: recorded routes use the default sandbox runner;
+ * a zen-compatible proposer route gets the TCB proxy runner (Gate 8). The
+ * credential is read here, in the controller process, into memory only — it
+ * never reaches a log, receipt, prompt, or artifact (CLAUDE.md rule 8).
+ */
+async function remoteRunnerFor(env: RunEnv): Promise<ProposalRunner | undefined> {
+  const route = env.config.modelRoutes.find(
+    (candidate) => candidate.id === env.config.proposerRoute,
+  )
+  if (route === undefined || route.provider !== 'zen-compatible') return undefined
+  if (route.credentialFile === undefined) {
+    throw new CliError(`proposer route ${route.id} has no credentialFile (re-init the run)`, 2)
+  }
+  const credential = (await readFile(route.credentialFile, 'utf8')).trim()
+  if (credential.length === 0) throw new CliError(`${route.credentialFile} is empty`, 2)
+  return remoteProposalRunner({ route, credential })
 }
 
 // ---------------------------------------------------------------------------
@@ -693,6 +734,10 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
     'artifact-host': { type: 'string' },
     'artifact-port': { type: 'string' },
     'credential-file': { type: 'string' },
+    'proposer-route': { type: 'string' },
+    'model-base-url': { type: 'string' },
+    'model-name': { type: 'string' },
+    'model-temperature': { type: 'string' },
     provider: { type: 'string' },
     'fake-failure-period': { type: 'string' },
     set: { type: 'string', multiple: true },

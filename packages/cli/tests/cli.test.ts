@@ -292,4 +292,72 @@ describe('dsh-evolve CLI', () => {
     expect(badInit.code).toBe(2)
     expect(badInit.stderr).toContain('needs exactly 89')
   })
+
+  it('init with a zen-compatible proposer route freezes the endpoint facts', async () => {
+    const run = await cli([
+      'init',
+      '--runs-root',
+      runsRoot,
+      '--run-id',
+      'cli-zen',
+      '--master-seed',
+      'cli-zen-master-seed',
+      '--tasks-root',
+      tasksRoot,
+      '--baseline-source',
+      BASELINE_SOURCE,
+      '--jobs-root',
+      jobsRoot,
+      '--credential-file',
+      credential,
+      '--proposer-route',
+      'deepseek/zen-compatible',
+      '--model-base-url',
+      'http://127.0.0.1:9/v1',
+      '--model-name',
+      'deepseek-v4-flash',
+      '--model-temperature',
+      '0',
+    ])
+    expect(run.code).toBe(0)
+    const configPath = join(runsRoot, 'cli-zen', 'run.config.json')
+    const raw = await readFile(configPath, 'utf8')
+    const config = JSON.parse(raw) as {
+      proposerRoute: string
+      modelRoutes: Array<{ id: string; baseUrl?: string; model?: string; temperature?: number }>
+    }
+    expect(config.proposerRoute).toBe('deepseek/zen-compatible')
+    const route = config.modelRoutes.find((candidate) => candidate.id === 'deepseek/zen-compatible')
+    expect(route?.baseUrl).toBe('http://127.0.0.1:9/v1')
+    expect(route?.model).toBe('deepseek-v4-flash')
+    expect(route?.temperature).toBe(0)
+    // The credential is referenced by path only — its content never freezes.
+    expect(raw).toContain('zen.key')
+    expect(raw).not.toContain('PLACEHOLDER')
+  })
+
+  it('init fails closed when the zen-compatible proposer route lacks endpoint facts', async () => {
+    const run = await cli([
+      'init',
+      '--runs-root',
+      runsRoot,
+      '--run-id',
+      'cli-zen-broken',
+      '--master-seed',
+      'cli-zen-master-seed',
+      '--tasks-root',
+      tasksRoot,
+      '--baseline-source',
+      BASELINE_SOURCE,
+      '--jobs-root',
+      jobsRoot,
+      '--credential-file',
+      credential,
+      '--proposer-route',
+      'deepseek/zen-compatible',
+    ])
+    expect(run.code).toBe(2)
+    expect(run.stderr).toContain('baseUrl')
+    expect(existsSync(join(runsRoot, 'cli-zen-broken', 'run.config.json'))).toBe(false)
+  })
 })
