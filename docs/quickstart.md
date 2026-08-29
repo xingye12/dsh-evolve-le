@@ -1,89 +1,103 @@
 # Quickstart
 
+From a clean clone to a verified install, then to a real Terminal-Bench iteration. Every command
+below is also executed end-to-end on a fresh profile by `pnpm install:verify`.
+
 ## Supported environment
 
-- Ubuntu 24.04 x86_64
-- Node.js 22.19+ or 24+
-- pnpm 11.7.0
-- Docker with a working daemon
-- Python 3.12, `uv`, and the pinned Harbor virtual environment
-- Bubblewrap (`/usr/bin/bwrap`)
+- Ubuntu 24.04 x86_64 (also verified on WSL2), Node.js ≥ 22.19 (24.x used in CI drills),
+  pnpm ≥ 11.7, Docker with a working daemon
+- Network access to the npm registry, and to the Harbor/Terminal-Bench sources pinned in
+  `provenance.lock.json` for `setup:source`
 
-The stable demo uses `DEEPSEEK_API_KEY` only in the trusted host process and calls the DeepSeek official Responses
-route. It does not read Codex credentials and does not default to CPA. Credentials are never copied into the
-repository, config, candidate, command line, or durable evidence.
-
-## Install the controller bundle from npm
-
-The controller bundle is published as `@dsh-evolve-le/core`. Provide an explicit state root and run id before
-installing into a headless profile, because omission fails Config validation by design:
+## 1. Install and build
 
 ```bash
-export DSH_EVOLVE_LE_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dsh-evolve-le/demo-1"
-export DSH_EVOLVE_LE_RUN_ID=demo-1
-dsh plugin --profile headless add @dsh-evolve-le/core@0.2.3
+git clone https://github.com/xingye12/dsh-evolve-le.git && cd dsh-evolve-le
+pnpm install
+pnpm setup:source      # materialize pinned upstreams (read-only) + Terminal-Bench source
+pnpm build
+pnpm provenance:check  # upstream commits/versions/toolchain match the lockfile
+pnpm test              # full unit + E2E suite (fake provider; no paid calls)
 ```
 
-## Install from a source checkout
+Preflight note: `pnpm install:verify` additionally proves the _tarball_ path — extract, install with
+`--frozen-lockfile` into a clean HOME/pnpm-store, build, Loader smoke, K=3 demo, snapshot-loss
+restore, uninstall.
 
-Use the source checkout when you need the pinned DSH and the local workspace closure for development or
-self-hosting:
+## 2. Verify the install (no credentials, no paid calls)
 
 ```bash
-corepack enable
-pnpm setup:source
+pnpm install:verify
 ```
 
-`setup:source` clones the three public upstream repositories at the commits in `provenance.lock.json`, installs and
-builds DSH, creates the pinned Harbor environment, installs and builds the local workspace, then checks provenance.
-It refuses an existing upstream checkout with a different remote or dirty worktree.
+This drives the fake-provider K=3 demo on the default stable-demo config and checks
+`STABLE_ITERATION_VERIFIED`, then executes the restore drill (all snapshots + drive report deleted,
+identical state reconstructed from the journal) and an uninstall.
 
-## Create and inspect a stable demo
+## 3. Real Terminal-Bench iteration
 
-Set the credential in the current shell without writing it to a project file:
+Prerequisites (checked by `doctor`, fail-closed):
+
+- a Terminal-Bench 2.1 tasks directory — `pnpm setup:source` materializes the pinned source under
+  `.references/`; extract it and point `--tasks-root` at the extracted task set
+- Harbor on `PATH` (pinned version `0.21.0`), a reachable Docker daemon, and an artifact endpoint
+- a credential file for the proposer route, mode `0600` (its value is never logged or copied into
+  evidence)
 
 ```bash
-export DEEPSEEK_API_KEY='...'
+CLI="node packages/cli/lib/main.js"
+
+$CLI init \
+  --runs-root ./runs \
+  --run-id my-first-run \
+  --master-seed "$(openssl rand -hex 16)" \
+  --tasks-root /path/to/terminal-bench-2.1 \
+  --baseline-source packages/candidate-baseline \
+  --jobs-root ./runs/jobs \
+  --credential-file /path/to/proposer.key \
+  --harbor-bin "$(command -v harbor)"
+
+$CLI doctor --run-root ./runs/my-first-run    # must be all ✓ before spending anything
+$CLI run   --run-root ./runs/my-first-run     # terminal-bench provider is the default
 ```
+
+`init` freezes `run.config.json` and refuses to overwrite an existing run. `run` is idempotent with
+`resume`: re-invoking after a crash replays the journal and continues; nothing is re-spent.
+
+## 4. Watch and audit
 
 ```bash
-pnpm dsh-evolve-le init \
-  --run-id stable-demo-local-1 \
-  --state-dir /var/lib/dsh-evolve-le-controller/stable-demo-local-1 \
-  --repo-root "$PWD" \
-  --budget-usd 5
-
-pnpm dsh-evolve-le doctor \
-  --state-dir /var/lib/dsh-evolve-le-controller/stable-demo-local-1
-
-pnpm dsh-evolve-le run \
-  --state-dir /var/lib/dsh-evolve-le-controller/stable-demo-local-1
+$CLI status --run-root ./runs/my-first-run   # phase, stopReason, state hash, observation count
+$CLI audit  --run-root ./runs/my-first-run   # manifest/split/pool/archive/report reconciliation
 ```
 
-The development profile evaluates at most 12 baseline tasks in two fixed batches, then at most three candidates.
-It never accesses the sealed split. Run `resume` after an interruption; do not run `run` again on existing state.
+Stop semantics: the run ends `STABLE_ITERATION_VERIFIED` only when K is reached, every child is
+pool-evaluated and lineage depth ≥ 2. Any other exit (`BUDGET_EXHAUSTED`,
+`MAX_CONSECUTIVE_EXPANSION_FAILURES`, …) is a real terminal state, not a retryable glitch.
 
-For the multi-file successor, add `--profile v011-stable-demo` to `init`. It requires a fresh state directory
-and run ID; predecessor state is never upgraded in place. Schema 13 freezes a public-metadata hard-task order and
-stops baseline discovery at the first attributable reward-zero non-pass, up to 12 trials.
+## 5. Read the evidence
 
-```bash
-pnpm dsh-evolve-le resume --state-dir /var/lib/dsh-evolve-le-controller/stable-demo-local-1
-pnpm dsh-evolve-le status --state-dir /var/lib/dsh-evolve-le-controller/stable-demo-local-1
-pnpm dsh-evolve-le audit  --state-dir /var/lib/dsh-evolve-le-controller/stable-demo-local-1
+Everything the run produced lives under `runs/<run-id>/`:
+
+```text
+runs/my-first-run/
+  run.config.json        frozen config (identity + budget + routes)
+  split-ceremony.json    development/sealed split commitment (sealed stays inaccessible)
+  failure-pool.json      frozen development task pool
+  archive-catalog.json   admitted candidates with per-task tallies
+  drive-report.json      last tick summary (stopReason, trials, budget, citations)
+  harbor-ledger.jsonl    one line per Harbor job
+  controller/            journal/, snapshots/, candidates/<id>/, objects/sha256/…
 ```
 
-`STABLE_ITERATION_VERIFIED` proves generation, build, evaluation, persistence, lineage and recovery. It is not a
-Terminal-Bench improvement or leaderboard claim.
+See the [evidence guide](evidence-guide.md) for what each artifact proves. When you are done,
+[operations](operations.md#uninstall) documents rollback and uninstall — both are executed paths,
+not just prose.
 
-## Run the low-cost effectiveness check
+## Next steps
 
-```bash
-export DSH_EVOLVE_LE_EFFECT_RUN_ID='effect-local-1'
-export DSH_EVOLVE_LE_EFFECT_RECEIPT_PATH="$PWD/evidence/effectiveness/effect-local-1.json"
-pnpm effectiveness:official
-```
-
-Success is `ENGINEERING_EFFECT_VERIFIED`: the admitted child changes the preregistered solve-mode fixed replay while
-the propose-mode control replay remains unchanged. The receipt records hashes, usage and estimated cost but no key,
-reasoning text, model body or private trajectory.
+- [Configuration](configuration.md) for every field `init` freezes and how to override search and
+  budget parameters with `--set`.
+- [Architecture overview](architecture-overview.md) for the trust boundary and durability model.
+- [Terminal-Bench 2.1 runbook](terminal-bench-2.1-runbook.md) for the fixed Harbor/TB facts.

@@ -1,6 +1,7 @@
 {
   "name": "dsh-evolve-le-root",
-  "version": "0.0.0",
+  "license": "MIT",
+  "version": "0.1.0-rc.1",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -31,7 +32,11 @@
     "gate3": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate3",
     "gate4": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate4",
     "gate5": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate5",
-    "gate6": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate6"
+    "gate6": "pnpm build && pnpm test && pnpm provenance:check && pnpm evidence:gate6",
+    "release:artifacts": "node --import tsx/esm scripts/make-release.ts",
+    "install:verify": "node --import tsx/esm scripts/verify-fresh-install.ts",
+    "evidence:gate7": "node --import tsx/esm scripts/record-gate7-evidence.ts",
+    "gate7": "pnpm build && pnpm test && pnpm lint && pnpm format:check && pnpm provenance:check && pnpm upstream:check && pnpm evidence:gate7"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",

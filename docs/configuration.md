@@ -1,65 +1,81 @@
 # Configuration
 
-`dsh-evolve-le init` writes a private, no-replace `config.json`. `stable-demo` uses schema 12; the multi-file
-`v011-stable-demo` profile uses schema 13 and protocol `dsh-evolve-le-candidate-tree-v2`. The file contains no credential.
-Changing an identity, profile or limit requires a new state directory and run ID.
+`dsh-evolve init` writes `runs/<run-id>/run.config.json` — a private, no-replace document that is
+frozen at init and hash-checked (`configHash`) on every later command. It contains no credential
+values: routes reference a `credentialFile` path, and the file's contents never enter the config,
+the journal, logs or evidence. Changing an identity or limit requires a new run directory and run
+ID; `init` refuses to overwrite.
 
-| Field                      | Stable-demo value                       |
-| -------------------------- | --------------------------------------- |
-| profile                    | `stable-demo`                           |
-| code identity              | full Git commit captured by `init`      |
-| admitted children          | 3                                       |
-| baseline failure discovery | at most 12, in fixed batches of 6       |
-| observed task order        | shortest timeout, then task ID          |
-| candidate trials           | 3                                       |
-| total solver trials        | at most 15                              |
-| evaluator concurrency      | 1                                       |
-| requested model            | `deepseek-v4-flash`                     |
-| effective provider model   | `deepseek-v4-flash`                     |
-| reasoning                  | `high`                                  |
-| context                    | 1,048,576 tokens                        |
-| output ceiling             | 32,768 tokens                           |
-| endpoint                   | `https://api.deepseek.com/v1`           |
-| wire API                   | official Responses                      |
-| credential                 | trusted-host `DEEPSEEK_API_KEY` env     |
-| response storage           | disabled (`store=false`)                |
-| candidate feedback         | frozen `DEV_OBSERVED` baseline failures |
-| sealed access              | forbidden; required count is 0          |
+`--set key=value` (repeatable) overrides the numeric search/budget defaults at init time only.
 
-`v011-stable-demo` keeps the same K=3/task/budget/model ceilings while replacing the single-file patch proposal with
-the bounded multi-file candidate-tree protocol, exact-parent Loader proposal mode, raw evidence citations,
-candidate-owned tests, admission receipts and mechanism-outcome feedback. Its failure-discovery order is frozen
-outcome-blind from published inventory metadata: `hard` before `medium` before `easy`, then shortest timeout and task
-ID. This increases the chance of finding a real failed task without reading candidate rewards or sealed data.
-The pool accepts `fail/0` and attributable `invalid/0` non-passes; `invalid/null` and any unknown reward remain
-excluded. The evaluator's retry/reconciliation layer settles retryable infrastructure outcomes before this filter.
-Unlike schema 10's six-task batches, schema 11 evaluates the frozen order sequentially and stops baseline discovery
-as soon as the first eligible non-pass is committed, with a hard ceiling of 12 baseline trials.
+## Frozen document (schema `stable-demo`, schemaVersion 1)
 
-The bearer is read only from `DEEPSEEK_API_KEY` in the trusted host process. Codex `auth.json`, Codex `config.toml`
-and CPA are not part of the default route. `doctor` probes the official `/models` endpoint and fails before a paid
-request if the credential, exact route, model, Docker, Harbor, task material, state permissions or budget is unavailable.
+| Field          | Default                | Meaning                                                                         |
+| -------------- | ---------------------- | ------------------------------------------------------------------------------- |
+| `runId`        | (from `--run-id`)      | durable identity; also the journal's `runId`                                    |
+| `profile`      | `stable-demo`          | the only profile in v0.1                                                        |
+| `masterSeed`   | (from `--master-seed`) | root of all derived randomness (canaries, split ceremony); treat it as a secret |
+| `sealedAccess` | `false`                | must stay `false`; sealed unblinding is a separate one-time ceremony (specs/05) |
 
-For the low-consumption effectiveness gate, set a fresh run ID and no-replace receipt path, then run:
+### `search` (defaults from `specs/03 §2`)
 
-```bash
-export DEEPSEEK_API_KEY='...'
-export DSH_EVOLVE_LE_EFFECT_RUN_ID='effect-local-1'
-export DSH_EVOLVE_LE_EFFECT_RECEIPT_PATH="$PWD/evidence/effectiveness/effect-local-1.json"
-pnpm effectiveness:official
-```
+| Field                             | Default | Meaning                                                                            |
+| --------------------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `kTarget`                         | `3`     | children per expansion; `K_REACHED` when the pool holds kTarget evaluated children |
+| `proposalWidth`                   | `3`     | candidates a proposer child may emit per expansion                                 |
+| `coldStartTrials`                 | `1`     | baseline trials before the first comparison                                        |
+| `ucbAirAlphaPerMille`             | `600`   | AIR-UCB exploration weight (per-mille)                                             |
+| `shortlistSize`                   | `2`     | pool shortlist handed to the proposer                                              |
+| `maxSolverTrials`                 | `15`    | hard cap on solver trials for the run                                              |
+| `maxDiscoveryTrials`              | `12`    | hard cap on discovery trials                                                       |
+| `discoveryBatchSize`              | `6`     | deterministic discovery batch size per tick                                        |
+| `maxConsecutiveExpansionFailures` | `3`     | terminal `MAX_CONSECUTIVE_EXPANSION_FAILURES` threshold                            |
 
-The gate preregisters target and preserved modes, admits both baseline and child, then compares fixed Loader replay
-digests. It proves a measurable runtime behavior delta only; it does not prove a Terminal-Bench score improvement.
+### `budget` (fail-closed; enforced by the ledger)
 
-## Profile bundle runtime variables
+| Field              | Default                                        | Meaning                |
+| ------------------ | ---------------------------------------------- | ---------------------- |
+| `usd`              | `500_000_000` µUSD (= $500 acceptance ceiling) | total spend ceiling    |
+| `proposerTokens`   | `20_000_000`                                   | proposer token ceiling |
+| `proposalCalls`    | `20`                                           | proposer call ceiling  |
+| `taskTrials`       | `max(maxSolverTrials, 15)`                     | trial ceiling          |
+| `wallClockMinutes` | `960` (= 16 h acceptance ceiling)              | wall-clock ceiling     |
 
-When the controller is installed as a profile bundle (`@dsh-evolve-le/core` via `dsh plugin add`), the bundle
-requires these environment variables before the profile starts; omission fails Config validation by design:
+Exhausting any limit is the terminal state `BUDGET_EXHAUSTED`, not a retryable error.
 
-| Variable                  | Purpose                        |
-| ------------------------- | ------------------------------ |
-| `DSH_EVOLVE_LE_STATE_DIR` | Private, no-replace state root |
-| `DSH_EVOLVE_LE_RUN_ID`    | Unique identity of the run     |
+### `modelRoutes` / `proposerRoute`
 
-State directories are private evidence and must not be committed.
+Two route shapes exist, both with explicit pricing used by the budget ledger:
+
+- `dsh-evolve-le/recorded-proposer` (default, `provider: "recorded"`) — the recorded/deterministic
+  proposer route; no network, no credential file required.
+- `deepseek/zen-compatible` (`provider: "zen-compatible"`) — optional networked route; requires a
+  `credentialFile` (mode `0600`) and `--credential-file` at init.
+
+Route fields: `contextWindowTokens`, `maxOutputTokens`, `inputUsdMicrosPerMTok`,
+`outputUsdMicrosPerMTok`. Prices are part of the frozen identity: repricing means a new run.
+
+### `benchmark` (terminal-bench-2.1)
+
+| Field                           | From                    | Meaning                                                         |
+| ------------------------------- | ----------------------- | --------------------------------------------------------------- |
+| `tasksRoot`                     | `--tasks-root`          | Terminal-Bench 2.1 task set directory (89 tasks)                |
+| `baselineSourceDir`             | `--baseline-source`     | seed candidate package (normally `packages/candidate-baseline`) |
+| `harbor.bin` / `harbor.version` | `--harbor-bin` / pinned | Harbor binary path and pinned version (`0.21.0`)                |
+| `harbor.jobsRoot`               | `--jobs-root`           | Harbor job directories (kept as audit artifacts)                |
+| `harbor.concurrentTrials`       | fixed                   | parallel trial limit                                            |
+| `artifactEndpoint`              | detected/pinned         | host/port for task artifacts                                    |
+
+## Environment variables
+
+| Variable                               | Effect                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `DSH_EVOLVE_CRASH_AFTER_OBSERVATION=N` | crash drill: the CLI SIGKILLs itself after the Nth observation; used by the Gate 6 resume-equivalence evidence |
+| `HARBOR_BIN`                           | fallback for the Harbor binary path during scripted drills                                                     |
+
+## Validation
+
+`init` validates before writing: integer sanity for every numeric field, `sealedAccess === false`,
+zen-compatible routes must carry a `credentialFile`, and paths must exist. `run`/`resume`/`status`
+re-derive `configHash` and refuse a mutated config. The JSON Schema is
+`schemas/run.config.schema.json` (id `…/run.config.schema.json`).

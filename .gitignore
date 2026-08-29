@@ -52,6 +52,12 @@ evidence/gate6/*
 !evidence/gate6/stable-iteration.json
 !evidence/gate6/jobs/
 !evidence/gate6/jobs/**
+!evidence/gate7/
+evidence/gate7/*
+!evidence/gate7/STATUS.json
+!evidence/gate7/release-candidate.json
+!evidence/gate7/checksums.sha256
+!evidence/gate7/sbom.spdx.json
 runs/
 
 # Editor / OS noise.
@@ -65,3 +71,6 @@ runs/
 
 # ZCode session/plan artifacts (not part of the project).
 .zcode/
+
+# Gate 7 release artifacts (content-addressed into evidence/gate7 instead).
+release/

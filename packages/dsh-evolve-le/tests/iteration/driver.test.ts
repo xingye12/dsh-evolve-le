@@ -620,7 +620,6 @@ async function logicalFacts(runRoot: string): Promise<LogicalFacts> {
       tasks: Array<{ opaqueTaskId: string; attempts: number }>
     }>
   }
-  const poolSet = new Set(pool)
   const byId = new Map(catalog.entries.map((entry) => [entry.candidateId, entry]))
   const depthOf = (candidateId: string): number => {
     let depth = 0

@@ -2,11 +2,10 @@
 
 ## Supported versions
 
-| Version        | Supported           |
-| -------------- | ------------------- |
-| `0.2.x`        | Yes                 |
-| `0.1.x`        | Critical fixes only |
-| Older versions | No                  |
+| Version                                           | Supported                                           |
+| ------------------------------------------------- | --------------------------------------------------- |
+| `0.1.0-rc.x` (this repository)                    | Yes                                                 |
+| Predecessor `0.1.x`/`0.2.x` (`dsh-self-evolving`) | No — different codebase; reports welcome for triage |
 
 The default branch receives security fixes first. Affected evidence is preserved and superseded by a versioned
 successor; it is never silently rewritten.

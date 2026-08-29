@@ -2,93 +2,104 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-An evidence-first, crash-resumable self-evolution engine for
-[DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness). It generates bounded Cordis plugin candidates,
-runs them through isolated real-Loader admission, evaluates them with Harbor, and preserves an auditable lineage.
+An evidence-first, crash-resumable recursive self-improvement (RSI) engine for
+[DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness). It proposes bounded Cordis plugin
+candidates, admits each through a real one-shot Cordis Loader sandbox, evaluates them with Harbor on
+Terminal-Bench 2.1, and keeps a hash-chained, content-addressed evidence trail from proposal to
+admission.
 
 > [!IMPORTANT]
-> This repository is a **fresh re-implementation** based on the specifications of the predecessor project
+> This repository is a re-implementation of the specifications of the predecessor project
 > `dsh-self-evolving` ([`timwhitez/dsh-self-evolving`](https://github.com/timwhitez/dsh-self-evolving) @ `6324afd`).
-> No implementation, tests, or run evidence exist here yet; every gate in [`specs/07`](specs/07-implementation-plan.md)
-> is pending. The only authoritative statement of what may be claimed today is
-> [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> Implementation Gates 0–6 are accepted with recorded evidence (see [`PROJECT_STATUS.md`](PROJECT_STATUS.md));
+> Gates 7 (this release candidate) ships installability and docs. **No sealed-benchmark unblinding has
+> happened and no benchmark improvement is claimed.** The only authoritative statement of what may be
+> claimed today is [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Why this project exists
 
-Self-modifying agent systems are easy to demo and hard to trust. `dsh-evolve-le` treats every candidate as untrusted
-and makes the controller, evaluator, budget, dataset split, and safety policy part of a trusted computing base. A
-result is accepted only when its source identity, evidence, cost, lifecycle, and recovery path reconcile.
-
-The project is a standard DSH Cordis plugin/service—not a fork of DSH and not a second controller wrapped around it.
-
-## Planned architecture
+Self-modifying agent systems are easy to demo and hard to trust. `dsh-evolve-le` treats every
+candidate as untrusted: the model adapter, verifier, dataset split, scorer, controller, budget and
+safety policy form a trusted computing base (TCB) that candidates cannot write. A result is accepted
+only when its source identity, evidence, cost, lifecycle and recovery path reconcile. The whole loop
+is TypeScript, carried by standard DSH Cordis bundles/services — no Python agent bridge.
 
 ```mermaid
 flowchart LR
-  E[DEV_OBSERVED evidence] --> P[Networkless proposer]
-  P -->|Unix socket; no key| G[Locked official Responses gateway]
-  P --> C[Bounded candidate tree]
-  C --> B[Trusted deterministic builder]
-  B --> L[One-shot real Cordis Loader]
-  L --> H[Harbor / Terminal-Bench evaluator]
+  J[Hash-chain journal + archive] --> P[Networkless proposer]
+  P --> B[Trusted deterministic builder]
+  B --> L[One-shot real Cordis Loader sandbox]
+  L --> H[Harbor / Terminal-Bench 2.1 evaluator]
   H --> N[Fail-closed normalizer]
-  N --> J[Hash-chain journal and archive]
-  J --> P
-  S[Sealed data] -. inaccessible in development .-> H
+  N --> J
+  S[Sealed 29-task split] -. inaccessible during development .-> H
 ```
 
-- The controller is the only durable writer.
-- Provider credentials stay in the trusted host and never enter the proposal sandbox or candidate.
-- Candidates may change only their declared package; evaluator, scorer, split, route, and safety policy are fixed.
-- Every external action is journaled before launch and reconciled exactly once after restart.
+## Status
 
-See [Architecture overview](docs/architecture-overview.md) and the [trust-boundary specification](specs/05-safety.md).
+| Gate | Outcome                                                                                    | State                       |
+| ---- | ------------------------------------------------------------------------------------------ | --------------------------- |
+| 0–4  | Loader admission, candidate SDK, Harbor ACP provider, durable controller, agentic proposer | accepted, evidence recorded |
+| 5    | productized iteration closure behind one CLI                                               | accepted, evidence recorded |
+| 6    | real K=3 multi-generation crash/resume stability proof                                     | accepted, evidence recorded |
+| 7    | installable open-source v0.1 release candidate                                             | this release (`0.1.0-rc.1`) |
+| 8    | continuous Terminal-Bench improvement                                                      | optional, not run           |
 
-## Roadmap
+## Quickstart (5 commands)
 
-Implementation follows the vertical-slice gates defined in [`specs/07-implementation-plan.md`](specs/07-implementation-plan.md):
-provenance + real Loader lifecycle (Gate 0) → candidate SDK and builder (Gate 1) → Harbor ACP smoke (Gate 2) →
-crash-safe journal/archive/budget (Gate 3) → proposal sandbox and one child end-to-end (Gate 4) → iteration CLI
-closure (Gate 5) → stable real iteration proof (Gate 6) → release candidate (Gate 7). Each gate must produce
-implementation, automated tests, real runtime evidence, and a `PROJECT_STATUS.md` update before the next one starts.
+Verified on Ubuntu 24.04 (also WSL2) with Node.js ≥ 22.19, pnpm ≥ 11.7, Docker:
 
-Operational documents under [`docs/`](docs/) (quickstart, configuration, operations, runbooks) describe the
-**predecessor's completed system** and serve as the reference contract for this re-implementation; their commands do
-not work in this repository until the corresponding gates land.
+```bash
+pnpm install                     # workspace dependencies
+pnpm setup:source                # materialize pinned upstreams + Terminal-Bench source
+pnpm build                       # TypeScript project build
+pnpm provenance:check            # upstream commits, versions, toolchain match the lockfile
+pnpm install:verify              # full fresh-profile drill: install → build → Loader smoke →
+                                 #   K=3 demo (fake provider) → snapshot-loss restore → uninstall
+```
+
+`pnpm install:verify` proves the documented install path end-to-end on a clean profile: it extracts
+the release tarball into a fresh HOME/pnpm-store, installs with `--frozen-lockfile`, builds, runs the
+real Cordis Loader smoke, drives a default-config K=3 iteration to `STABLE_ITERATION_VERIFIED`,
+deletes every snapshot plus the drive report and reconstructs identical state from the journal, then
+uninstalls.
+
+For real Terminal-Bench runs see the [quickstart](docs/quickstart.md); for the run directory and how
+to read it see the [evidence guide](docs/evidence-guide.md).
 
 ## Documentation
 
-| Start here                                     | Purpose                                                                      |
-| ---------------------------------------------- | ---------------------------------------------------------------------------- |
-| [Documentation index](docs/README.md)          | Find setup, architecture, operation, evidence, and release documents         |
-| [Specifications](specs/)                       | Normative product, architecture, algorithm, evaluation, and safety contracts |
-| [Project status](PROJECT_STATUS.md)            | Current accepted state and claim boundaries                                  |
-| [Architecture](docs/architecture-overview.md)  | Components, data flow, and isolation boundaries                              |
-| [Evidence guide](docs/evidence-guide.md)       | What each artifact proves—and does not prove                                 |
-| [DSH integration](docs/dsh-integration.md)     | Source-verified Cordis and Loader contracts                                  |
-| [DSH upstream policy](docs/upstream-policy.md) | Reproducible pinning and the latest compatibility channel                    |
+- [Architecture overview](docs/architecture-overview.md) — packages, data flow, TCB boundary
+- [Quickstart](docs/quickstart.md) — from clone to first real iteration
+- [Configuration](docs/configuration.md) — the frozen `run.config.json` reference
+- [Operations](docs/operations.md) — stop, resume, restore, rollback, uninstall
+- [Troubleshooting](docs/troubleshooting.md) — fail-closed diagnostics and common failures
+- [Evidence guide](docs/evidence-guide.md) — what each artifact proves, and what it does not
+- [Terminal-Bench 2.1 runbook](docs/terminal-bench-2.1-runbook.md) — fixed Harbor/TB facts
+- [Documentation index](docs/README.md) — everything else, including historical records
 
-When documents disagree, precedence is: frozen run manifest → specifications → operational docs → README →
-historical discussion.
+Normative sources: [`specs/00`–`specs/07`](specs/) (product, architecture, candidate contract,
+algorithm, evaluation, safety, evidence, gates) and [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
-## Project boundaries
+## Safety model (short version)
 
-- DSH, Harbor, and Terminal-Bench checkouts are pinned read-only upstreams, recorded in
-  [`provenance.lock.json`](provenance.lock.json) (deepseek-harness `47f9438`, harbor `ac398bb`, terminal-bench
-  `d28711d`).
-- Development evidence may guide iteration; concealed and sealed evaluation data may not.
-- Archive admission, development champion, sealed promotion, and full-set leaderboard are distinct states; no
-  intermediate green light substitutes for a later gate.
-- K=10/K=80 search, sealed confirmation, full-set evaluation, and leaderboard submission are optional post-release
-  profiles and are not part of the initial acceptance claim.
-- This repository does not authorize financial trading or real-world order execution.
+- Candidates run only in one-shot isolated processes through the real Cordis Loader — never inside
+  the controller, never via `node:vm`.
+- The 29 sealed tasks stay inaccessible until candidate hashes are frozen; unblinding happens once.
+- Missing, corrupt, timed-out or unattributable results count as failures; failed trials are kept.
+- Every external version, route, parameter, seed, budget and artifact is content-addressed in the
+  run manifest; credentials never enter candidates, logs, prompts or evidence.
+- Budgets are enforced in µUSD/tokens/calls/trials with a fail-closed ledger.
 
-## Contributing
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Changes to protocols, trust boundaries,
-provider routes, splits, metrics, or retry semantics require an ADR and a fresh run lineage.
+Details: [`specs/05-safety.md`](specs/05-safety.md).
 
 ## License
 
-Licensed under [Apache License 2.0](LICENSE). DeepSeek Harness, Harbor, Terminal-Bench, and their dependencies retain
-their respective licenses and trademarks.
+[MIT](LICENSE) © 2026 Yuhang Le. Pinned upstream checkouts (`deepseek-harness/`, `harbor/`, `tb/`)
+keep their own licenses and are not part of the released source tree.
+
+## Contributing / security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Release artifacts (tarball, checksums, SPDX SBOM, scans)
+are produced by `pnpm release:artifacts` from the committed tree.
