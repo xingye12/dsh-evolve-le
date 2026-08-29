@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/gate7-release-candidate/v1",
+  "generatedAt": "2026-08-29T16:48:05.345Z",
+  "sourceCommit": "377e60222bbe039cf1d98c5c47cc2820fc38dcb1",
+  "version": "0.1.0-rc.1",
+  "license": "MIT",
+  "release": {
+    "tarball": {
+      "file": "dsh-evolve-le-0.1.0-rc.1-src.tar.gz",
+      "sha256": "25ea5241e5aee3be6f55834e0dba87c72fe0f9a50f629532240e0a6723a61903",
+      "bytes": 612182,
+      "fileCount": 560,
+      "textFileCount": 535
+    },
+    "checksums": {
+      "file": "checksums.sha256",
+      "sha256": "405598a137697728cc13a407c7ff605bebdb97cfefd20e845a63d8e0367d8b00"
+    },
+    "sbom": {
+      "file": "sbom.spdx.json",
+      "packages": 81
+    },
+    "licenses": {
+      "allowlist": [
+        "0BSD",
+        "Apache-2.0",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "CC-BY-4.0",
+        "CC0-1.0",
+        "ISC",
+        "MIT",
+        "MPL-2.0",
+        "PostgreSQL",
+        "Python-2.0",
+        "Unlicense"
+      ],
+      "dependencyCount": 75,
+      "unlicensed": [],
+      "disallowed": [],
+      "byLicense": {
+        "Apache-2.0": 4,
+        "BSD-3-Clause": 2,
+        "ISC": 2,
+        "MIT": 64,
+        "MPL-2.0": 2,
+        "Python-2.0": 1
+      }
+    },
+    "secrets": {
+      "patterns": [
+        "private-key-block",
+        "aws-access-key",
+        "github-token",
+        "slack-token",
+        "openai-style-key",
+        "anthropic-key",
+        "google-api-key",
+        "jwt",
+        "password-assignment"
+      ],
+      "hits": []
+    },
+    "utf8": {
+      "checked": 535,
+      "invalid": []
+    }
+  },
+  "freshInstall": {
+    "installSeconds": 17,
+    "demoSeconds": 57,
+    "demo": {
+      "stopReason": "K_REACHED",
+      "status": "STABLE_ITERATION_VERIFIED",
+      "trials": 9,
+      "discoveryTrials": 6,
+      "expansionAttempts": 3,
+      "admittedNonBaseline": 3,
+      "lineageDepthMax": 2,
+      "failurePool": 3,
+      "stateHash": "7c4b97e9f458b2e2d42c678bfb2275431ca98560953a2e681134aa425430addd"
+    },
+    "restore": {
+      "snapshot": "state-157-7c4b97e9f458b2e2d42c678bfb2275431ca98560953a2e681134aa425430addd.json",
+      "seq": 157,
+      "snapshotHash": "7c4b97e9f458b2e2d42c678bfb2275431ca98560953a2e681134aa425430addd",
+      "replayHash": "7c4b97e9f458b2e2d42c678bfb2275431ca98560953a2e681134aa425430addd"
+    },
+    "checks": [
+      {
+        "name": "tarballExtracted",
+        "ok": true,
+        "detail": "0.1.0-rc.1"
+      },
+      {
+        "name": "pnpmInstallFrozenLockfile",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "pnpmBuild",
+        "ok": true,
+        "detail": "$ tsc -b\n"
+      },
+      {
+        "name": "builtCliPresent",
+        "ok": true
+      },
+      {
+        "name": "realLoaderQuiescent",
+        "ok": true
+      },
+      {
+        "name": "initDefaultConfig",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "demoUsesDefaultStableDemoConfig",
+        "ok": true,
+        "detail": "{\"kTarget\":3,\"proposalWidth\":3,\"coldStartTrials\":1,\"ucbAirAlphaPerMille\":600,\"shortlistSize\":2,\"maxSolverTrials\":15,\"maxDiscoveryTrials\":12,\"discoveryBatchSize\":6,\"maxConsecutiveExpansionFailures\":3}"
+      },
+      {
+        "name": "demoK3StableIterationVerified",
+        "ok": true,
+        "detail": "{\"runId\":\"demo-k3\",\"phase\":\"SEARCHING\",\"stopReason\":\"K_REACHED\",\"status\":\"STABLE_ITERATION_VERIFIED\",\"trials\":9,\"discoveryTrials\":6,\"admittedNonBaseline\":3,\"lineageDepthMax\":2,\"expansionAttempts\":3,\"consecutiveExpansionFailures\":0,\"failurePool\":[\"task-005\",\"task-011\",\"task-013\"],\"stateHash\":\"7c4b97e"
+      },
+      {
+        "name": "demoAuditGreen",
+        "ok": true,
+        "detail": "manifest sha256:29e2d15b05340fc28d6b1f087e95b3024bf89bbbed1e38290d8045b3f74ccd77 vs disk sha256:29e2d15b05340fc28d6b1f087e95b3024bf89bbbed1e38290d8045b3f74ccd77\n✓ split-ceremony-rederives: frozen ceremony matches the deterministic re-derivation\n✓ failure-pool-hash: 3 handle(s)\n✓ capsule-archives: 4 archive(s) verified\n✓ drive-report-state-hash: report 7c4b97e9f458b2e2… vs replay 7c4b97e9f458b2e2…\n"
+      },
+      {
+        "name": "priorStateRestoredFromJournal",
+        "ok": true,
+        "detail": "replay@seq157 7c4b97e9f458b2e2 vs snapshot 7c4b97e9f458b2e2"
+      },
+      {
+        "name": "terminalStateReconstructedAfterSnapshotLoss",
+        "ok": true,
+        "detail": "{\n  \"cli\": \"dsh-evolve-le/cli/v1\",\n  \"runId\": \"demo-k3\",\n  \"runRoot\": \"/tmp/dsh-fresh-EM8qtP/runs/demo-k3\",\n  \"configHash\": \"sha256:29e2d15b05340fc28d6b1f087e95b3024bf89bbbed1e38290d8045b3f74ccd77\",\n  \"manifestFrozen\": true,\n  \"sealedAccess\": false,\n  \"phase\": \"SEARCHING\",\n  \"stopReason\": null,\n  \"s"
+      },
+      {
+        "name": "driveReportReDerivedAfterLoss",
+        "ok": true,
+        "detail": "artifact endpoint: https://172.17.0.1:8443\n"
+      },
+      {
+        "name": "journalUnchangedByRestore",
+        "ok": true
+      },
+      {
+        "name": "auditGreenAfterRestore",
+        "ok": true,
+        "detail": "manifest sha256:29e2d15b05340fc28d6b1f087e95b3024bf89bbbed1e38290d8045b3f74ccd77 vs disk sha256:29e2d15b05340fc28d6b1f087e95b3024bf89bbbed1e38290d8045b3f74ccd77\n✓ split-ceremony-rederives: frozen ceremony matches the deterministic re-derivation\n✓ failure-pool-hash: 3 handle(s)\n✓ capsule-archives: 4 archive(s) verified\n✓ drive-report-state-hash: report 7c4b97e9f458b2e2… vs replay 7c4b97e9f458b2e2…\n"
+      },
+      {
+        "name": "uninstallRemovesEverything",
+        "ok": true
+      },
+      {
+        "name": "noGlobalInstallsByDesign",
+        "ok": true,
+        "detail": "pnpm workspace; nothing installed outside the profile (fresh $HOME, profile-local store)"
+      }
+    ]
+  }
+}

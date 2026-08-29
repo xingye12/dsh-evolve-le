@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "gate": 7,
+  "status": "PASS",
+  "failedChecks": [],
+  "evidence": "evidence/gate7/release-candidate.json",
+  "recordedAt": "2026-08-29T16:48:05.345Z"
+}

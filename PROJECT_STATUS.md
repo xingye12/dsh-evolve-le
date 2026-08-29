@@ -1,7 +1,7 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`GATE7_8_PENDING`; `NO_SEALED_RESULTS`**
-**更新时间：2026-08-29（Asia/Tokyo）**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_OPTIONAL_NOT_RUN`; `NO_SEALED_RESULTS`**
+**更新时间：2026-08-30（Asia/Tokyo）**
 
 ## Claim boundaries
 
@@ -20,14 +20,21 @@
   全程由真实 Terminal-Bench 2.1 task 的真实 Harbor trial 驱动）与 **Gate 6**（稳定 K=3 迭代：
   默认 stable-demo profile 下确定性批冻结 failure pool、3 个唯一子代跨 2 层 lineage 且各完成
   冻结 pool 上的 cold-start 评测、一次真实 SIGKILL 后 resume 到同一终态、全程 exactly-once，
-  机器断言 `STABLE_ITERATION_VERIFIED`）。Gate 1 的
+  机器断言 `STABLE_ITERATION_VERIFIED`）与 **Gate 7**（开源 v0.1 release candidate：
+  MIT 统一、发布 tarball（`git archive HEAD`，560 文件）+ sha256 checksums + SPDX 2.3 SBOM
+  （81 packages）+ 依赖许可证 allowlist（75/75）+ secret 模式扫描（0 命中）+ UTF-8 校验
+  （0 违例），干净 profile（全新 HOME/XDG/pnpm-store）`--frozen-lockfile` 安装 → build →
+  真实 Loader 冒烟 → 默认配置 K=3 demo `STABLE_ITERATION_VERIFIED` → **实测** prior-state
+  restore（journal 折叠 == 中途快照哈希）、快照全删重建、resume 重导出、journal 字节不变、
+  audit 全绿与卸载全部实测，公开文档重写为当前实现）。Gate 1 的
   `admitted` 只证明 **safety-runnability**；Gate 2 的全绿只证明
   **单 task 评测管线成立且 replay capsule 得到诚实的 reward 0**；Gate 3 的全绿只证明
   **崩溃一致性状态机成立（FileProvider 假体）**；Gate 4 的全绿只证明
   **单次 proposal 闭环在合成 failure trace 上成立且沙箱/注入/canary 边界被机器断言**；
   Gate 5 的全绿只证明 **开发集迭代闭环在一条命令下成立且复算/预算/隐蔽边界被机器断言**；
   Gate 6 的全绿只证明 **稳定迭代生命周期（批确定性、K/q0 停机、crash/resume 等价、
-  exactly-once、evidence 引用）成立** ——都**不是**性能验收。
+  exactly-once、evidence 引用）成立**；Gate 7 的全绿只证明 **可安装性、发布产物完整性与
+  可恢复/可卸载路径成立** ——都**不是**性能验收。
 - mock replay 仍是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；Gate 1 曾把
   recorded-LLM 回放与 DSH 生产闭包 runner 归到 Gate 2，实际 Gate 2（`specs/07` §4）范围是
   provider 纵切片、不含 runner 替换 —— 该项顺延至 runner 相关的后续 Gate，此处显式记录，
@@ -36,8 +43,8 @@
   实现），不是真模型 proposer；真实模型路由仍属后续 gate。Gate 5 的闭环评测因此是
   recorded-proposer 驱动的**管线**证明，不是模型质量证明。
 - 没有 sealed 结果；不得声称已提升、可部署、无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 7–8 未开始。前代项目的通过记录不是本
-  仓库的完成证据（见 2026-08-28 节）。
+- `specs/07-implementation-plan.md` 的 Gate 8（可选 benchmark profiles）未开始。前代项目的
+  通过记录不是本仓库的完成证据（见 2026-08-28 节）。
 
 ## 2026-08-28 repository bootstrap
 
@@ -662,13 +669,47 @@ run 证明稳定 K=3 迭代：确定性批扫描冻结 failure pool → 3 个唯
   Gate 3 fault matrix 覆盖。
 - 跨 resume 等价性以同 run-root 路径为前提（折叠态内嵌绝对 sandbox 路径）；该前提已写入契约测试注释。
 
+## 2026-08-30 Gate 7 — 开源 v0.1 release candidate（`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`）
+
+- **范围**（`specs/07` §9）：可安装的开源 v0.1 release candidate —— 不要求 benchmark 提升。
+- **工具链**：`pnpm release:artifacts`（tarball/SBOM/checksums/扫描，全部作用于
+  `git archive HEAD` 的**已提交树**）、`pnpm install:verify`（fresh-profile 安装演练）、
+  `pnpm gate7`（build + test + lint + format:check + provenance:check + upstream:check +
+  evidence:gate7）。
+- **发布产物**：`release/dsh-evolve-le-0.1.0-rc.1-src.tar.gz`（560 文件，sha256
+  `25ea5241e5aee3be…`，内容寻址进 evidence）；75 个依赖许可证全部在 OSI/permissive
+  allowlist 内、0 个无许可证；SPDX 2.3 SBOM 81 packages；secret 模式扫描 0 命中
+  （9 类 token 形状，刻意不做熵值启发 —— 仓库本身充满 sha256 摘要）；UTF-8 全量校验
+  0 违例。
+- **License**：MIT（根 LICENSE 重写 + 全部 package.json 统一声明）；SECURITY 版本表、
+  CHANGELOG `0.1.0-rc.1` 条目、README（中英）与 docs 六篇重写为当前实现。
+
+### 验收证据（`evidence/gate7/STATUS.json`（tracked）+ `release-candidate.json`（机器文档）+ `checksums.sha256` + `sbom.spdx.json`；由 `pnpm evidence:gate7` 生成，任一断言失败 exit 1；source commit `377e602`）
+
+| specs/07 Gate 7 Accept                                                                | 结果 | 证据                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 干净 fresh-profile 按文档命令安装，随后真实 Loader 与 K=3 demo smoke                  | ✅   | 全新 HOME/XDG/pnpm-store + `--frozen-lockfile` 安装（17s）→ build → `loader-spike` 真实 Loader quiescent（`pnpmInstallFrozenLockfile`/`pnpmBuild`/`realLoaderQuiescent`）→ 默认 stable-demo 配置 K=3 demo（57s）`K_REACHED`/`STABLE_ITERATION_VERIFIED`（trials=9、discovery=6、expansions=3、admitted=3、depth=2、pool=3）                                                                                                                                               |
+| 公开 README/架构/quickstart/config/troubleshooting/evidence 解读文档                  | ✅   | tarball 内 15 个公开文档逐个 `shipped:*` 断言（README 中英、LICENSE、CHANGELOG、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT、docs 六篇 + TB runbook）；文档内容重写为当前实现（无 schema 12/13、stable-demo 旧 config 等前代内容）                                                                                                                                                                                                                                            |
+| 用户选定的 OSI license + CONTRIBUTING/SECURITY/code of conduct/release notes          | ✅   | MIT（用户选定）；根 LICENSE 为 MIT 正文、root manifest `license: MIT`（`licenseIsMit`/`manifestLicenseMit`）；治理文件 shipped 断言；CHANGELOG `0.1.0-rc.1` 条目                                                                                                                                                                                                                                                                                                          |
+| source tarball/package、SBOM、provenance、checksums、依赖/许可证扫描、secret/泄露扫描 | ✅   | tarball 由 `git archive HEAD` 生成且 `tarballFromHeadCommit`==当前 HEAD；SPDX 2.3 SBOM 81 packages；`checksums.sha256` 全产物；75/75 依赖 allowlisted、0 无许可证；secret 0 命中；UTF-8 0 违例（`releaseArtifactsBuilt` 等 8 项）                                                                                                                                                                                                                                         |
+| 全量 unit/E2E/typecheck/lint/format/provenance/upstream-clean/UTF-8 套件通过          | ✅   | `pnpm gate7` 全绿：tsc -b（typecheck）+ vitest 351/351 + oxlint 0 error + prettier --check + `provenance:check`（含 upstream 只读校验）+ 上述 UTF-8 扫描                                                                                                                                                                                                                                                                                                                  |
+| rollback/uninstall 与一次 prior-state restore 实测（不止文档）                        | ✅   | `priorStateRestoredFromJournal`（profile 自带 reducer 折叠 journal 至 seq 157 == 中途快照哈希）+ 删除**全部**快照与 drive-report 后 `terminalStateReconstructedAfterSnapshotLoss`（status 重建同一 stateHash）+ `driveReportReDerivedAfterLoss`（resume 重导出，`K_REACHED`/`STABLE_ITERATION_VERIFIED`）+ `journalUnchangedByRestore`（journal 字节不变，非空校验）+ `auditGreenAfterRestore` + `uninstallRemovesEverything`（整 profile 删除后无残留）；16/16 checks 绿 |
+| 扫描对象即发布对象                                                                    | ✅   | `committedTreeClean`：记录前断言工作树干净（仅 evidence/gate7 与 gitignored release/ 例外），tarball 与扫描均基于同一 commit —— 未提交的 recorder 输出不可能进入发布树                                                                                                                                                                                                                                                                                                    |
+
+### 已知限制（Gate 7）
+
+- 发布状态是**工程可安装性**声明：不包含任何 sealed 揭盲、分数提升、champion 或 leaderboard。
+- fresh-profile demo 用 fake provider（合成 89 任务）与默认配置 —— 真实 Terminal-Bench 运行
+  需按 `docs/quickstart.md` 提供 tasks root、Harbor 与 artifact endpoint；真实 provider 的
+  K=3 证据已由 Gate 6 记录。
+- tarball 未附 git 历史（`git archive`）；provenance 以 commit sha + `provenance.lock.json`
+  锚定（tarball 内含）。
+- 发布通道当前是源码 tarball；npm 发布不在 Gate 7 范围（specs/07 未要求）。
+
 ## Next
 
-- Gate 7（`specs/07` §9）：开源 v0.1 release candidate —— 干净 profile 安装 + 真实 Loader/K=3
-  demo smoke、公开文档（README/架构/quickstart/config/troubleshooting/evidence 解读）、
-  license/CONTRIBUTING/SECURITY/code of conduct/release notes、SBOM/provenance/checksums/
-  依赖与泄露扫描、全量验证套件、rollback/uninstall + 一次 prior-state restore 实测。
-  不要求 benchmark 提升。
+- Gate 8（`specs/07` §10，**可选**）：连续 Terminal-Bench 提升 profiles（K=10 pilot、K=80
+  search、一次性 sealed 确认、官方 89×≥5 评测）—— 需另行授权的预算；未开始。
 - Gate 4 后续接线（显式记录，不静默）：真模型 proposer 路由（替换 recorded policy 的
   adapter 槽位）、proposer 预算维度并轨到整轮 $500/16h 预算模型。
 - 顺延项（显式记录，不静默）：recorded-LLM 回放、DSH 生产闭包 runner、真实模型 capsule
