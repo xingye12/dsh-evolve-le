@@ -89,6 +89,13 @@ export interface ControllerConfig {
    * uid+netns sandbox; tests substitute a lightweight materializer.
    */
   proposalRunner?: ProposalRunner
+  /**
+   * Wait between provider polls while an external job reports RUNNING
+   * (default 2s). A resume after a mid-launch crash can find the orphaned job
+   * still executing; the saga waits it out within its attempt budget instead
+   * of spinning the whole budget in milliseconds and failing the run.
+   */
+  providerPollIntervalMs?: number
 }
 
 /** The sandbox external effect behind a proposal action. */
@@ -174,7 +181,7 @@ export class ControllerError extends Error {
   }
 }
 
-const TERMINAL_ACTIONS: ReadonlySet<ActionStatus> = new Set([
+export const TERMINAL_ACTIONS: ReadonlySet<ActionStatus> = new Set([
   'COMMITTED',
   'FAILED',
   'CANCELLED',
@@ -484,6 +491,27 @@ export class Controller {
     await this.launch(input.actionId)
     await this.awaitTerminal(input.actionId)
     return this.collectAndCommit(input.actionId)
+  }
+
+  /**
+   * Resume a nonterminal evaluation action whose reservation already carries
+   * the request (specs/06 §12): the idempotent saga completes the remaining
+   * steps — exactly-once by key — without re-deciding anything.
+   */
+  async resumeEvaluation(actionId: string): Promise<Observation> {
+    const action = this.action(actionId)
+    if (action.kind !== 'evaluation') {
+      throw new ControllerError(`${actionId} is not an evaluation action`)
+    }
+    if (action.status === 'COMMITTED') {
+      return this.observationOf(actionId)
+    }
+    if (TERMINAL_ACTIONS.has(action.status)) {
+      throw new ControllerError(`${actionId} is already terminal (${action.status})`)
+    }
+    await this.launch(actionId)
+    await this.awaitTerminal(actionId)
+    return this.collectAndCommit(actionId)
   }
 
   // ---------------------------------------------------------------------
@@ -915,11 +943,15 @@ export class Controller {
     if (externalJobId === undefined) {
       throw new ControllerError(`action ${actionId} has no external job`)
     }
+    const intervalMs = this.config.providerPollIntervalMs ?? 2000
     for (let attempt = 0; attempt < 1000; attempt += 1) {
       const { status } = await this.provider.inspect(externalJobId)
       if (status !== 'RUNNING') {
         await this.observeExternalTerminal(actionId, { status })
         return
+      }
+      if (intervalMs > 0) {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, intervalMs))
       }
     }
     throw new ControllerError(`job ${externalJobId} never reached a terminal status`)

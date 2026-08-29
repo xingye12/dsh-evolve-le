@@ -13,6 +13,11 @@
  * - an exhausted budget stops the loop BEFORE the next paid launch;
  * - the controller-visible ceremony/manifest documents never name guard or
  *   sealed tasks, and the guard map travels only to the provider bridge.
+ *
+ * Gate 6 (specs/07 §8): the stable K=3 shape — three admitted children over
+ * at least two lineage depths, every child cold-started from the frozen
+ * baseline-failure pool (`STABLE_ITERATION_VERIFIED`), and a crash after a
+ * committed external effect resuming to the same terminal state.
  */
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -26,7 +31,7 @@ import {
   type ProviderBridge,
 } from '../../src/iteration/driver.js'
 import { FakeProvider } from '../../src/controller/provider.js'
-import type { ProposalRunner } from '../../src/controller/controller.js'
+import type { ControllerConfig, ProposalRunner } from '../../src/controller/controller.js'
 import { defaultRunConfig, validateRunConfig, type RunConfig } from '../../src/config/run-config.js'
 import { runSplitCeremony } from '../../src/split/ceremony.js'
 import { captureCanonicalSource, candidateIdFromDigest } from '../../src/candidate/canonical.js'
@@ -256,9 +261,10 @@ function fakeSandboxRunner(opts: { failWorker?: boolean } = {}) {
 async function newRun(
   prefix: string,
   overrides?: Partial<RunConfig['search']> & Partial<RunConfig['budget']>,
+  at?: string,
 ) {
-  const runRoot = await mkdtemp(join(tmpdir(), prefix))
-  dirs.push(runRoot)
+  const runRoot = at ?? (await mkdtemp(join(tmpdir(), prefix)))
+  if (at !== undefined) dirs.push(runRoot)
   // The raw package carries build output (lib/, node_modules/); stage the
   // declared source exactly as the trusted builder does before capture.
   const baselineSourceDir = join(runRoot, 'baseline-src')
@@ -289,6 +295,7 @@ function makeDriver(
   provider: FakeProvider,
   bridge: Bridge,
   runner: ReturnType<typeof fakeSandboxRunner>,
+  extra: { onBoundary?: ControllerConfig['onBoundary']; clock?: () => string } = {},
 ): IterationDriver {
   return new IterationDriver({
     config: fx.config,
@@ -299,8 +306,24 @@ function makeDriver(
     bridge,
     buildCapsule: fakeBuildCapsule,
     proposalRunner: runner,
-    clock: () => new Date(1_700_000_000_000 + Math.floor(Math.random() * 1000)).toISOString(),
+    clock:
+      extra.clock ??
+      (() => new Date(1_700_000_000_000 + Math.floor(Math.random() * 1000)).toISOString()),
+    ...(extra.onBoundary !== undefined ? { onBoundary: extra.onBoundary } : {}),
   })
+}
+
+/**
+ * A per-scenario monotonic clock. Every journal event and budget entry stamps
+ * `occurredAt` from it, and the evidence-export id (hence each child's source
+ * digest, hence each candidate id) hashes the state it was derived from — so
+ * crash/resume equivalence comparisons must replay the same tick sequence:
+ * share one counter across the crashed drive and its resume, starting both
+ * scenarios at tick 0.
+ */
+function tickClock(): () => string {
+  let tick = 0
+  return () => new Date(1_700_000_000_000 + tick++ * 1000).toISOString()
 }
 
 describe('iteration driver: closed loop', () => {
@@ -326,17 +349,19 @@ describe('iteration driver: closed loop', () => {
     const report = await driver.drive()
 
     expect(report.stopReason).toBe('K_REACHED')
-    expect(report.phase).toBe('SEARCHING')
+    expect(report.status).toBe('STOPPED:K_REACHED') // depth 1 alone is not stable-verified
     expect(report.failurePool).toEqual([failing])
     expect(report.discoveryTrials).toBe(2)
-    expect(report.trials).toBe(2)
+    // Gate 6 semantics: K stops only after the child's q0 cold start from the
+    // frozen pool — 2 discovery trials + 1 child pool trial.
+    expect(report.trials).toBe(3)
     expect(report.admittedNonBaseline).toBe(1)
     expect(report.expansionAttempts).toBe(1)
     expect(report.consecutiveExpansionFailures).toBe(0)
     expect(runner.calls).toHaveLength(1)
     // The child is bound on the provider with its capsule identity.
     expect(bridge.capsules.size).toBe(2)
-    expect(provider.counters.launchEffects).toHaveLength(2) // 2 discovery trials only
+    expect(provider.counters.launchEffects).toHaveLength(3)
     // The child really carries a new source (lineage registered, admitted).
     const manifest = JSON.parse(await readFile(join(fx.runRoot, 'run-manifest.json'), 'utf8')) as {
       configHash: string
@@ -536,4 +561,230 @@ describe('iteration driver: concealment', () => {
       [...ceremony.ceremony.guardOpaqueIds].sort(),
     )
   }, 120_000)
+})
+
+// ---------------------------------------------------------------------------
+// Gate 6 (specs/07 §8): the stable K=3 shape
+// ---------------------------------------------------------------------------
+
+/** The stable-demo search shape at a payable fake scale (α/q0 stay default). */
+const K3_OVERRIDES: Partial<RunConfig['search']> & Partial<RunConfig['budget']> = {
+  kTarget: 3,
+  proposalWidth: 2,
+  maxDiscoveryTrials: 4,
+  discoveryBatchSize: 4,
+  maxSolverTrials: 15,
+  maxConsecutiveExpansionFailures: 3,
+}
+
+async function newK3Run(prefix: string) {
+  return newRun(prefix, K3_OVERRIDES)
+}
+
+/** Script the whole discovery prefix to fail: the pool freezes after batch 1. */
+function scriptDiscoveryFailures(
+  provider: FakeProvider,
+  ceremony: ReturnType<typeof runSplitCeremony>,
+  baselineId: string,
+  count: number,
+): void {
+  for (const handle of ceremony.ceremony.observedHandles.slice(0, count)) {
+    provider.script(`eval-eval-${shortId(baselineId)}-${handle}`, { outcome: 'failure' })
+  }
+}
+
+/** The durable logical terminal state (what a crash-resume must reproduce). */
+interface LogicalFacts {
+  stopReason: string
+  status: string
+  admittedNonBaseline: number
+  lineageDepthMax: number
+  trials: number
+  discoveryTrials: number
+  expansionAttempts: number
+  failurePool: string[]
+  /** Sorted (candidate, task, outcome) of every committed observation. */
+  observations: string[]
+  budgetSpent: Record<string, number>
+}
+
+async function logicalFacts(runRoot: string): Promise<LogicalFacts> {
+  const read = async (name: string): Promise<Record<string, unknown>> =>
+    JSON.parse(await readFile(join(runRoot, name), 'utf8')) as Record<string, unknown>
+  const report = await read('drive-report.json')
+  const pool = (await read('failure-pool.json'))['handles'] as string[]
+  const catalog = (await read('archive-catalog.json')) as {
+    entries: Array<{
+      candidateId: string
+      parentCandidateId: string | null
+      tasks: Array<{ opaqueTaskId: string; attempts: number }>
+    }>
+  }
+  const poolSet = new Set(pool)
+  const byId = new Map(catalog.entries.map((entry) => [entry.candidateId, entry]))
+  const depthOf = (candidateId: string): number => {
+    let depth = 0
+    let cursor = byId.get(candidateId)
+    while (cursor?.parentCandidateId !== null && cursor?.parentCandidateId !== undefined) {
+      depth += 1
+      cursor = byId.get(cursor.parentCandidateId)
+    }
+    return depth
+  }
+  const children = catalog.entries.filter((entry) => entry.parentCandidateId !== null)
+  const budget = report['budget'] as Record<string, { spent: number }>
+  return {
+    stopReason: report['stopReason'] as string,
+    status: report['status'] as string,
+    admittedNonBaseline: report['admittedNonBaseline'] as number,
+    lineageDepthMax: Math.max(...children.map((child) => depthOf(child.candidateId))),
+    trials: report['trials'] as number,
+    discoveryTrials: report['discoveryTrials'] as number,
+    expansionAttempts: report['expansionAttempts'] as number,
+    failurePool: pool,
+    observations: catalog.entries
+      .flatMap((entry) =>
+        entry.tasks.map(
+          (task) => `${entry.candidateId}:${task.opaqueTaskId}:${task.successes}/${task.failures}`,
+        ),
+      )
+      .sort(),
+    budgetSpent: Object.fromEntries(
+      Object.entries(budget).map(([dimension, totals]) => [dimension, totals.spent]),
+    ),
+  }
+}
+
+describe('iteration driver: stable K=3 (Gate 6)', () => {
+  it('admits 3 children over 2+ lineage depths, each cold-started from the frozen pool', async () => {
+    const fx = await newK3Run('dsh-drive-k3-')
+    const provider = new FakeProvider({ outcome: 'success' })
+    const bridge = fakeBridge()
+    const runner = fakeSandboxRunner()
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    scriptDiscoveryFailures(provider, ceremony, baselineId, 4)
+
+    const report = await makeDriver(fx, provider, bridge, runner).drive()
+
+    expect(report.stopReason).toBe('K_REACHED')
+    expect(report.status).toBe('STABLE_ITERATION_VERIFIED')
+    expect(report.admittedNonBaseline).toBe(3)
+    expect(report.discoveryTrials).toBe(4)
+    expect(report.expansionAttempts).toBe(3)
+    expect(report.trials).toBeLessThanOrEqual(15)
+    expect(runner.calls).toHaveLength(3)
+    expect(bridge.capsules.size).toBe(4) // baseline + 3 children
+
+    // Two lineage depths minimum, and every child carries a pool evaluation.
+    const facts = await logicalFacts(fx.runRoot)
+    expect(facts.lineageDepthMax).toBeGreaterThanOrEqual(2)
+    const catalog = JSON.parse(
+      await readFile(join(fx.runRoot, 'archive-catalog.json'), 'utf8'),
+    ) as {
+      entries: Array<{
+        candidateId: string
+        parentCandidateId: string | null
+        tasks: Array<{ opaqueTaskId: string; attempts: number }>
+      }>
+    }
+    const poolSet = new Set(facts.failurePool)
+    const children = catalog.entries.filter((entry) => entry.parentCandidateId !== null)
+    expect(children).toHaveLength(3)
+    for (const child of children) {
+      const poolTrials = child.tasks
+        .filter((task) => poolSet.has(task.opaqueTaskId))
+        .reduce((total, task) => total + task.attempts, 0)
+      expect(poolTrials).toBeGreaterThanOrEqual(1)
+    }
+  }, 240_000)
+
+  it('a crash after a committed external effect resumes to the same terminal state', async () => {
+    class CrashDrill extends Error {}
+
+    // Both scenarios run at the SAME path: the folded state embeds absolute
+    // sandbox paths (a proposal action's externalJobId is its sandbox root),
+    // so derived identities — export ids, hence child source digests, hence
+    // the Thompson population order — only converge when the root matches.
+    const root = await mkdtemp(join(tmpdir(), 'dsh-drive-k3-eq-'))
+    const seed = async () => newRun('', K3_OVERRIDES, root)
+
+    // Reference: the same seeds, run cleanly to its terminal state.
+    const refFx = await seed()
+    const refProvider = new FakeProvider({ outcome: 'success' })
+    const refCeremony = runSplitCeremony({
+      runId: refFx.config.runId,
+      masterSeed: refFx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const refBaseline = candidateIdFromDigest(
+      (await captureCanonicalSource(refFx.baselineSourceDir)).sha256,
+    )
+    scriptDiscoveryFailures(refProvider, refCeremony, refBaseline, 4)
+    await makeDriver(refFx, refProvider, fakeBridge(), fakeSandboxRunner(), {
+      clock: tickClock(),
+    }).drive()
+    const reference = await logicalFacts(refFx.runRoot)
+    await rm(root, { recursive: true, force: true })
+    await mkdir(root, { recursive: true })
+
+    // Crashed twin: SIGKILL-equivalent (a throw at a durable boundary) after
+    // the FIRST committed observation — mid discovery batch, before any proposal.
+    const fx = await seed()
+    const provider = new FakeProvider({ outcome: 'success' })
+    const bridge = fakeBridge()
+    const runner = fakeSandboxRunner()
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    scriptDiscoveryFailures(provider, ceremony, baselineId, 4)
+
+    let committed = 0
+    const crashBoundary: ControllerConfig['onBoundary'] = (point, actionId) => {
+      if (point === 'action-committed' && actionId?.startsWith('eval-')) {
+        committed += 1
+        if (committed === 1) throw new CrashDrill('crash drill: process death')
+      }
+    }
+    // The crashed drive and its resume share one tick sequence; it replays the
+    // reference's sequence from tick 0, so derived identities stay comparable.
+    const clock = tickClock()
+    await expect(
+      makeDriver(fx, provider, bridge, runner, { onBoundary: crashBoundary, clock }).drive(),
+    ).rejects.toThrow('crash drill: process death')
+
+    // The crash landed after exactly one durable external effect.
+    expect(existsSync(join(fx.runRoot, 'drive-report.json'))).toBe(false)
+    expect(existsSync(join(fx.runRoot, 'failure-pool.json'))).toBe(false)
+    expect(provider.counters.launchEffects).toHaveLength(1)
+
+    // Resume: same terminal state, exactly-once effects.
+    const report = await makeDriver(fx, provider, bridge, runner, { clock }).drive()
+    expect(report.stopReason).toBe('K_REACHED')
+    const resumed = await logicalFacts(fx.runRoot)
+    expect(resumed.stopReason).toBe(reference.stopReason)
+    expect(resumed.status).toBe(reference.status)
+    expect(resumed.admittedNonBaseline).toBe(reference.admittedNonBaseline)
+    expect(resumed.lineageDepthMax).toBe(reference.lineageDepthMax)
+    expect(resumed.trials).toBe(reference.trials)
+    expect(resumed.discoveryTrials).toBe(reference.discoveryTrials)
+    expect(resumed.expansionAttempts).toBe(reference.expansionAttempts)
+    expect(resumed.failurePool).toEqual(reference.failurePool)
+    expect(resumed.observations).toEqual(reference.observations)
+    expect(resumed.budgetSpent).toEqual(reference.budgetSpent)
+    // One launch effect per trial, one sandbox per expansion — nothing doubled.
+    expect(provider.counters.launchEffects).toHaveLength(reference.trials)
+    expect(runner.calls).toHaveLength(reference.expansionAttempts)
+  }, 240_000)
 })

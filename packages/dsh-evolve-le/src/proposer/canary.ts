@@ -9,7 +9,7 @@
  * @module @dsh-evolve-le/core/proposer/canary
  */
 
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, createHmac, randomBytes } from 'node:crypto'
 
 export const CANARY_VERSION = 'dsh-evolve-le/canary/v1'
 
@@ -20,6 +20,32 @@ export const CANARY_PATTERN = /^DSHCANARY_[0-9a-f]{32}$/
 export interface CanaryHit {
   tokenFingerprint: string
   field: string
+}
+
+/**
+ * Deterministic canaries for one export principal, derived from the run's
+ * master seed. Unguessable to anything outside the TCB (the seed never leaves
+ * the controller), yet stable for a given (seed, run, principal) — so the
+ * export manifest, the proposer transcript that reads it, and every
+ * downstream artifact digest replay identically across a crash/resume or a
+ * same-seed rerun. Random and derived canaries are interchangeable for leak
+ * detection: each principal still gets tokens no candidate can compute.
+ */
+export function deriveCanaryTokens(input: {
+  masterSeed: string
+  runId: string
+  principal: string
+  count: number
+}): string[] {
+  if (!Number.isSafeInteger(input.count) || input.count < 1 || input.count > 10_000) {
+    throw new Error(`canary count must be 1..10000, got ${String(input.count)}`)
+  }
+  return Array.from({ length: input.count }, (_unused, index) => {
+    const digest = createHmac('sha256', input.masterSeed)
+      .update(`dsh-canary\0${input.runId}\0${input.principal}\0${index}`)
+      .digest('hex')
+    return `DSHCANARY_${digest.slice(0, 32)}`
+  })
 }
 
 /** Generate `count` fresh canary tokens (crypto-random, non-guessable). */

@@ -46,6 +46,12 @@ evidence/gate5/*
 !evidence/gate5/cli-e2e.json
 !evidence/gate5/jobs/
 !evidence/gate5/jobs/**
+!evidence/gate6/
+evidence/gate6/*
+!evidence/gate6/STATUS.json
+!evidence/gate6/stable-iteration.json
+!evidence/gate6/jobs/
+!evidence/gate6/jobs/**
 runs/
 
 # Editor / OS noise.
@@ -55,6 +61,7 @@ runs/
 # Harbor trial/job logs inside tracked gate evidence are audit artifacts
 # (rule 7: failed trials stay, with their logs), not editor noise.
 !evidence/gate2/**/*.log
+!evidence/gate6/jobs/**/*.log
 
 # ZCode session/plan artifacts (not part of the project).
 .zcode/

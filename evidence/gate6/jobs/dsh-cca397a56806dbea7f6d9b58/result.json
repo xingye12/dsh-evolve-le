@@ -1,0 +1,43 @@
+{
+    "id": "76c58320-3a2d-43cd-91e6-58957a069be2",
+    "started_at": "2026-08-29T23:06:39.234568",
+    "updated_at": "2026-08-29T23:12:33.444683",
+    "finished_at": "2026-08-29T23:12:33.444683",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 1,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "dsh-evolve-le-capsule__adhoc": {
+                "n_trials": 1,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "build-pov-ray__9eAn3ta"
+                        ]
+                    }
+                },
+                "exception_stats": {
+                    "NonZeroAgentExitCodeError": [
+                        "build-pov-ray__9eAn3ta"
+                    ]
+                }
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}

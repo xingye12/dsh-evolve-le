@@ -468,3 +468,35 @@ describe('read-only status command', () => {
     expect(after.stateHash).toBe(status.stateHash)
   })
 })
+
+describe('Gate 6: waiting out a still-running external job', () => {
+  it('awaitTerminal polls a RUNNING job to terminal instead of failing fast', async () => {
+    // A crash can orphan an in-flight provider job: the resume process finds
+    // RUNNING on its first inspect and must wait the job out (bounded), not
+    // spin its whole poll budget in milliseconds and fail the run.
+    const fx = await fixture('dsh-ctl-poll-')
+    fx.config.providerPollIntervalMs = 1
+    let inspectCalls = 0
+    const slowProvider = new (class extends FakeProvider {
+      override async inspect(externalJobId: string) {
+        inspectCalls += 1
+        if (inspectCalls <= 3) return { status: 'RUNNING' as const }
+        return super.inspect(externalJobId)
+      }
+    })({ outcome: 'success', costUsdMicros: 100 })
+    const controller = await Controller.open(
+      fx.runDir,
+      fx.objectsRoot,
+      fx.config,
+      slowProvider,
+      clock,
+    )
+    await controller.changePhase('PREFLIGHT', 'test')
+    await controller.changePhase('CALIBRATED', 'test')
+    await controller.changePhase('SEARCHING', 'test')
+    const observation = await controller.runEvaluation(evaluation({ actionId: 'a1', waveId: null }))
+    expect(observation.outcome).toBe('success')
+    expect(inspectCalls).toBeGreaterThanOrEqual(4)
+    await controller.close()
+  })
+})

@@ -440,6 +440,31 @@ async function commandRun(values: CliValues, io: CliIo): Promise<number> {
   }
 
   const composition = fake ? composeFake(env, period) : await composeReal(env, io)
+
+  // Crash drill (Gate 6 acceptance, specs/07 §8): with
+  // DSH_EVOLVE_CRASH_AFTER_OBSERVATION=N the process SIGKILLs itself right
+  // after the Nth evaluation observation is durably committed — a real
+  // process death at a deterministic safe point, for resume-equivalence
+  // evidence. Production runs never set it.
+  const crashAfter = Number(process.env['DSH_EVOLVE_CRASH_AFTER_OBSERVATION'] ?? '')
+  const crashAt = Number.isSafeInteger(crashAfter) && crashAfter > 0 ? crashAfter : null
+  let committedObservations = 0
+  const onBoundary =
+    crashAt === null
+      ? undefined
+      : (point: string, actionId: string | null): void => {
+          if (point !== 'action-committed' || actionId === null || !actionId.startsWith('eval-')) {
+            return
+          }
+          committedObservations += 1
+          if (committedObservations === crashAt) {
+            io.stderr(
+              `crash drill: SIGKILL after observation ${String(committedObservations)} (${actionId})\n`,
+            )
+            process.kill(process.pid, 'SIGKILL')
+          }
+        }
+
   let report
   try {
     const driver = new IterationDriver({
@@ -449,6 +474,7 @@ async function commandRun(values: CliValues, io: CliIo): Promise<number> {
       handles: env.handles,
       provider: composition.provider,
       bridge: composition.bridge,
+      ...(onBoundary !== undefined ? { onBoundary } : {}),
     })
     report = await driver.drive()
   } finally {
@@ -496,8 +522,10 @@ async function commandStatus(values: CliValues, io: CliIo): Promise<number> {
     sealedAccess: env.config.sealedAccess,
     phase: (report?.['phase'] as string | undefined) ?? null,
     stopReason: (report?.['stopReason'] as string | undefined) ?? null,
+    status: (report?.['status'] as string | undefined) ?? null,
     trials: (report?.['trials'] as number | undefined) ?? 0,
     admittedNonBaseline: (report?.['admittedNonBaseline'] as number | undefined) ?? 0,
+    lineageDepthMax: (report?.['lineageDepthMax'] as number | undefined) ?? 0,
     failurePool: (pool?.['handles'] as string[] | undefined) ?? [],
     expansionAttempts: (searchState?.['expansionAttempts'] as number | undefined) ?? 0,
     budget: (report?.['budget'] as Record<string, unknown> | undefined) ?? null,

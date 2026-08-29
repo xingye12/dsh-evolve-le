@@ -1,6 +1,6 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_8_PENDING`; `NO_SEALED_RESULTS`**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`GATE7_8_PENDING`; `NO_SEALED_RESULTS`**
 **更新时间：2026-08-29（Asia/Tokyo）**
 
 ## Claim boundaries
@@ -17,13 +17,17 @@
   （产品化迭代闭环：版本化 run config、split ceremony、CMP/Thompson/UCB-Air selection、
   Harbor `BenchmarkProvider` 适配、preflight + iteration driver、`dsh-evolve` CLI 六命令，
   一条命令走完 propose → build → 真实 Loader → Harbor 评测 → normalize → Archive commit，
-  全程由真实 Terminal-Bench 2.1 task 的真实 Harbor trial 驱动）。Gate 1 的
+  全程由真实 Terminal-Bench 2.1 task 的真实 Harbor trial 驱动）与 **Gate 6**（稳定 K=3 迭代：
+  默认 stable-demo profile 下确定性批冻结 failure pool、3 个唯一子代跨 2 层 lineage 且各完成
+  冻结 pool 上的 cold-start 评测、一次真实 SIGKILL 后 resume 到同一终态、全程 exactly-once，
+  机器断言 `STABLE_ITERATION_VERIFIED`）。Gate 1 的
   `admitted` 只证明 **safety-runnability**；Gate 2 的全绿只证明
   **单 task 评测管线成立且 replay capsule 得到诚实的 reward 0**；Gate 3 的全绿只证明
   **崩溃一致性状态机成立（FileProvider 假体）**；Gate 4 的全绿只证明
   **单次 proposal 闭环在合成 failure trace 上成立且沙箱/注入/canary 边界被机器断言**；
-  Gate 5 的全绿只证明 **开发集迭代闭环在一条命令下成立且复算/预算/隐蔽边界被机器断言**
-  ——都**不是**性能验收。
+  Gate 5 的全绿只证明 **开发集迭代闭环在一条命令下成立且复算/预算/隐蔽边界被机器断言**；
+  Gate 6 的全绿只证明 **稳定迭代生命周期（批确定性、K/q0 停机、crash/resume 等价、
+  exactly-once、evidence 引用）成立** ——都**不是**性能验收。
 - mock replay 仍是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；Gate 1 曾把
   recorded-LLM 回放与 DSH 生产闭包 runner 归到 Gate 2，实际 Gate 2（`specs/07` §4）范围是
   provider 纵切片、不含 runner 替换 —— 该项顺延至 runner 相关的后续 Gate，此处显式记录，
@@ -32,7 +36,7 @@
   实现），不是真模型 proposer；真实模型路由仍属后续 gate。Gate 5 的闭环评测因此是
   recorded-proposer 驱动的**管线**证明，不是模型质量证明。
 - 没有 sealed 结果；不得声称已提升、可部署、无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 6–8 未开始。前代项目的通过记录不是本
+- `specs/07-implementation-plan.md` 的 Gate 7–8 未开始。前代项目的通过记录不是本
   仓库的完成证据（见 2026-08-28 节）。
 
 ## 2026-08-28 repository bootstrap
@@ -594,11 +598,77 @@ provenance + evidence，任一断言失败 exit 1）。
 - discovery trial 均为诚实失败（agent 非零退出、reward 0）——recorded proposer 无法真正
   解题，这正是 Gate 4 已知限制在数据集上的体现；真实模型路由属后续 gate。
 
+## 2026-08-29 Gate 6 implemented — stable K=3 iteration with crash/resume
+
+**目标（`specs/07` §8）**：在 stable-demo 默认 profile（无 `--set` 覆盖）下，用全新 development-only
+run 证明稳定 K=3 迭代：确定性批扫描冻结 failure pool → 3 个唯一子代跨 ≥2 层 lineage、每个子代在
+冻结 pool 上完成 q0 cold-start 评测 → 一次真实进程崩溃后 resume 到同一终态 → 全程 exactly-once。
+产出 `STABLE_ITERATION_VERIFIED`（仅工程生命周期声明，不含分数/质量声明）。
+
+### 实现（契约测试先行）
+
+- **K/q0 停机语义**（`driver.ts`）：K 达成不再停在 admission —— 每个已 admit 子代必须完成
+  q0=1 次来自冻结 pool 的 cold-start 评测后循环才允许停（`specs/03` §"达到 K 后只允许
+  evaluation"）；`STABLE_ITERATION_VERIFIED` iff K_REACHED ∧ 非 baseline 子代数 ≥ kTarget ∧
+  lineageDepthMax ≥ 2 ∧ 每个子代在 pool 上有评测。`DriveReport` 新增 `status`、`lineageDepthMax`。
+- **discovery 批确定性**（`driver.ts`）：批扫描按冻结 ceremony 顺序切批（`discovery-N` wave、
+  成员重校验、批边界先查冻结再付新批钱）；resume 从批内成员逐一续跑而非重付整批；
+  `NO_REAL_FAILURE_SIGNAL` 在冻结顺序耗尽且零失败时触发（不得在候选结果后挑任务）。
+- **崩溃演练缝**（`cli.ts`）：`DSH_EVOLVE_CRASH_AFTER_OBSERVATION=N` —— 第 N 个 `eval-*`
+  observation 确实落账（budget settle + journal commit 之后）即 `SIGKILL` 自杀；生产 run 永不设置。
+  driver/controller 透传 `onBoundary`。
+- **确定性 canary**（`proposer/canary.ts`）：`deriveCanaryTokens(masterSeed, runId, principal, n)`
+  —— HMAC-SHA256 派生、TCB 外不可猜、同 (seed, run, principal) 跨 crash/resume 与同种子重放稳定。
+  此前随机 canary 经 export manifest 的 `canaryAbsence.tokenFingerprints` 污染整条下游 digest 链
+  （transcript → export digest → 子代 source digest → candidateId → Thompson 种群顺序），导致
+  崩溃与 reference 终态哈希发散。
+- **recorded proposer 溯源锚**（`proposer/policy.ts`）：子代 `src/index.ts` 追加引用本次 proposal
+  export 实例（`derived from evidence export <exportId>`）的 provenance 注释 —— 同一父代的不同
+  export 实例产出不同子代（真实演进语义）；同状态重复展开仍按 duplicate 记 expansion failure。
+  修复前：同一父代恒定产出字节相同子代 → K=3 时 Thompson 重抽已展开父代 → 连续 duplicate →
+  `NO_ADMISSIBLE_CHILD` 提前停机。
+- **崩溃/恢复等价契约测试**（`tests/iteration/driver.test.ts`）：reference 全程 vs 崩溃双胞胎
+  （同一 run-root 路径、同一 tick 时钟）逐字段断言终态一致：stopReason/status/stateHash/
+  admitted/lineageDepthMax/trials/discoveryTrials/expansionAttempts/failurePool/observations/
+  budget、外部效应数（launch 效应 == trials、sandbox 数 == expansionAttempts）。折叠态内嵌
+  sandbox 绝对路径（`externalJobId`），故等价性在同一路径下断言 —— 该前提在测试中显式固化。
+- **CLI 契约**（`packages/cli/tests/cli.test.ts`）：run/resume/status 期望更新为 K=3/q0 语义。
+
+### 验收证据（`evidence/gate6/STATUS.json`（tracked）+ `stable-iteration.json`（机器文档）+ `jobs/`（原始 Harbor job）；由 `pnpm evidence:gate6` 生成，任一断言失败 exit 1）
+
+| specs/07 Gate 6 Accept                                                                                 | 结果 | 证据                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 全新 development run、确定性批（≤12 observed）、proposals 前冻结 pool、不做候选后挑题                  | ✅   | 默认 config（kTarget=3、discoveryBatch=6、≤12）；第 1 批 6 个 trial 全部诚实失败后批边界即冻结 pool（6 handle，`frozenFromObservations=6`）`configIsDefaultStableDemo`/`poolFrozenFromDiscoveryOnly`                                                            |
+| 自动 admit 3 个唯一子代、跨 ≥2 层 lineage                                                              | ✅   | 3 次 expansion（prop-1/2/3 sandbox）admit 3 个唯一子代，lineageDepthMax=2（`threeUniqueChildrenAdmitted`/`twoLineageDepthsAtLeast`/`catalogDepthsMatchReport`）                                                                                                 |
+| 每个子代在冻结 pool 选出的一个 task 上评测                                                             | ✅   | 3 个子代各 1 次 pool 任务 cold-start trial（trials=9=6 discovery+3 评测；`everyChildColdStartedFromFrozenPool`）                                                                                                                                                |
+| 一次真实外部效应后的进程崩溃 + resume 到同一终态                                                       | ✅   | `DSH_EVOLVE_CRASH_AFTER_OBSERVATION=1` → SIGKILL（1 个 Harbor trial dir、1 个 committed eval action、无 failure-pool/drive-report、无 sandbox）；`resume` 复用同 run root 到 `K_REACHED`/`STABLE_ITERATION_VERIFIED`（`crashDrillWasARealProcessKill` 等 5 项） |
+| exactly-once proposal/evaluation/cost + 完整 raw refs + hash-chain replay + normalized Harbor evidence | ✅   | Harbor trial dir 数 == trials == ledger 行数 == 9、sandbox 数 == expansion 数 == 3、二次 resume 逐字节不变（journal+budget ledger+report）；`audit` 全绿；9/9 trial 的 config.json registry_entry = `dsh-evolve-le-capsule` + 本次 archive sha256               |
+| proposer 引用历史 raw evidence；reject/runtime fail/infra retry/duplicate 由 fixtures 覆盖             | ✅   | 3 个子代 candidate.json `proposal.evidenceRefs` 共 19 条全部解析到 `objects/sha256/<2-hex>/` 内容寻址对象（`childrenCiteHistoricalRawEvidence`）；故障路径由 driver 契约测试钉住                                                                                |
+| 不声称分数提升/champion/sealed 访问/leaderboard                                                        | ✅   | `STABLE_ITERATION_VERIFIED` 为工程生命周期声明；sealed 分配全文扫描零出现（`sealedAssignmentNeverOnDisk`）、guard 不可见（`guardInvisibleToProposerAndSelector`）、budget reserved 全零                                                                         |
+
+### Gate 6 期间发现并修复的实现缺陷
+
+- **同父代确定性子代导致 K=3 不可达**（见上，exportId 溯源锚修复）。
+- **随机 canary 破坏跨 resume digest 链**（见上，`deriveCanaryTokens` 修复）。
+- **测试时钟随机性放大**：journal `occurredAt` → state hash → export id → 子代 id → Thompson
+  顺序，测试改用共享 tick 时钟；折叠态内嵌绝对路径 → 崩溃等价测试固定同一路径执行。
+
+### 已知限制
+
+- proposer 仍是 recorded 确定性策略；本 gate 证明的是稳定迭代生命周期，不是模型质量。
+- 全部 discovery/子代 trial 均为诚实失败（reward 0）——recorded proposer 无法真正解题（Gate 4
+  已知限制在默认 profile 下的体现）；真实模型路由属后续 gate。
+- 崩溃演练只在 committed-observation 边界（确定性安全点）触发；任意 I/O 点的崩溃一致性由
+  Gate 3 fault matrix 覆盖。
+- 跨 resume 等价性以同 run-root 路径为前提（折叠态内嵌绝对 sandbox 路径）；该前提已写入契约测试注释。
+
 ## Next
 
-- Gate 6（`specs/07` §8）：稳定 K=3 迭代证明 —— 在 stable-demo 默认 profile 下跑完整
-  development 迭代（子代 evaluation wave 触达 evaluate 分支）、跨 resume 的长跑稳定性、
-  development champion 判定；sealed 路径仍不触。
+- Gate 7（`specs/07` §9）：开源 v0.1 release candidate —— 干净 profile 安装 + 真实 Loader/K=3
+  demo smoke、公开文档（README/架构/quickstart/config/troubleshooting/evidence 解读）、
+  license/CONTRIBUTING/SECURITY/code of conduct/release notes、SBOM/provenance/checksums/
+  依赖与泄露扫描、全量验证套件、rollback/uninstall + 一次 prior-state restore 实测。
+  不要求 benchmark 提升。
 - Gate 4 后续接线（显式记录，不静默）：真模型 proposer 路由（替换 recorded policy 的
   adapter 槽位）、proposer 预算维度并轨到整轮 $500/16h 预算模型。
 - 顺延项（显式记录，不静默）：recorded-LLM 回放、DSH 生产闭包 runner、真实模型 capsule

@@ -169,10 +169,11 @@ describe('dsh-evolve CLI', () => {
       stateHash: string
     }
     // The 2nd fake trial fails → pool frozen; one real expansion admits a
-    // child (real sandbox + trusted rebuild); K=1 reached on the next check.
+    // child (real sandbox + trusted rebuild); Gate 6 semantics: K stops only
+    // after the child's q0 cold-start trial from the frozen pool.
     expect(report.stopReason).toBe('K_REACHED')
     expect(report.phase).toBe('SEARCHING')
-    expect(report.trials).toBe(2)
+    expect(report.trials).toBe(3)
     expect(report.admittedNonBaseline).toBe(1)
     expect(report.expansionAttempts).toBe(1)
     expect(report.failurePool).toHaveLength(1)
@@ -195,7 +196,7 @@ describe('dsh-evolve CLI', () => {
     expect(resume.code).toBe(0)
     const report = JSON.parse(resume.stdout) as { stopReason: string; trials: number }
     expect(report.stopReason).toBe('K_REACHED')
-    expect(report.trials).toBe(2)
+    expect(report.trials).toBe(3)
 
     const after = await journalBytes(join(runRoot(), 'controller'))
     expect(after).toBe(before)
@@ -215,7 +216,7 @@ describe('dsh-evolve CLI', () => {
     expect(doc.stopReason).toBe('K_REACHED')
     expect(doc.phase).toBe('SEARCHING')
     expect(doc.admittedNonBaseline).toBe(1)
-    expect(doc.controller?.observationCount).toBe(2)
+    expect(doc.controller?.observationCount).toBe(3)
     expect(doc.controller?.stateHash).toMatch(/^[0-9a-f]{64}$/)
   })
 

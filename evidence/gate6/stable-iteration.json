@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/gate6-stable-iteration/v1",
+  "generatedAt": "2026-08-29T15:27:11.072Z",
+  "runId": "gate6-stable-iteration",
+  "masterSeed": "gate6-stable-iteration-master-seed",
+  "configHash": "sha256:efe9f3609c9ce9701e851549a5c015c3d43f463c37bd4d1b219313b6d1cf09bd",
+  "configProfile": "default stable-demo (no --set overrides)",
+  "cliBin": "packages/cli/lib/main.js",
+  "dataset": {
+    "tarball": "terminal-bench-2-1-7131e43.tar.gz",
+    "handles": 89
+  },
+  "crash": {
+    "env": "DSH_EVOLVE_CRASH_AFTER_OBSERVATION=1",
+    "signal": "SIGKILL",
+    "seconds": 410,
+    "harborTrialsAfterCrash": 1,
+    "committedObservationsAfterCrash": 1,
+    "committedActionIds": [
+      "eval-u5py7hl4-adaptive-rejection-sampler"
+    ]
+  },
+  "report": {
+    "runId": "gate6-stable-iteration",
+    "phase": "SEARCHING",
+    "stopReason": "K_REACHED",
+    "status": "STABLE_ITERATION_VERIFIED",
+    "trials": 9,
+    "discoveryTrials": 6,
+    "admittedNonBaseline": 3,
+    "lineageDepthMax": 2,
+    "expansionAttempts": 3,
+    "consecutiveExpansionFailures": 0,
+    "failurePool": [
+      "adaptive-rejection-sampler",
+      "build-pmars",
+      "build-pov-ray",
+      "cancel-async-tasks",
+      "chess-best-move",
+      "circuit-fibsqrt"
+    ],
+    "stateHash": "573ad35207728ef98ab2d6e55f656324fee7ce041792f04801c40bfc38a5f1fd",
+    "budget": {
+      "usd": {
+        "spent": 295686,
+        "reserved": 0
+      },
+      "task-trials": {
+        "spent": 9,
+        "reserved": 0
+      },
+      "proposer-tokens": {
+        "spent": 64822,
+        "reserved": 0
+      },
+      "proposal-calls": {
+        "spent": 3,
+        "reserved": 0
+      }
+    }
+  },
+  "resumeSeconds": 2938,
+  "lineage": {
+    "depthMax": 2,
+    "childDepths": [
+      1,
+      2,
+      2
+    ]
+  },
+  "poolCoverage": [
+    {
+      "candidateId": "c_25ajlnhhfkj6x22u4cd2cp37gk",
+      "poolTrials": 1
+    },
+    {
+      "candidateId": "c_wqvchnml5kxjmvfibnx7zrk3mx",
+      "poolTrials": 1
+    },
+    {
+      "candidateId": "c_xe6l6xdbwool4pigqlvkhjwbux",
+      "poolTrials": 1
+    }
+  ],
+  "capsules": [
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_25ajlnhhfkj6x22u4cd2cp37gk",
+      "sourceDigest": "sha256:d74095b4e72a93ebeb54e087a13f7f32bc8eb0b6e5a8ba79b71cc17f3ab1cad4",
+      "archiveSha256": "d4a2aa9c71db79788c99de257fb59c3237b22b4a71dc7dc1d7f69fb98d28dd0a",
+      "capsuleDir": "capsules/c_25ajlnhhfkj6x22u4cd2cp37gk/capsule",
+      "stagedSourceDir": "capsules/c_25ajlnhhfkj6x22u4cd2cp37gk/src",
+      "archivePath": "capsules/d4a2aa9c71db79788c99de257fb59c3237b22b4a71dc7dc1d7f69fb98d28dd0a.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "sourceDigest": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+      "archiveSha256": "543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39",
+      "capsuleDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/capsule",
+      "stagedSourceDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/src",
+      "archivePath": "capsules/543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_wqvchnml5kxjmvfibnx7zrk3mx",
+      "sourceDigest": "sha256:b42a23b58beaae9654a80b6ffcc55b65ebcad6305c9d9e8d43af083a910e2a7d",
+      "archiveSha256": "3df7ea41571225c9e3bb0721356d3fcbaeca2e5030f8e69fb0cbf3960a1062a0",
+      "capsuleDir": "capsules/c_wqvchnml5kxjmvfibnx7zrk3mx/capsule",
+      "stagedSourceDir": "capsules/c_wqvchnml5kxjmvfibnx7zrk3mx/src",
+      "archivePath": "capsules/3df7ea41571225c9e3bb0721356d3fcbaeca2e5030f8e69fb0cbf3960a1062a0.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_xe6l6xdbwool4pigqlvkhjwbux",
+      "sourceDigest": "sha256:b93cbf5c61b39cbe3d0682eaa3a6c1a5d60837c9cf0ee15453d897c4f6264132",
+      "archiveSha256": "58b58d69f971524f85ef867911fc2c70ef89366587692a9c60c4814a1ab095b2",
+      "capsuleDir": "capsules/c_xe6l6xdbwool4pigqlvkhjwbux/capsule",
+      "stagedSourceDir": "capsules/c_xe6l6xdbwool4pigqlvkhjwbux/src",
+      "archivePath": "capsules/58b58d69f971524f85ef867911fc2c70ef89366587692a9c60c4814a1ab095b2.tar.gz"
+    }
+  ],
+  "harborTrialDirs": 9,
+  "attributedTrials": 9,
+  "ledgerLines": 9,
+  "evidenceCitations": [
+    {
+      "candidateId": "c_25ajlnhhfkj6x22u4cd2cp37gk",
+      "refs": 6,
+      "verified": 6
+    },
+    {
+      "candidateId": "c_wqvchnml5kxjmvfibnx7zrk3mx",
+      "refs": 6,
+      "verified": 6
+    },
+    {
+      "candidateId": "c_xe6l6xdbwool4pigqlvkhjwbux",
+      "refs": 7,
+      "verified": 7
+    }
+  ],
+  "sealedCount": 29,
+  "guardCount": 12,
+  "flags": {
+    "initFrozeConfigAndHandles": true,
+    "configIsDefaultStableDemo": true,
+    "doctorAllGreen": true,
+    "crashDrillWasARealProcessKill": true,
+    "crashLeftExactlyOneHarborTrial": true,
+    "crashLeftExactlyOneCommittedObservation": true,
+    "crashWroteNoTerminalDocuments": true,
+    "crashBeforeAnyProposal": true,
+    "resumeExitZero": true,
+    "stableIterationVerified": true,
+    "discoveryBatchesDeterministic": true,
+    "threeUniqueChildrenAdmitted": true,
+    "twoLineageDepthsAtLeast": true,
+    "catalogMatchesReport": true,
+    "catalogDepthsMatchReport": true,
+    "everyChildColdStartedFromFrozenPool": true,
+    "poolFrozenFromDiscoveryOnly": true,
+    "oneHarborTrialDirPerCommittedTrial": true,
+    "oneSandboxPerExpansion": true,
+    "oneLedgerLinePerLaunch": true,
+    "secondResumeDuplicatesNothing": true,
+    "childrenCiteHistoricalRawEvidence": true,
+    "normalizedTrialsAttributedToCapsuleArchive": true,
+    "auditAllGreen": true,
+    "statusFromDurableEvidenceAfterRestart": true,
+    "sealedAssignmentNeverOnDisk": true,
+    "guardInvisibleToProposerAndSelector": true,
+    "budgetAccountingExact": true
+  },
+  "notes": []
+}

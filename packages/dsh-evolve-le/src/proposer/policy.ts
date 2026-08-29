@@ -235,6 +235,13 @@ export function createRecordedProposerPolicy(
       const parentSourceHash =
         userText.match(/^parent source: (sha256:[0-9a-f]{64})$/m)?.[1] ?? 'sha256:' + '0'.repeat(64)
       const children = childrenFor(exportReads, { parentFiles, parentSourceHash, width })
+      // The export instance is content-addressed per action (its principal
+      // names this proposal action), so citing it in the child source keeps
+      // re-expansions of the same parent distinct exactly when the controller
+      // handed over a fresh export — a same-state re-expansion still yields a
+      // byte-identical child and is counted as the duplicate it is.
+      const exportId =
+        manifest?.content.match(/"exportId":\s*"([^"]+)"/)?.[1] ?? 'export-unattributed'
       const written = writtenChildren(userText)
       const pending = children.filter((child) => !written.has(child.childName))
       if (pending.length > 0) {
@@ -247,10 +254,14 @@ export function createRecordedProposerPolicy(
           const mode = child.targetFailureModes[0] ?? 'generic'
           const entry = files['src/index.ts']
           if (entry !== undefined) {
-            files['src/index.ts'] = entry.replace(
-              'in solve mode.',
-              `in solve mode with a ${mode} checklist (child ${child.childName}).`,
-            )
+            const base = entry.includes('in solve mode.')
+              ? entry.replace(
+                  'in solve mode.',
+                  `in solve mode with a ${mode} checklist (child ${child.childName}).`,
+                )
+              : entry
+            files['src/index.ts'] =
+              `${base}\n// ${mode} checklist (child ${child.childName}); derived from evidence export ${exportId}.\n`
           }
           const manifestJson = files['candidate.json']
           if (manifestJson !== undefined) {
