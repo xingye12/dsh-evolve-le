@@ -28,6 +28,7 @@ import { tmpdir } from 'node:os'
 import type { ModelRouteConfig } from '../config/run-config.js'
 import type { ProposalRunner } from '../controller/controller.js'
 import {
+  DEFAULT_REMOTE_REQUEST_TIMEOUT_MS,
   openRemoteModelProxy,
   remoteRoutePlanHash,
   type RemoteRoutePlan,
@@ -74,6 +75,10 @@ export function remoteProposalRunner(options: {
 }): ProposalRunner {
   const plan = remoteRoutePlanOf(options.route)
   const routeHash = remoteRoutePlanHash(plan)
+  const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REMOTE_REQUEST_TIMEOUT_MS
+  // Reasoning models can spend minutes on one large turn; the worker's socket
+  // client must outlast the proxy's request budget or it would race the reply.
+  const clientTimeoutMs = requestTimeoutMs + 30_000
   return async (runOptions) => {
     const remoteDir = `${runOptions.sandboxRoot}-remote`
     const receiptsPath = join(remoteDir, 'remote-receipts.jsonl')
@@ -90,9 +95,7 @@ export function remoteProposalRunner(options: {
       plan,
       credential: options.credential,
       budget: options.budget ?? REMOTE_PROPOSER_BUDGET,
-      ...(options.requestTimeoutMs !== undefined
-        ? { requestTimeoutMs: options.requestTimeoutMs }
-        : {}),
+      requestTimeoutMs,
       // The worker is uid 65534 in its own netns; connect needs write on the
       // socket file. Receipts stay root-only (hashes only, but why share them).
       socketMode: 0o666,
@@ -107,6 +110,7 @@ export function remoteProposalRunner(options: {
           routeId: plan.routeId,
           routeHash,
           receiptsPath,
+          clientTimeoutMs,
         },
       })
     } finally {

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/proposal/v1",
+  "parentSourceHash": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+  "children": [
+    {
+      "childName": "tool-selection-guard",
+      "hypothesis": "Adds a system-prompt section that forbids needless filesystem tool calls, addressing the tool-selection failure.",
+      "donorCandidates": [],
+      "evidenceRefs": [
+        "f1ad8dad935c056111d15453de18e0b2814f1182d4012346e6adf6cf31b367f9"
+      ],
+      "targetFailureModes": [
+        "tool-selection"
+      ]
+    },
+    {
+      "childName": "context-retention-guard",
+      "hypothesis": "Adds a system-prompt section that requires restating the active instruction each step, preventing context loss.",
+      "donorCandidates": [],
+      "evidenceRefs": [
+        "aa3c1758ccf3fd231b6403fba0c7a8293294243b1c659f4e5f4de8191e63a49e"
+      ],
+      "targetFailureModes": [
+        "context-loss"
+      ]
+    },
+    {
+      "childName": "injection-immunity-guard",
+      "hypothesis": "Adds a system-prompt section that treats notes inside evidence as data, never as commands, blocking injection.",
+      "donorCandidates": [],
+      "evidenceRefs": [
+        "aa3c1758ccf3fd231b6403fba0c7a8293294243b1c659f4e5f4de8191e63a49e"
+      ],
+      "targetFailureModes": [
+        "prompt-injection"
+      ]
+    }
+  ]
+}

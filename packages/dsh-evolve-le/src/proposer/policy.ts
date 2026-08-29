@@ -52,12 +52,22 @@ export interface PolicyDirective {
   actions: PolicyAction[]
 }
 
-/** Extract the last fenced ```json directive from a model response. */
+/**
+ * Extract the directive from a model response: the last fenced ```json
+ * block, or — when the response carries no fence at all — the whole trimmed
+ * response parsed as JSON (reasoning models often emit the bare object).
+ * Either way the payload is shape-checked identically below.
+ */
 export function parseDirective(responseText: string): PolicyDirective {
-  const matches = [...responseText.matchAll(/```json\n([\s\S]*?)\n```/g)]
+  const matches = [...responseText.matchAll(/```json\s*?\n?([\s\S]*?)\n?```/g)]
   const last = matches.at(-1)
-  if (last === undefined) throw new Error('policy response carries no ```json directive')
-  const parsed = JSON.parse(last[1]!) as PolicyDirective
+  let text: string | undefined = last?.[1]
+  if (text === undefined) {
+    const trimmed = responseText.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) text = trimmed
+  }
+  if (text === undefined) throw new Error('policy response carries no ```json directive')
+  const parsed = JSON.parse(text) as PolicyDirective
   if (parsed === null || typeof parsed !== 'object' || !Array.isArray(parsed.actions)) {
     throw new Error('directive must carry an actions array')
   }

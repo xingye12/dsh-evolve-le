@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto'
 import { dirname } from 'node:path'
 import type { ModelGateway, GatewayUsage } from './gateway.js'
 import { promptSha256 } from '../acp/recorded-replay.js'
-import { parseDirective, type PolicyAction } from './policy.js'
+import { parseDirective, type PolicyAction, type PolicyDirective } from './policy.js'
 import { parseProposalOutput, type ProposalOutput } from './protocol.js'
 import type { ProposerTools } from './tools.js'
 
@@ -51,6 +51,12 @@ export type TranscriptRecord =
       sourceRef?: { path: string; sha256?: string }
     }
   | { kind: 'proposal'; seq: number; proposal: ProposalOutput }
+  | {
+      /** A response that did not parse as a directive (recoverable). */
+      kind: 'protocol'
+      seq: number
+      error: string
+    }
   | { kind: 'summary'; seq: number; usage: GatewayUsage; turns: number; outcome: 'submitted' }
 
 export interface AgentLoopResult {
@@ -168,7 +174,20 @@ export async function runProposerAgentLoop(options: {
       costUsdMicros: usage.costUsdMicros - before.costUsdMicros,
     })
 
-    const directive = parseDirective(responseText)
+    let directive: PolicyDirective
+    try {
+      directive = parseDirective(responseText)
+    } catch (error) {
+      // A real model can hand-roll unbalanced JSON (observed live in Gate 8).
+      // The turn is spent and billed; the failure renders back like a tool
+      // error and the model resends, bounded by the same maxTurns budget.
+      const message = `error directive ${
+        error instanceof Error ? error.message.replaceAll('\n', ' ') : String(error)
+      } — your last response was not a parseable directive; resend ONE complete directive`
+      await append({ kind: 'protocol', seq: 0, error: message })
+      userText = `${userText}\n\n[tool results]\n${message}\n`
+      continue
+    }
     const blockLines: string[] = []
     for (const action of directive.actions) {
       if (action.op === 'submit') {

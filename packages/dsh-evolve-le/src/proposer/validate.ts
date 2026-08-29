@@ -14,6 +14,8 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { captureCanonicalSource, type CanonicalSource } from '../candidate/canonical.js'
 import { diffCanonicalSources, type CanonicalDiff } from '../candidate/diff.js'
+import { defaultScanPolicy, scanCanonicalSource } from '../candidate/scan.js'
+import { validateManifest } from '../schema.js'
 import type { ArchiveCatalog } from './catalog.js'
 import { scanFieldsForCanary, scanForCanary } from './canary.js'
 import type { ExportManifest } from './export.js'
@@ -162,6 +164,38 @@ export async function validateProposalBundle(
         if (hits.length > 0) {
           reason = `canary fingerprint hit in ${file.path}`
           break
+        }
+      }
+      // The candidate scanner (specs/02) is the same bar the trusted builder
+      // applies: a child that renames the fixed cordis.patch.yml row id or
+      // violates any structural rule is rejected HERE, at admission — not at
+      // its first expansion (Gate 8: real models derive such edits unless the
+      // wire protocol forbids them, and the controller must not rely on that).
+      if (reason === undefined) {
+        const findings = scanCanonicalSource(source, defaultScanPolicy()).findings
+        if (findings.length > 0) {
+          reason = `candidate scan rejected the child: ${findings
+            .slice(0, 3)
+            .map((finding) => `${finding.rule} at ${finding.path}:${String(finding.line)}`)
+            .join('; ')}`
+        }
+      }
+      if (reason === undefined) {
+        // candidate.json must also satisfy the versioned manifest schema the
+        // builder enforces (observed live: touchedSurfaces tokens with colons).
+        const manifestFile = source.files.find((file) => file.path === 'candidate.json')
+        try {
+          const parsed: unknown = JSON.parse(manifestFile!.content.toString('utf8'))
+          const result = validateManifest('candidate', parsed)
+          if (!result.ok) {
+            reason = `candidate manifest rejected the child: ${result.error.errors
+              .slice(0, 3)
+              .join('; ')}`
+          }
+        } catch (error) {
+          reason = `candidate.json unparseable: ${
+            error instanceof Error ? error.message : String(error)
+          }`
         }
       }
     }

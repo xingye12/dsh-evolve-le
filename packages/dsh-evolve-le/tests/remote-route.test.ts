@@ -9,7 +9,7 @@
  * loop is deterministic; the credential and prompt/response text never appear
  * in any receipt or artifact.
  */
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -18,10 +18,15 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import { buildCandidate, type BuildResult } from '../src/builder/pipeline.js'
+import { captureCanonicalSource } from '../src/candidate/canonical.js'
 import { openObjectStore } from '../src/state/object-store.js'
-import { createEvidenceExport, PROPOSER_READ_LABELS } from '../src/proposer/export.js'
+import {
+  createEvidenceExport,
+  PROPOSER_READ_LABELS,
+  EXPORT_VERSION,
+} from '../src/proposer/export.js'
 import { generateCanaryTokens } from '../src/proposer/canary.js'
-import { createRecordedProposerPolicy } from '../src/proposer/policy.js'
+import { createRecordedProposerPolicy, parseDirective } from '../src/proposer/policy.js'
 import {
   remoteRoutePlanHash,
   verifyRemoteReceipts,
@@ -35,7 +40,8 @@ import {
   type ControllerConfig,
 } from '../src/controller/controller.js'
 import { FakeProvider } from '../src/controller/provider.js'
-import { buildArchiveCatalog } from '../src/proposer/catalog.js'
+import { buildArchiveCatalog, CATALOG_VERSION } from '../src/proposer/catalog.js'
+import { validateProposalBundle } from '../src/proposer/validate.js'
 import { defaultRunConfig, validateRunConfig } from '../src/config/run-config.js'
 import type { ModelRouteConfig } from '../src/config/run-config.js'
 
@@ -176,6 +182,201 @@ describe('run-config: zen-compatible proposer route fails closed', () => {
   })
 })
 
+// ---- directive parsing: real-model response forms (Gate 8) ------------------
+
+describe('parseDirective: tolerates real-model response shapes, fails closed', () => {
+  it('accepts the bare JSON object as the entire response (reasoning models)', () => {
+    // deepseek-v4-flash observed live: the directive arrives with no fence.
+    const directive = parseDirective('{"actions":[{"op":"list","path":"export"}]}')
+    expect(directive.actions).toEqual([{ op: 'list', path: 'export' }])
+  })
+
+  it('uses the LAST fenced block when the model reasons around fences', () => {
+    const response = [
+      'Let me look at the export first.',
+      '```json',
+      '{"actions":[{"op":"read","path":"a"}]}',
+      '```',
+      'On reflection, the parent manifest matters more.',
+      '```json',
+      '{"actions":[{"op":"read","path":"b"}]}',
+      '```',
+    ].join('\n')
+    expect(parseDirective(response).actions).toEqual([{ op: 'read', path: 'b' }])
+  })
+
+  it('fails closed on prose with no directive anywhere', () => {
+    expect(() => parseDirective('I will read the export manifest next turn.')).toThrow(
+      /no .*directive/,
+    )
+  })
+
+  it('fails closed when the payload carries no actions array', () => {
+    expect(() => parseDirective('```json\n{"steps":[]}\n```')).toThrow(/actions array/)
+    expect(() => parseDirective('{"steps":[]}')).toThrow(/actions array/)
+  })
+})
+
+// ---- admission runs the candidate scanner (Gate 8) --------------------------
+
+describe('validateProposalBundle: admission requires scanner-clean children', () => {
+  it('rejects a child that renames the fixed cordis.patch.yml row id', async () => {
+    // A real model's observed failure: deriving a per-child row id. The
+    // candidate slot is a protocol constant — admission must not pass children
+    // the trusted builder would later refuse.
+    const parentRoot = await freshRoot('dsh-rr-val-parent-')
+    const childRoot = await freshRoot('dsh-rr-val-child-')
+    // Copy only canonical-allowed entries (no lib/, node_modules/, tsbuildinfo).
+    for (const entry of [
+      'candidate.json',
+      'cordis.patch.yml',
+      'package.json',
+      'src',
+      'tests',
+      'tsconfig.json',
+    ] as const) {
+      await cp(join(baselineSource, entry), join(parentRoot, entry), { recursive: true })
+      await cp(join(baselineSource, entry), join(childRoot, 'baseline-copy', entry), {
+        recursive: true,
+      })
+    }
+    const patchPath = join(childRoot, 'baseline-copy', 'cordis.patch.yml')
+    await writeFile(
+      patchPath,
+      (await readFile(patchPath, 'utf8')).replace(
+        'id: self-evolving-candidate\n',
+        'id: self-evolving-candidate-renamed\n',
+      ),
+      'utf8',
+    )
+    const parentSource = await captureCanonicalSource(parentRoot)
+    const digest = 'a'.repeat(64)
+    const validation = await validateProposalBundle({
+      proposal: {
+        schemaVersion: 1,
+        protocol: 'dsh-evolve-le/proposal/v1',
+        parentSourceHash: `sha256:${parentSource.sha256}`,
+        children: [
+          {
+            childName: 'baseline-copy',
+            hypothesis: 'scanner-contract probe hypothesis',
+            donorCandidates: [],
+            evidenceRefs: [digest],
+            targetFailureModes: ['tool-selection'],
+          },
+        ],
+      },
+      childrenRoot: childRoot,
+      parentSource,
+      exportManifest: {
+        schemaVersion: 1,
+        exportVersion: EXPORT_VERSION,
+        exportId: 'export-val',
+        principal: 'proposer:test',
+        purpose: 'candidate-expansion',
+        allowedLabels: ['DEV_OBSERVED'],
+        objects: [
+          {
+            digest,
+            size: 2,
+            mediaType: 'application/vnd.dsh-evolve-le.trajectory+json',
+            label: 'DEV_OBSERVED',
+            path: `objects/${digest}`,
+          },
+        ],
+        createdFromStateHash: `sha256:${'0'.repeat(64)}`,
+        merkleRoot: `sha256:${'0'.repeat(64)}`,
+        canaryAbsence: { checkedObjects: 1, tokenFingerprints: [], result: 'absent' },
+      },
+      catalog: {
+        schemaVersion: 1,
+        catalogVersion: CATALOG_VERSION,
+        runId: 'val-test',
+        entries: [],
+      },
+      canaryTokens: [],
+    })
+    expect(validation.batchErrors).toEqual([])
+    expect(validation.admitted).toHaveLength(0)
+    expect(validation.rejected).toHaveLength(1)
+    expect(validation.rejected[0]?.reason).toMatch(/patch\/row-id/)
+  })
+
+  it('rejects a child whose candidate.json violates the manifest schema', async () => {
+    // The other observed live failure: touchedSurfaces tokens with colons.
+    const parentRoot = await freshRoot('dsh-rr-val2-parent-')
+    const childRoot = await freshRoot('dsh-rr-val2-child-')
+    for (const entry of [
+      'candidate.json',
+      'cordis.patch.yml',
+      'package.json',
+      'src',
+      'tests',
+      'tsconfig.json',
+    ] as const) {
+      await cp(join(baselineSource, entry), join(parentRoot, entry), { recursive: true })
+      await cp(join(baselineSource, entry), join(childRoot, 'baseline-copy', entry), {
+        recursive: true,
+      })
+    }
+    const manifestPath = join(childRoot, 'baseline-copy', 'candidate.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, unknown>
+    const proposal = manifest['proposal'] as Record<string, unknown>
+    proposal['touchedSurfaces'] = ['system-prompt:solve']
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+    const parentSource = await captureCanonicalSource(parentRoot)
+    const digest = 'b'.repeat(64)
+    const validation = await validateProposalBundle({
+      proposal: {
+        schemaVersion: 1,
+        protocol: 'dsh-evolve-le/proposal/v1',
+        parentSourceHash: `sha256:${parentSource.sha256}`,
+        children: [
+          {
+            childName: 'baseline-copy',
+            hypothesis: 'manifest-schema probe hypothesis',
+            donorCandidates: [],
+            evidenceRefs: [digest],
+            targetFailureModes: ['tool-selection'],
+          },
+        ],
+      },
+      childrenRoot: childRoot,
+      parentSource,
+      exportManifest: {
+        schemaVersion: 1,
+        exportVersion: EXPORT_VERSION,
+        exportId: 'export-val2',
+        principal: 'proposer:test',
+        purpose: 'candidate-expansion',
+        allowedLabels: ['DEV_OBSERVED'],
+        objects: [
+          {
+            digest,
+            size: 2,
+            mediaType: 'application/vnd.dsh-evolve-le.trajectory+json',
+            label: 'DEV_OBSERVED',
+            path: `objects/${digest}`,
+          },
+        ],
+        createdFromStateHash: `sha256:${'0'.repeat(64)}`,
+        merkleRoot: `sha256:${'0'.repeat(64)}`,
+        canaryAbsence: { checkedObjects: 1, tokenFingerprints: [], result: 'absent' },
+      },
+      catalog: {
+        schemaVersion: 1,
+        catalogVersion: CATALOG_VERSION,
+        runId: 'val2-test',
+        entries: [],
+      },
+      canaryTokens: [],
+    })
+    expect(validation.batchErrors).toEqual([])
+    expect(validation.admitted).toHaveLength(0)
+    expect(validation.rejected[0]?.reason).toMatch(/touchedSurfaces/)
+  })
+})
+
 // ---- real-sandbox E2E ------------------------------------------------------
 
 const setprivAvailable = existsSync('/usr/bin/setpriv')
@@ -261,6 +462,27 @@ describe.skipIf(!boundaryAvailable)('remote proposal sandbox: full one-shot E2E'
       ])
       expect(upstream.requests.length).toBeGreaterThan(0)
 
+      // Networked routes carry the TCB wire-protocol section (Gate 8): the
+      // real model is told the directive language it must speak, and every
+      // model turn's section list records it.
+      const sectionsDoc = JSON.parse(
+        await readFile(join(sandboxRoot, 'work', 'sections.json'), 'utf8'),
+      ) as {
+        tcb: { name: string }
+        protocol?: { name: string; text: string }
+      }
+      expect(sectionsDoc.tcb.name).toBe('tcb:proposal-policy')
+      expect(sectionsDoc.protocol?.name).toBe('tcb:directive-protocol')
+      expect(sectionsDoc.protocol?.text).toContain('"op":"writeChild"')
+      expect(sectionsDoc.protocol?.text).toContain('"op":"submit"')
+      const firstTurn = JSON.parse(
+        (await readFile(join(sandboxRoot, 'work', 'transcript.jsonl'), 'utf8')).split('\n')[0]!,
+      ) as { sections: string[] }
+      expect(firstTurn.sections).toContain('tcb:directive-protocol')
+      // The protocol section reached the model as a system message.
+      const firstBody = upstream.requests[0]!.body as { messages: { role: string }[] }
+      expect(firstBody.messages.length).toBeGreaterThanOrEqual(3)
+
       // The supervisor manifest records the frozen remote route.
       const supervisor = JSON.parse(
         await readFile(supervisorManifestPath(sandboxRoot), 'utf8'),
@@ -270,6 +492,13 @@ describe.skipIf(!boundaryAvailable)('remote proposal sandbox: full one-shot E2E'
       expect(supervisor.model.kind).toBe('remote')
       expect(supervisor.model.routeId).toBe('deepseek/zen-compatible')
       expect(supervisor.model.routeHash).toBe(remoteRoutePlanHash(planOf(baseUrl)))
+
+      // The worker's socket client outlasts the proxy's request budget (the
+      // runner derives it: requestTimeoutMs + 30s margin).
+      const stagedConfig = JSON.parse(
+        await readFile(join(sandboxRoot, 'input', 'config.json'), 'utf8'),
+      ) as { modelSocket: string; modelClientTimeoutMs?: number }
+      expect(stagedConfig.modelClientTimeoutMs).toBe(90_000)
 
       // The controller-side receipt chain anchors the worker transcript.
       const verification = await verifyRemoteReceipts({

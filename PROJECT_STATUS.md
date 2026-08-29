@@ -1,6 +1,6 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_OPTIONAL_NOT_RUN`; `NO_SEALED_RESULTS`**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建；pilot/search/sealed/official profiles 未运行）；`NO_SEALED_RESULTS`**
 **更新时间：2026-08-30（Asia/Tokyo）**
 
 ## Claim boundaries
@@ -43,8 +43,48 @@
   实现），不是真模型 proposer；真实模型路由仍属后续 gate。Gate 5 的闭环评测因此是
   recorded-proposer 驱动的**管线**证明，不是模型质量证明。
 - 没有 sealed 结果；不得声称已提升、可部署、无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 8（可选 benchmark profiles）未开始。前代项目的
-  通过记录不是本仓库的完成证据（见 2026-08-28 节）。
+- Gate 8 已完成 **网络化 proposer 路由 wiring + 真实模型 proposal 冒烟**（见 2026-08-30 节）：
+  zen-compatible 路由经 TCB proxy 贯通 CLI/config/sandbox/controller，真实 deepseek-v4-flash
+  在 uid+netns 沙箱内经 Unix socket 完成 1 次 proposal（13 turns、3 子代、28 816 µUSD），
+  全部子代通过 trusted builder 重建。这只是**真实模型路由与协议成立的管线证明**，不是
+  benchmark profile：`specs/07` §10 的 pilot（K=10）/search（K=80）/sealed/official 四个
+  profile 均未运行。前代项目的通过记录不是本仓库的完成证据（见 2026-08-28 节）。
+
+## 2026-08-30 Gate 8 remote proposer route + real-model smoke
+
+- **Wiring（commit `983e0bd`）**：zen-compatible 网络化 proposer 路由端到端贯通。run config
+  要求该路由携带 `baseUrl`/`model`/`temperature`（缺失即 fail closed），CLI 暴露
+  `--proposer-route/--model-base-url/--model-name/--model-temperature`；controller 进程在
+  Unix socket 上开启 TCB proxy（凭据仅存内存，`Authorization: Bearer` 只出现在对上游的
+  请求里），一次性沙箱的 model adapter 是 socket 客户端 —— 沙箱保持无网（AF_UNIX 文件系统
+  socket 刻意穿越 netns，是唯一预留的孔）；网络化 proposal 的完整性由
+  `verifyRemoteReceipts` 把 worker transcript 锚定到 proxy receipt 链（prompt/response
+  sha256、requestId 连续性、routeHash）替代 byte-replay，预算按上游 API 上报 usage × 冻结
+  单价结算。proxy 对空 content（reasoning 模型可把整个 max_tokens 花在 reasoning_content
+  上）记为未计费 error receipt。
+- **TCB wire-protocol section**：网络化路由下 worker 的系统 prompt 增加
+  `tcb:directive-protocol` —— 完整规定指令语言（最后一个 ```json fence 或整条 bare JSON）、
+  四种 action、writeChild 的完整源树/逐字复制约束（`cordis.patch.yml`/`package.json`
+  逐字复制，组合 row id `self-evolving-candidate` 是固定协议常量）、
+  `proposal.touchedSurfaces` 的 kebab-case 词汇表。
+- **Admission 收紧（真实模型暴露的 TCB 缺口）**：`validateProposalBundle` 现在对每个子代
+  运行 candidate scanner + `candidate.json` manifest schema —— 此前 admission 只查
+  shape/diff/canary/dedup，真实模型两次live踩线（row id 改名、`touchedSurfaces` 带
+  冒号）都能过 admission 却在 trusted builder 重建时失败；两规则均有契约测试钉死。
+- **协议恢复**：agent loop 对不可解析指令不再整局失败 —— 该 turn 照常记账（receipt 链无
+  空洞），失败按 tool-error 语义渲染回下一 prompt，由同一 maxTurns 预算约束（live 观测：
+  手写 submit 括号失衡）。
+- **真实模型冒烟（`pnpm evidence:gate8-smoke`，`evidence/gate8/smoke/`）**：live
+  `deepseek-v4-flash`（`http://one-api.wattman.cn:805/v1`，routeHash `892fad67…`）完成 1 次
+  proposal action：13 turns、55 563+75 132 tokens、28 816 µUSD（~$0.029，API 上报 usage），
+  3 子代（tool-selection-guard / context-retention-guard / injection-immunity-guard，第三个
+  由 INJECTION 标记轨迹推导出免疫 guardrail —— 证据被当作数据分析）全部 COMMITTED 并经
+  trusted builder 以 parentTreeDir 重建 admitted；13 条 receipt 全部 ok 且绑定 routeHash，
+  receipt/transcript/proposal 无凭据、无 canary；budget 恰好结算一次。凭据只在
+  0600 的仓库外文件 + controller 内存中。
+- **边界**：冒烟证明的是路由/协议/预算/验证链在真实模型上成立，**不是** benchmark
+  profile，也不是模型质量证明；pilot/search/sealed/official 四个 profile（`specs/07` §10）
+  仍未运行，sealed 揭盲未发生。
 
 ## 2026-08-28 repository bootstrap
 

@@ -24,6 +24,98 @@ import { createRecordedProposerPolicy, buildProposalInstruction } from '../src/p
 import { runProposerAgentLoop } from '../src/proposer/agent-loop.js'
 import { parseProposalOutput, ProposalProtocolError } from '../src/proposer/protocol.js'
 
+describe('agent loop: unparseable directives are recoverable protocol errors', () => {
+  it('renders the failure back, records it, and continues to a submission', async () => {
+    const workRoot = await freshRoot('dsh-loop-recover-')
+    const seen: string[] = []
+    const parentSourceHash = `sha256:${'1'.repeat(64)}`
+    const submission = {
+      actions: [
+        {
+          op: 'submit',
+          proposal: {
+            schemaVersion: 1,
+            protocol: 'dsh-evolve-le/proposal/v1',
+            parentSourceHash,
+            children: [
+              {
+                childName: 'child-1',
+                hypothesis: 'recover from malformed directives',
+                donorCandidates: [],
+                evidenceRefs: [],
+                targetFailureModes: ['tool-selection'],
+              },
+            ],
+          },
+        },
+      ],
+    }
+    const responses = [
+      // Observed live (Gate 8): a hand-rolled submit with unbalanced brackets.
+      'Submitting now.\n```json\n{"actions":[{"op":"submit","proposal":{"children":]}}\n```',
+      `\`\`\`json\n${JSON.stringify(submission)}\n\`\`\``,
+    ]
+    const gateway = openModelGateway({
+      model: {
+        version: 'test/scripted-recovery/v1',
+        complete(request: GatewayRequest): string {
+          seen.push(request.userText)
+          return responses[Math.min(seen.length, responses.length) - 1]!
+        },
+      },
+      receiptsPath: join(workRoot, 'gateway-receipts.jsonl'),
+    })
+    const tools = openProposerTools({
+      inputRoot: workRoot,
+      childrenRoot: join(workRoot, 'children'),
+    })
+    await mkdir(join(workRoot, 'children'), { recursive: true })
+    const result = await runProposerAgentLoop({
+      gateway,
+      tools,
+      sections: [...SECTIONS],
+      instruction: 'Propose child candidates.',
+      transcriptPath: join(workRoot, 'transcript.jsonl'),
+      proposalPath: join(workRoot, 'proposal.json'),
+    })
+
+    expect(result.turns).toBe(2)
+    expect(result.proposal.children[0]?.childName).toBe('child-1')
+    // The retry prompt carried the parse failure as a rendered tool result.
+    expect(seen[1]).toContain('error directive')
+    const records = (await readFile(join(workRoot, 'transcript.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { kind: string; error?: string })
+    const protocolRecord = records.find((record) => record.kind === 'protocol')
+    expect(protocolRecord?.error).toMatch(/directive/)
+  })
+
+  it('still fails closed when every turn is unparseable', async () => {
+    const workRoot = await freshRoot('dsh-loop-fail-')
+    const gateway = openModelGateway({
+      model: { version: 'test/scripted-broken/v1', complete: () => 'thinking out loud' },
+      receiptsPath: join(workRoot, 'gateway-receipts.jsonl'),
+    })
+    const tools = openProposerTools({
+      inputRoot: workRoot,
+      childrenRoot: join(workRoot, 'children'),
+    })
+    await mkdir(join(workRoot, 'children'), { recursive: true })
+    await expect(
+      runProposerAgentLoop({
+        gateway,
+        tools,
+        sections: [...SECTIONS],
+        instruction: 'Propose child candidates.',
+        transcriptPath: join(workRoot, 'transcript.jsonl'),
+        proposalPath: join(workRoot, 'proposal.json'),
+        maxTurns: 3,
+      }),
+    ).rejects.toThrow(/no proposal submitted within 3 turns/)
+  })
+})
+
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..')
 const workRoots: string[] = []
 

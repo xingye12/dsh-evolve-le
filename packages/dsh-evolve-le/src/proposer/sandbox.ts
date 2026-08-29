@@ -229,6 +229,8 @@ export interface RemoteSandboxModel {
   routeHash: string
   /** Durable proxy receipts, verified by the controller after the run. */
   receiptsPath: string
+  /** Worker-side socket timeout; must exceed the proxy's request timeout. */
+  clientTimeoutMs?: number
 }
 
 export interface RunProposalSandboxOptions {
@@ -355,6 +357,9 @@ export async function runProposalSandbox(
         width: options.width,
         ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {}),
         ...(options.model !== undefined ? { modelSocket: options.model.socketPath } : {}),
+        ...(options.model?.clientTimeoutMs !== undefined
+          ? { modelClientTimeoutMs: options.model.clientTimeoutMs }
+          : {}),
         declaredProposeSections,
         dacProbePaths,
       },

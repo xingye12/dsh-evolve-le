@@ -42,6 +42,55 @@ export const TCB_PROPOSAL_SECTION = {
     'view is readable and no path outside your per-child roots is writable.',
 } as const
 
+/**
+ * The TCB-owned wire-protocol section for networked routes (Gate 8, specs/05
+ * §7): the recorded policy IS the protocol, but a real model must be told it.
+ * This section fully specifies the directive language the agent loop parses —
+ * anything the model sends that does not parse is a wasted turn, and the
+ * controller later verifies every turn against the proxy receipt chain.
+ */
+export const TCB_PROTOCOL_SECTION = {
+  name: 'tcb:directive-protocol',
+  order: 1,
+  text: [
+    'WIRE PROTOCOL (binding): every one of your responses must be one directive —',
+    'either a ```json fenced block (the LAST fence in the response is used) or',
+    'the bare JSON object as the ENTIRE response. No prose outside the directive.',
+    'The directive is parsed and its actions are executed in order.',
+    '',
+    'Directive shape: {"actions": [ <action>, … ]} with exactly these actions:',
+    '- {"op":"list","path":"<dir under the input root>"} — lists entries.',
+    '- {"op":"read","path":"<file under the input root>"} — readable roots are',
+    '  export/ (the label-filtered evidence view), parent/ (the canonical parent',
+    '  source tree) and parent-files.json (the parent file list). Results come',
+    '  back as: read <path> (sha256:<hex>) <json-encoded-content>.',
+    '- {"op":"writeChild","childName":"<kebab-case-name>","files":{"<rel/path>":"<full file content>",…}}',
+    '  — writes one file of a child source tree under work/children/<childName>/.',
+    '  Each child MUST be a COMPLETE source tree: copy every parent file you read',
+    '  (relative paths, content verbatim except your edits) and rewrite',
+    '  candidate.json so canonicalParent is the parent source hash and proposal',
+    '  names your hypothesis, evidenceRefs (evidence://export/<digest>), and',
+    '  targetFailureModes. proposal.touchedSurfaces lists the surfaces you',
+    '  changed as bare kebab-case tokens (e.g. "system-prompt") — the exact',
+    '  vocabulary of the parent candidate.json; no colons, no mode suffixes.',
+    '  Copy cordis.patch.yml and package.json VERBATIM from',
+    '  the parent — the composition row id "self-evolving-candidate" and the row',
+    '  name are fixed protocol constants, NOT per-child identity; renaming them',
+    '  gets the child rejected. Per-child caps: ≤25 files, ≤512 KiB per file,',
+    '  ≤1 MiB total. Paths outside the child root are refused.',
+    '- {"op":"submit","proposal":{…}} — finish. Exactly one submit, and only after',
+    '  every child is fully written. proposal = {"schemaVersion":1,',
+    '  "protocol":"dsh-evolve-le/proposal/v1", "parentSourceHash":"sha256:<hex>",',
+    '  "children":[{"childName":"…","hypothesis":"≥10 chars, distinct per child",',
+    '  "donorCandidates":[],"evidenceRefs":["<bare sha256 digest of an export',
+    '  object>"],"targetFailureModes":["…"]}]}. At most the width named in the',
+    '',
+    'Tool failures return "error <op> <path> <message>" in your next turn; adjust and',
+    'continue. You have a bounded turn budget — read the export manifest and parent',
+    'files first, derive one child per distinct failure mode, write, then submit.',
+  ].join('\n'),
+} as const
+
 interface WorkerConfig {
   schemaVersion: 1
   parentSourceHash: string
@@ -53,6 +102,8 @@ interface WorkerConfig {
    * deterministic policy. Either way this process never touches the network.
    */
   modelSocket?: string
+  /** Client socket timeout; the runner derives it from the proxy's budget. */
+  modelClientTimeoutMs?: number
   /** Declared propose sections from the parent capsule's candidate.json. */
   declaredProposeSections: string[]
   /** Root-only paths (relative to the sandbox parent) the worker must NOT read. */
@@ -156,13 +207,27 @@ async function main(argv: string[]): Promise<number> {
     }
     await writeFile(
       join(workRoot, 'sections.json'),
-      `${JSON.stringify({ boot: result.boot, tcb: TCB_PROPOSAL_SECTION }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          boot: result.boot,
+          tcb: TCB_PROPOSAL_SECTION,
+          // Present only on networked routes; the recorded policy is its own
+          // protocol and byte-replay ignores this field.
+          ...(config.modelSocket !== undefined ? { protocol: TCB_PROTOCOL_SECTION } : {}),
+        },
+        null,
+        2,
+      )}\n`,
       'utf8',
     )
 
-    // Sections: TCB policy first, then the parent's propose contribution in
-    // its declared order.
-    const sections = [TCB_PROPOSAL_SECTION, ...captured].map((section) => ({
+    // Sections: TCB policy (plus the wire protocol on networked routes) first,
+    // then the parent's propose contribution in its declared order.
+    const sections = [
+      TCB_PROPOSAL_SECTION,
+      ...(config.modelSocket !== undefined ? [TCB_PROTOCOL_SECTION] : []),
+      ...captured,
+    ].map((section) => ({
       name: section.name,
       order: section.order,
       text: section.text,
@@ -175,7 +240,12 @@ async function main(argv: string[]): Promise<number> {
     const gateway = openModelGateway({
       model:
         config.modelSocket !== undefined
-          ? openRemoteModel({ socketPath: config.modelSocket })
+          ? openRemoteModel({
+              socketPath: config.modelSocket,
+              ...(config.modelClientTimeoutMs !== undefined
+                ? { timeoutMs: config.modelClientTimeoutMs }
+                : {}),
+            })
           : createRecordedProposerPolicy({ width: config.width }),
       receiptsPath: join(workRoot, 'gateway-receipts.jsonl'),
     })

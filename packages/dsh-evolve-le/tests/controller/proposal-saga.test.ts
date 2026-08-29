@@ -622,6 +622,15 @@ const bundleOf =
     children,
   })
 
+/** Scanner-clean structural files (Gate 8 admission bar), from the baseline. */
+async function structuralFiles(): Promise<Record<string, string>> {
+  const files: Record<string, string> = {}
+  for (const name of ['package.json', 'cordis.patch.yml', 'candidate.json']) {
+    files[name] = await readFile(join(baselineSource, name), 'utf8')
+  }
+  return files
+}
+
 async function validate(options: {
   parentFiles: Record<string, string>
   children: Array<{ name: string; files: Record<string, string> }>
@@ -634,8 +643,17 @@ async function validate(options: {
   dirs.push(root)
   const parentDir = join(root, 'parent')
   const childrenRoot = join(root, 'children')
-  await treeOf(parentDir, options.parentFiles)
-  for (const child of options.children) await treeOf(join(childrenRoot, child.name), child.files)
+  // Admission runs the candidate scanner (Gate 8), so fixture trees carry the
+  // baseline's scanner-clean structural files verbatim — parent and children
+  // alike — exactly as a real child copy would.
+  const structural = await structuralFiles()
+  const withStructural = (files: Record<string, string>): Record<string, string> => ({
+    ...structural,
+    ...files,
+  })
+  await treeOf(parentDir, withStructural(options.parentFiles))
+  for (const child of options.children)
+    await treeOf(join(childrenRoot, child.name), withStructural(child.files))
   const parentSource = await captureCanonicalSource(parentDir)
   const parentHash = `sha256:${parentSource.sha256}`
   return validateProposalBundle({
@@ -730,7 +748,7 @@ describe('proposal bundle validation', () => {
       await (async () => {
         const root = await mkdtemp(join(tmpdir(), 'dsh-prop-arch-'))
         dirs.push(root)
-        await treeOf(root, childFiles)
+        await treeOf(root, { ...(await structuralFiles()), ...childFiles })
         return root
       })(),
     )
