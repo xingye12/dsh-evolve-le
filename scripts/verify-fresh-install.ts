@@ -234,7 +234,7 @@ async function main(): Promise<void> {
     demo.code === 0 ? JSON.stringify(report).slice(0, 300) : demo.stderr.slice(-400),
   )
   if (report === null) throw new Error('demo run failed; see checks above')
-  console.log(
+  console.error(
     `fresh-install: demo ${report.status} — trials=${String(report.trials)} ` +
       `discovery=${String(report.discoveryTrials)} expansions=${String(report.expansionAttempts)} ` +
       `admitted=${String(report.admittedNonBaseline)} depth=${String(report.lineageDepthMax)}`,
