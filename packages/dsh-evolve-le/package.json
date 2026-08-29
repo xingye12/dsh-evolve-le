@@ -11,6 +11,10 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./service": {
+      "types": "./lib/service/controller-service.d.ts",
+      "default": "./lib/service/controller-service.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -27,6 +31,7 @@
     "@deepseek-ai/cordis-plugin-include": "1.0.6",
     "@deepseek-ai/cordis-plugin-loader": "1.0.2",
     "@deepseek-ai/cosmokit": "1.8.2",
+    "@deepseek-ai/schemastery": "3.18.1",
     "ajv": "8.17.1",
     "js-yaml": "4.2.0",
     "oxc-parser": "0.147.0"

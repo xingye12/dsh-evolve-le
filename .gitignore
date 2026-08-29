@@ -26,6 +26,8 @@ evidence/*
 !evidence/gate1/**
 !evidence/gate2/
 !evidence/gate2/**
+!evidence/gate3/
+!evidence/gate3/**
 !evidence/pilot/
 !evidence/pilot/**
 !evidence/formal/

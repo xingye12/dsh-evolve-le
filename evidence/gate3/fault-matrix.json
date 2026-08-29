@@ -1,0 +1,354 @@
+{
+  "gate": "gate3",
+  "kind": "fault-matrix",
+  "generatedAt": "2026-08-29T05:25:28.121Z",
+  "environment": {
+    "node": "v24.14.0",
+    "platform": "linux x64",
+    "repositoryHead": "b635a39d68a3fbc844c9da73744c37da659f176c"
+  },
+  "protocol": {
+    "child": "packages/dsh-evolve-le/lib/bin/fault-child.js (real controller process)",
+    "kill": "SIGKILL at the first occurrence of the named boundary",
+    "world": "wave w1 with 3 evaluation actions; a2 scripted timeout (unpriced usage)",
+    "expectation": {
+      "launchEffects": "exactly 3, distinct (no duplicate external effect)",
+      "observations": "exactly 3 trial identities (no duplicate score)",
+      "usd": {
+        "reserved": 0,
+        "spent": 200,
+        "unpriced": 1
+      },
+      "taskTrials": {
+        "reserved": 0,
+        "spent": 3,
+        "unpriced": 0
+      },
+      "stateHash": "identical across every boundary case and the clean baseline"
+    }
+  },
+  "acceptance": {
+    "everyBoundaryKilledThenResumed": true,
+    "noDuplicateExternalEffect": true,
+    "noDuplicateScore": true,
+    "noDuplicateCost": true,
+    "singleConvergedStateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+    "allPassed": true
+  },
+  "matrix": {
+    "cases": [
+      {
+        "boundary": "intent-durable",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "launch-before-effect",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "launch-effect-done",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "launch-receipt-durable",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "terminal-observed",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "artifact-stored",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "action-committed",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "wave-committed",
+        "killed": [
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": "launch-effect-done",
+        "killed": [
+          true,
+          true
+        ],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "boundary": null,
+        "killed": [],
+        "resumedCleanly": true,
+        "launchEffects": [
+          "job-1",
+          "job-2",
+          "job-3"
+        ],
+        "duplicateLaunchEffect": false,
+        "actionsCommitted": 3,
+        "observationCount": 3,
+        "duplicateScore": false,
+        "waveCommitted": true,
+        "usd": {
+          "reserved": 0,
+          "spent": 200,
+          "unpriced": 1
+        },
+        "taskTrials": {
+          "reserved": 0,
+          "spent": 3,
+          "unpriced": 0
+        },
+        "stateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+        "passed": true,
+        "failures": []
+      }
+    ],
+    "convergedStateHash": "5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668",
+    "allPassed": true
+  },
+  "coveredBySuites": [
+    "packages/dsh-evolve-le/tests/state/journal.test.ts",
+    "packages/dsh-evolve-le/tests/state/object-store.test.ts",
+    "packages/dsh-evolve-le/tests/state/snapshot.test.ts",
+    "packages/dsh-evolve-le/tests/state/budget.test.ts",
+    "packages/dsh-evolve-le/tests/state/reducer.test.ts",
+    "packages/dsh-evolve-le/tests/controller/controller.test.ts",
+    "packages/dsh-evolve-le/tests/controller/property.test.ts",
+    "packages/dsh-evolve-le/tests/fault/crash-matrix.subprocess.test.ts",
+    "packages/dsh-evolve-le/tests/service/controller-service.subprocess.test.ts"
+  ]
+}

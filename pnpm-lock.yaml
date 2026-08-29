@@ -88,6 +88,9 @@ importers:
       '@deepseek-ai/cosmokit':
         specifier: 1.8.2
         version: 1.8.2
+      '@deepseek-ai/schemastery':
+        specifier: 3.18.1
+        version: 3.18.1
       ajv:
         specifier: 8.17.1
         version: 8.17.1

@@ -1,0 +1,13 @@
+# Gate 3 controller-service composition: the durable controller carried by a
+# standard DSH Cordis service, loaded through the real Cordis Loader. Data
+# paths are relative and resolve from the process working directory (the
+# spike bin chdirs into a fresh evidence tree first).
+- id: controller-service
+  name: '@dsh-evolve-le/core/service'
+  config:
+    runId: run-e2e
+    runDir: runs/run-e2e
+    objectsRoot: objects
+    providerFile: provider.json
+    budgetUsdMicros: 1000000
+    budgetTaskTrials: 100

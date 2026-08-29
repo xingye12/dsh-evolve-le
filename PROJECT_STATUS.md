@@ -1,24 +1,26 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_8_PENDING`; `NO_BASELINE`; `NO_CLOSED_LOOP`; `NO_SEALED_RESULTS`**
 **更新时间：2026-08-29（Asia/Tokyo）**
 
 ## Claim boundaries
 
 - 本仓库已实现 **Gate 0**（provenance 机器校验 + 真实 Cordis Loader lifecycle spike）、
-  **Gate 1**（candidate SDK + 十阶段可信 admission builder + 离线 capsule + ACP E2E）与
+  **Gate 1**（candidate SDK + 十阶段可信 admission builder + 离线 capsule + ACP E2E）、
   **Gate 2**（Terminal-Bench provider 纵切片：真实 Harbor job 在 pinned `extract-elf` 上经
   inline ACP binary distribution 运行真实 capsule，normalizer/idempotency/verifier-mode
-  探针全部机器断言）。Gate 1 的 `admitted` 只证明 **safety-runnability**；
-  Gate 2 的全绿只证明 **单 task 评测管线成立且 replay capsule 得到诚实的 reward 0**，
-  都**不是**性能验收。
+  探针全部机器断言）与 **Gate 3**（durable controller core：状态层、单写者
+  saga/recovery、SIGKILL fault matrix、Cordis service unload flush）。Gate 1 的 `admitted`
+  只证明 **safety-runnability**；Gate 2 的全绿只证明
+  **单 task 评测管线成立且 replay capsule 得到诚实的 reward 0**；Gate 3 的全绿只证明
+  **崩溃一致性状态机成立（FileProvider 假体）**——都**不是**性能验收。
 - mock replay 仍是确定性 system-prompt 分节回放，**不是** recorded-LLM 回放；Gate 1 曾把
   recorded-LLM 回放与 DSH 生产闭包 runner 归到 Gate 2，实际 Gate 2（`specs/07` §4）范围是
   provider 纵切片、不含 runner 替换 —— 该项顺延至 runner 相关的后续 Gate，此处显式记录，
   不算静默缩水。
 - 没有 baseline 分数、没有演化闭环、没有 sealed 结果；不得声称已提升、可部署、
   无 reward hacking 或达到 SOTA。
-- `specs/07-implementation-plan.md` 的 Gate 3–8 全部未开始。前代项目的通过记录不是本
+- `specs/07-implementation-plan.md` 的 Gate 4–8 全部未开始。前代项目的通过记录不是本
   仓库的完成证据（见 2026-08-28 节）。
 
 ## 2026-08-28 repository bootstrap
@@ -346,10 +348,87 @@ verifier-mode 探针（Build 项）：派生 task 副本（`extract-elf-separate
 - artifact endpoint 是本机 HTTPS 桥（服务 inline distribution 的 HTTPS+SHA-256 契约），
   非多机部署形态；idempotency ledger 为单文件 append-only，多写者仲裁随 Gate 3 状态机。
 
+## 2026-08-29 Gate 3 implemented — durable controller core
+
+对照 `specs/07-implementation-plan.md` §5 的 Build/Accept 项逐条落档（先写契约测试，再写
+最小实现）。全程 `pnpm gate3`（build + 228/228 test + provenance:check + fault-matrix
+evidence 记录）exit 0；evidence 入 `evidence/gate3/fault-matrix.json`。新包内全部为
+TypeScript DSH/Cordis 组件（CLAUDE.md rule 2）：`@dsh-evolve-le/core` 承载状态层、
+单写者 controller 与标准 Cordis service。
+
+### 组件
+
+- **状态层**（`src/state/`）：canonical JSON（稳定键序、数字规范化）+ sha256；
+  内容寻址 object store（staging + no-clobber 发布、label 不可降级、全量字节校验）；
+  hash-chain journal（HEAD 是唯一 commit 点、按大小轮转、崩溃残差隔离进 quarantine
+  而非前滚）；pure reducer（phase/action/wave/candidate/observation 状态 + budget 镜像，
+  一切语义校验在 fold 处 fail closed）；snapshot（仅缓存：hash 覆盖内容、过期/损坏/
+  篡改/前缀不匹配一律回退 genesis 重放）；budget 双式记账 ledger（冻结限额、
+  spent+reserved 最坏检查、per-action 余额、unpriced 显式计数、拒绝则文件不动）。
+- **单写者 controller**（`src/controller/controller.ts`）：`owner.lock.json` 'wx' 发布 +
+  死亡可证（ESRCH/异 boot id）才允许 takeover，活 owner 永远阻塞；saga =
+  durable intent → keyed external effect → durable receipt → observed terminal →
+  artifact 入库 → commit + settle + release；recovery 按 specs/06 §12 顺序
+  （lock → verify → snapshot+replay → reconcile → inspect 非终态（不启动新 action）→
+  collect 终态 → 按 reservation 序 commit wave → 校验 state hash）；launch 前先
+  `inspectByKey` 认领孤儿子效应；`readRunStatus` 提供无锁只读视图。
+- **Provider 抽象**：`BenchmarkProvider` 接口 + 进程内 `FakeProvider`（测试）+
+  `FileProvider`（整文件 JSON 状态、key 幂等、脚本化结果/LOST/neverTerminal；
+  Harbor adapter 属后续 gate）。
+- **Fault-injection harness**（`src/controller/fault-matrix.ts` + `src/bin/fault-child.ts`）：
+  真实子进程在 8 个 durable 边界（intent/launch×3/terminal/artifact/commit/wave）之一
+  被 **SIGKILL**，随后新进程 resume；`MATRIX_BOUNDARIES` 即 `onBoundary` seam。
+- **Cordis service**（`src/service/controller-service.ts`，namespace form）：
+  config schema 校验、activation 时 open（含 recovery）、`ctx.provide('dshEvolveController')`
+  facade；unload = flush —— `ctx.effect` 返回 async disposer，Cordis `fiber.dispose()`
+  await 它：snapshot 落盘、journal 句柄关闭、writer lock 释放。
+- **只读 status**：`readRunStatus` 与 `Controller.status()` 共享 `statusOf`（先
+  `assertMatches` 再投影），供后续 CLI `status`/`audit` 复用。
+
+### 验收证据（`evidence/gate3/fault-matrix.json`；矩阵由 `pnpm evidence:gate3` 生成，任一断言失败 exit 1）
+
+| specs/07 Gate 3 Accept                                                         | 结果 | 证据                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| property tests 覆盖 arbitrary valid event sequences                            | ✅   | `reducer.test.ts` 种子 PRNG 12 个随机合法 saga（1–3 wave × 1–3 action、混合 outcome）双次重放同 hash、seq 链式递增；`property.test.ts` 种子 1–10 随机崩溃链（≤12 段）+ 保证收尾 clean pass，stateHash/observationCount/budget/launchEffects 与 clean run 全等                                                                                                                                                                           |
+| 每个 intent/launch/collect/commit 边界 kill 后 resume 不重复 effect/score/cost | ✅   | fault matrix 10 例（8 边界单杀 + `launch-effect-done` 双杀 + clean baseline）全过：每例恰 3 个 distinct launch effect、3 条 observation、usd `{spent:200, unpriced:1}`、trials `{spent:3}`、无重复 score/cost；全部收敛到同一 state hash `5fc00e2ef8d1f1fb4c336b4441b941cfac2f2de324e0d3228caa577e8f36c668`。进程内逐边界恢复另有 `controller.test.ts` 10 例（pending-launch/key 认领/collect existing/LOST→missing/running 稍后终态等） |
+| event completion order permutation 在同 wave 得到相同 state hash               | ✅   | `reducer.test.ts` permutation 组：journal 提交序 a1,a2,a3 vs a3,a1,a2（实测断言顺序确不同），stateHash 相等且 waveDecisionSnapshot 相等 —— hash 排除 seq/lastEventHash 等 bookkeeping、集合排序、reservationSeq 在预约时赋值                                                                                                                                                                                                            |
+| corrupt journal/object/snapshot fail closed                                    | ✅   | journal：tampered 行/断链/空行/残差全拒（`journal.test.ts`）；object：字节篡改后 `Controller.open` 拒绝（`controller.test.ts` r7 + `object-store.test.ts` digest/size）；snapshot：损坏/篡改/过期回退 genesis 重放而非信任（`snapshot.test.ts`）；ledger 篡改 entryHash 不覆盖即拒（`budget.test.ts`）                                                                                                                                  |
+| controller unload flush 后无 worker/process handle                             | ✅   | `controller-service.subprocess.test.ts`：真实 Loader boot service、驱动整 wave、`fiber.dispose()` 后 Cordis inventory 与 `process.getActiveResourcesInfo()` 均回到 boot 前基线、lock 已释放、最新 snapshot seq == journal 终 seq、进程自然退出（残留句柄会挂起并被超时捕获）                                                                                                                                                            |
+
+### 设计要点（都由测试钉住）
+
+1. **语义校验全部在 reducer fold**：journal 只接受 well-formed envelope；非法 phase 边、
+   越序 saga、重复 observation identity、二次 candidate lock/sealed reveal、带未终态成员的
+   wave commit、超限 budget 镜像 —— 一律 fold 时抛错。测试因此期望 emit 成功、
+   `replayEvents` 抛错。
+2. **settle 不隐式 release**：commit 按 reservation 最坏值结算后显式 `release` 余量
+   （从镜像 `budgetByAction` 驱动，幂等）；unpriced 用量（`costUsdMicros === null`）记
+   amount 0 + unpricedUnits 1，绝不静默按 0 计价。FileProvider 曾因
+   `preset?.costUsdMicros ?? 100` 把脚本化的 null 强转为 100（矩阵首轮全红），已改为
+   显式 `!== undefined` 判定 —— 这正是该验收要抓的类别。
+3. **stateHash 排序/排除规则**是 permutation 不变性的全部来源；`waveDecisionSnapshot`
+   同样 order-insensitive，wave commit 本身可重放。
+4. **同进程 double-acquire 直接拒绝**（即使 lease 过期）：活 owner（含 pid 1）阻塞、
+   只有可证死亡（ESRCH 或异 boot id）才 takeover、损坏 lock 拒绝盲抢。
+
+### 已知限制
+
+- **FileProvider 是测试假体**：真 Harbor provider（复用 Gate 2 的 JobConfig/ledger/
+  normalizer 落到 `BenchmarkProvider` 接口）在后续 gate 接入；届时 crash matrix 协议不变。
+- 进程内 property/恢复测试用“删除 lock 文件”模拟进程死亡；**真实死 pid takeover 路径**
+  由 subprocess 矩阵（SIGKILL → 新进程 open 同 runDir）覆盖。
+- archive admission / sealed reveal 等事件类型已在 reducer 落位（one-shot 锁有测试），
+  但其上游流程（proposer、selector、sealed runner）属 Gate 4+，本 gate 不实现。
+- `budget-ledger.jsonl` 单文件 append-only：多写者仲裁即 writer lock 本身（单写者约束），
+  只读路径不写 ledger。
+
 ## Next
 
-- Gate 3（durable controller core，`specs/07` §5）：`@dsh-evolve-le/core` bundle/service、
-  object store + hash-chain journal + pure reducer、candidate/archive/observation 状态与
-  budget 双式记账。
+- Gate 4（agentic proposal vertical slice，`specs/07` §6）：proposal sandbox 的
+  filesystem/network/model-gateway policy、parent candidate `propose` mode 经真实 DSH
+  Loader、label 过滤的 evidence export/catalog、proposal 输出协议（width/diversity/
+  dedup/donor provenance）、builder handoff 与 rejected evidence。
+- Gate 3 后续接线（显式记录，不静默）：Harbor provider 适配 `BenchmarkProvider` 接口、
+  controller 接 Gate 2 dataset inventory 规划 development wave。
 - 顺延项（显式记录，不静默）：recorded-LLM 回放、DSH 生产闭包 runner、真实模型 capsule
   的 set_model 广告、development split 真实闭环（依赖 Gate 3 状态机与 Gate 4 budget）。

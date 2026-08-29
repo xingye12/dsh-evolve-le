@@ -46,3 +46,43 @@ export {
   type RecordedTurn,
 } from './acp/recorded-replay.js'
 export { computeTreeDigest, TREE_DIGEST_ALGO } from './digest.js'
+export {
+  Controller,
+  ControllerError,
+  readRunStatus,
+  TRAJECTORY_MEDIA_TYPE,
+  type BoundaryPoint,
+  type ControllerConfig,
+  type EvaluationInput,
+  type EvaluationRequest,
+  type RecoveryDisposition,
+  type RecoveryReport,
+  type RunStatus,
+} from './controller/controller.js'
+export {
+  acquireWriterLock,
+  LockError,
+  LOCK_FILE,
+  type AcquireOptions,
+  type OwnerRecord,
+} from './controller/lock.js'
+export {
+  FakeProvider,
+  type BenchmarkProvider,
+  type ProviderCounters,
+  type ProviderInspect,
+  type ProviderJobStatus,
+  type ProviderTerminal,
+  type ScriptedResult,
+} from './controller/provider.js'
+export { FileProvider } from './controller/file-provider.js'
+export {
+  runFaultMatrix,
+  MATRIX_BOUNDARIES,
+  type MatrixCase,
+  type MatrixResult,
+} from './controller/fault-matrix.js'
+export type {
+  Config as ControllerServiceConfig,
+  DshEvolveControllerService,
+} from './service/controller-service.js'
