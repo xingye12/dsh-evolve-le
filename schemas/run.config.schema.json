@@ -112,8 +112,8 @@
         "maxSolverTrials": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 15,
-          "description": "Hard cap on completed development agent-task trials for this profile (specs/07 §7: at most 15)."
+          "maximum": 200,
+          "description": "Hard cap on completed development agent-task trials for this profile. The stable demo (specs/07 §7) allows at most 15; Gate 8 benchmark profiles (specs/07 §10, e.g. pilot K=10, formal K=80) pre-register their own larger caps that must still fund discovery plus every admitted child's q0 cold starts (semantic check in run-config.ts)."
         },
         "maxDiscoveryTrials": {
           "type": "integer",
@@ -124,8 +124,8 @@
         "discoveryBatchSize": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 12,
-          "description": "Observed tasks per discovery batch before re-checking for failures; specs/04 §4.1 stable-demo uses 6, the K=10 pilot profile (specs/04 §4.2, specs/07 §10) uses one batch of 10; a batch may never exceed the specs/04 §4.1 hard cap of 12."
+          "maximum": 6,
+          "description": "Observed tasks per discovery batch before re-checking for failures (specs/04 §4.1: first batch 6, second batch 6 when the first shows no failure, hard cap 12 total). K always counts admitted candidates (specs/03 §2), never the discovery sample size."
         },
         "maxConsecutiveExpansionFailures": {
           "type": "integer",

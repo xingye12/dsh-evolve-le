@@ -296,12 +296,19 @@ Capsule MUST 自包含且不可变：
 ```text
 capsule/
 ├── runtime/                 # pinned DSH production closure or verified install manifest
+│   └── node                 # pinned node runtime（provenance.lock 内容寻址）
 ├── candidate/               # compiled bundle
 ├── runner/                  # stable ACP application + final overlay
 ├── provenance.json
 ├── sbom.spdx.json
 └── SHA256SUMS
 ```
+
+Terminal-Bench 2.1 的 task image 按题各自构建，绝大多数不含 `node`（89 个中仅 extract-elf
+自带）。因此 capsule MUST 内嵌自己的 node runtime：ACP 入口用自目录绝对路径 exec
+`runtime/node`，不得依赖 task image 的 PATH。内嵌 runtime 由 `provenance.lock.json` 的
+`.references/` 条目锁定（发行版 tarball sha256 + 解出的二进制 sha256），builder 在缺失、
+损坏或不匹配时 MUST fail closed。
 
 Harbor adapter 在 task environment 上传 capsule；解包前验证 hash/paths，解包后再次验证。运行用户对
 runtime 和 candidate code 只读，对 task workspace 可按 benchmark policy 写。每个 trial 创建全新

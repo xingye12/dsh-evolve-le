@@ -7,6 +7,7 @@
  * `scripts/record-gate1-evidence.ts` re-runs the same assertions and writes
  * the machine-checkable evidence document.
  */
+import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -14,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildCandidate, STAGE_ORDER, type BuildResult } from '../src/builder/pipeline.js'
 import { validateManifest } from '../src/schema.js'
+import { NODE_RUNTIME_BINARY_SHA256, NODE_RUNTIME_VERSION } from '../src/builder/pinned-runtime.js'
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..')
 const baselineSource = join(repoRoot, 'packages/candidate-baseline')
@@ -90,6 +92,37 @@ describe('golden candidate builds reproducibly', () => {
     }
     const entryStat = await stat(join(capsuleDir, 'candidate/lib/index.js'))
     expect(entryStat.isFile()).toBe(true)
+  })
+
+  it('capsule embeds the pinned node runtime, covered by SHA256SUMS and manifests', async () => {
+    // specs/02 §12: the capsule is self-contained — TB task images ship no
+    // node, so runtime/node is the interpreter every trial execs. It must be
+    // the digest-locked binary, executable, listed in SHA256SUMS and
+    // cross-bound in both identity documents.
+    const capsuleDir = first.artifacts.capsuleDir
+    const runtimeStat = await stat(join(capsuleDir, 'runtime/node'))
+    expect(runtimeStat.isFile()).toBe(true)
+    expect(runtimeStat.mode & 0o111).not.toBe(0)
+    const runtimeBytes = await readFile(join(capsuleDir, 'runtime/node'))
+    const digest = createHash('sha256').update(runtimeBytes).digest('hex')
+    expect(digest).toBe(NODE_RUNTIME_BINARY_SHA256)
+    const sums = await readFile(join(capsuleDir, 'SHA256SUMS'), 'utf8')
+    expect(sums).toContain(`${NODE_RUNTIME_BINARY_SHA256}  runtime/node`)
+    const capsuleManifest = JSON.parse(
+      await readFile(join(capsuleDir, 'manifest.json'), 'utf8'),
+    ) as { runtime: { nodeRuntime?: { version: string; path: string; sha256: string } } }
+    expect(capsuleManifest.runtime.nodeRuntime).toEqual({
+      version: NODE_RUNTIME_VERSION,
+      path: 'runtime/node',
+      sha256: NODE_RUNTIME_BINARY_SHA256,
+    })
+    const provenance = JSON.parse(await readFile(join(capsuleDir, 'provenance.json'), 'utf8')) as {
+      nodeRuntime?: { version: string; sha256: string }
+    }
+    expect(provenance.nodeRuntime).toEqual({
+      version: NODE_RUNTIME_VERSION,
+      sha256: NODE_RUNTIME_BINARY_SHA256,
+    })
   })
 
   it('capsule and build manifests validate against the versioned schemas', async () => {

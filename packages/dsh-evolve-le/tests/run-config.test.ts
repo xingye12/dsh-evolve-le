@@ -104,22 +104,49 @@ describe('run config schema (specs/07 §7)', () => {
     if (!result.ok) expect(result.error.errors.join('\n')).toContain('maxSolverTrials')
   })
 
-  it('accepts the K=10 pilot profile: one discovery batch of 10, funded cold starts', () => {
-    // specs/04 §4.2 + specs/07 §10: the pilot freezes its own baseline on the
-    // first 10 observed handles — a single batch, hard-capped at 10 trials.
+  it('accepts the K=10 pilot profile: K admitted candidates, 6+6 discovery, funded cold starts', () => {
+    // specs/03 §2 + specs/07 §10: the pilot's K=10 counts ADMITTED non-baseline
+    // candidates (kTarget), never the discovery sample size. Its own §4.2
+    // baseline freeze uses the §4.1 discovery protocol (6+6, hard cap 12),
+    // and the trial cap must fund discovery plus every admitted child's q0 —
+    // including the W_p overshoot the last wave may produce (10..12 children).
+    // ADR-026 sized the cap from the measured attempt-5 curve (6 freeze + 12
+    // q0 + ~2.8 pool trials per child ≈ 49): 60 funds K=10 with headroom; the
+    // ADR-025 cap of 48 exhausted at 12 admitted with 2 q0s unfunded.
     const config = validConfig()
     const result = validateRunConfig({
       ...config,
-      search: { ...config.search, discoveryBatchSize: 10, maxDiscoveryTrials: 10 },
+      search: {
+        ...config.search,
+        kTarget: 10,
+        maxDiscoveryTrials: 12,
+        maxSolverTrials: 60,
+      },
+      budget: { ...config.budget, taskTrials: 60 },
     })
     expect(result.ok).toBe(true)
   })
 
-  it('rejects a discovery batch larger than the discovery trial cap', () => {
+  it('rejects a K=10 plan the trial cap cannot fund', () => {
     const config = validConfig()
     const result = validateRunConfig({
       ...config,
-      search: { ...config.search, discoveryBatchSize: 11, maxDiscoveryTrials: 10 },
+      search: {
+        ...config.search,
+        kTarget: 10,
+        maxDiscoveryTrials: 12,
+        maxSolverTrials: 21,
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.errors.join('\n')).toContain('maxSolverTrials')
+  })
+
+  it('rejects a discovery batch above the specs/04 §4.1 batch size', () => {
+    const config = validConfig()
+    const result = validateRunConfig({
+      ...config,
+      search: { ...config.search, discoveryBatchSize: 7 },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) {

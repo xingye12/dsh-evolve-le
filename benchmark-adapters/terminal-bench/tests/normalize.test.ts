@@ -106,7 +106,11 @@ describe('trial normalization — outcome classes', () => {
     const artifact = await normalizeJob(normalizeInput(jobDir, identity))
     const trial = artifact.trials[0]
     expect(trial?.status).toBe('pass')
-    expect(trial?.outcome).toMatchObject({ category: 'reward', reward: 1 })
+    expect(trial?.outcome).toMatchObject({
+      category: 'reward',
+      reward: 1,
+      agentParticipation: 'ran',
+    })
     expect(trial?.agentInfo).toEqual({ name: ACP_AGENT_ID, version: CAPSULE })
     expect(trial?.usage).toMatchObject({
       agentExecutionMs: 40_000,
@@ -124,6 +128,7 @@ describe('trial normalization — outcome classes', () => {
       valid: true,
       denominator: 1,
       passRate: 1,
+      agentNeverInitialized: 0,
     })
   })
 
@@ -163,6 +168,72 @@ describe('trial normalization — outcome classes', () => {
       exceptionType: 'EnvironmentStartTimeoutError',
     })
     expect(artifact.counts).toMatchObject({ fail: 0, infraRetryable: 1, valid: true })
+  })
+
+  it('agent never booted: FAIL in the denominator AND flagged never-initialized (Gate 8 defect)', async () => {
+    // The exact shape of the lost Gate 8 pilot trials: the capsule entrypoint
+    // died at `exec: node: not found` before one ACP byte, yet the verifier
+    // still ran and scored 0. Reward-wise this MUST stay a FAIL (rule 7:
+    // fail closed, nothing dropped) — but the machine fact "the agent never
+    // spoke the protocol" must be classifiable, or a 10/10 infra-dead
+    // baseline masquerades as a capability result.
+    const { jobDir, identity } = await stageJob(
+      [{ trialName: 'extract-elf__neverboot', resultFile: 'never-booted.json' }],
+      { handles: ['extract-elf'] },
+    )
+    const artifact = await normalizeJob(normalizeInput(jobDir, identity))
+    expect(artifact.trials[0]?.status).toBe('fail')
+    expect(artifact.trials[0]?.outcome).toMatchObject({
+      category: 'exception',
+      reward: 0,
+      exceptionType: 'NonZeroAgentExitCodeError',
+      agentParticipation: 'never-initialized',
+    })
+    expect(artifact.trials[0]?.outcome.reason).toContain('exec: node: not found')
+    expect(artifact.counts).toMatchObject({
+      fail: 1,
+      denominator: 1,
+      passRate: 0,
+      valid: true,
+      agentNeverInitialized: 1,
+    })
+  })
+
+  it('agent setup timeout: pre-launch infra (ADR-025), never-initialized, not a capability FAIL', async () => {
+    // Harbor raises AgentSetupTimeoutError inside agent.setup() — the venv /
+    // pip bootstrap that runs BEFORE the agent process is launched — so the
+    // candidate cannot cause or influence it. It is the same pre-start phase
+    // family as EnvironmentStartTimeoutError (specs/04 §6: "sandbox
+    // provisioning 在 agent 启动前失败"), hence INFRA_RETRYABLE, and the
+    // participation fact stays never-initialized so it can never masquerade
+    // as a capability result. Observed live in two Gate 8 pilot attempts.
+    const { jobDir, identity } = await stageJob(
+      [{ trialName: 'extract-elf__setupTimeout', resultFile: 'agent-setup-timeout.json' }],
+      { handles: ['extract-elf'] },
+    )
+    const artifact = await normalizeJob(normalizeInput(jobDir, identity))
+    expect(artifact.trials[0]?.status).toBe('infra_retryable')
+    expect(artifact.trials[0]?.outcome).toMatchObject({
+      category: 'exception',
+      exceptionType: 'AgentSetupTimeoutError',
+      agentParticipation: 'never-initialized',
+    })
+    expect(artifact.counts).toMatchObject({
+      fail: 0,
+      infraRetryable: 1,
+      valid: true,
+      agentNeverInitialized: 1,
+    })
+  })
+
+  it('records without a result.json carry unknown participation', async () => {
+    const { jobDir, identity } = await stageJob(
+      [{ trialName: 'extract-elf__nores', withResult: false }],
+      { handles: ['extract-elf'] },
+    )
+    const artifact = await normalizeJob(normalizeInput(jobDir, identity))
+    expect(artifact.trials[0]?.outcome.agentParticipation).toBe('unknown')
+    expect(artifact.counts.agentNeverInitialized).toBe(0)
   })
 
   it('missing reward key: FAIL by default, never dropped', async () => {

@@ -56,7 +56,18 @@
       "properties": {
         "kind": { "enum": ["pinned-closure", "install-manifest"] },
         "digest": { "$ref": "#/$defs/sha256Hex" },
-        "detail": { "type": "string", "minLength": 1 }
+        "detail": { "type": "string", "minLength": 1 },
+        "nodeRuntime": {
+          "type": "object",
+          "description": "The pinned node interpreter embedded at runtime/node and exec'd by the ACP entrypoint. TB task images ship no node, so the capsule carries its own (specs/02 §12). Optional only because pre-Gate-8-fix capsules predate it; every capsule built after dsh-evolve-le-builder-0.0.2 records it.",
+          "properties": {
+            "version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+            "path": { "const": "runtime/node" },
+            "sha256": { "$ref": "#/$defs/sha256Hex" }
+          },
+          "required": ["version", "path", "sha256"],
+          "additionalProperties": false
+        }
       },
       "required": ["kind", "digest", "detail"],
       "additionalProperties": false

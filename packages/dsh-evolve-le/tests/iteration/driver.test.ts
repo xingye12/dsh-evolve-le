@@ -97,12 +97,15 @@ const fakeBuildCapsule: BuildCapsuleFn = async (sourceDir) => {
   const archivePath = join(scratch, 'capsule.tar.gz')
   await writeFile(archivePath, `fake-archive:${source.sha256}\n`)
   return {
-    candidateId: candidateIdFromDigest(source.sha256),
-    sourceDigest: `sha256:${source.sha256}`,
-    archiveSha256: source.sha256.padEnd(64, '0').slice(0, 64),
-    capsuleDir,
-    stagedSourceDir,
-    archivePath,
+    outcome: 'admitted',
+    capsule: {
+      candidateId: candidateIdFromDigest(source.sha256),
+      sourceDigest: `sha256:${source.sha256}`,
+      archiveSha256: source.sha256.padEnd(64, '0').slice(0, 64),
+      capsuleDir,
+      stagedSourceDir,
+      archivePath,
+    },
   }
 }
 
@@ -296,7 +299,11 @@ function makeDriver(
   provider: FakeProvider,
   bridge: Bridge,
   runner: ReturnType<typeof fakeSandboxRunner>,
-  extra: { onBoundary?: ControllerConfig['onBoundary']; clock?: () => string } = {},
+  extra: {
+    onBoundary?: ControllerConfig['onBoundary']
+    clock?: () => string
+    buildCapsule?: BuildCapsuleFn
+  } = {},
 ): IterationDriver {
   return new IterationDriver({
     config: fx.config,
@@ -305,7 +312,7 @@ function makeDriver(
     handles: HANDLES,
     provider,
     bridge,
-    buildCapsule: fakeBuildCapsule,
+    buildCapsule: extra.buildCapsule ?? fakeBuildCapsule,
     proposalRunner: runner,
     clock:
       extra.clock ??
@@ -441,6 +448,129 @@ describe('iteration driver: closed loop', () => {
     expect(report.consecutiveExpansionFailures).toBe(2)
     expect(report.admittedNonBaseline).toBe(0)
   }, 120_000)
+
+  it('a child the trusted builder rejects is skipped, never a run crash (specs/03 §7)', async () => {
+    // Live Gate 8 defect (ADR-026): prop batches whose children fail their
+    // own contract tests crashed the whole run out of expand() because the
+    // rebuild bridge was admitted-or-throw. specs/03 §7 pre-registers the
+    // opposite: 全部 build reject counts as ONE expansion failure. Here the
+    // builder rejects the first child rebuild; the run must keep going, keep
+    // the child registered-and-unadmitted, and carry the reason in the report.
+    const fx = await newRun('dsh-drive-reject-')
+    const provider = new FakeProvider({ outcome: 'success' })
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    const failing = ceremony.ceremony.observedHandles[1]!
+    provider.script(`eval-eval-${shortId(baselineId)}-${failing}`, { outcome: 'failure' })
+
+    let childRebuilds = 0
+    const rejectingBuild: BuildCapsuleFn = async (sourceDir, parentTreeDir) => {
+      if (parentTreeDir === undefined) return fakeBuildCapsule(sourceDir) // baseline
+      childRebuilds += 1
+      if (childRebuilds === 1) {
+        // The exact live shape: the candidate's own spec suite fails.
+        return {
+          outcome: 'rejected',
+          stage: 'typeLintUnit',
+          reason: 'candidate tests failed: × registers exactly one candidate:identity section',
+        }
+      }
+      return fakeBuildCapsule(sourceDir, parentTreeDir)
+    }
+
+    const report = await makeDriver(fx, provider, fakeBridge(), fakeSandboxRunner(), {
+      buildCapsule: rejectingBuild,
+    }).drive()
+
+    // The loop survived the rejection and finished by protocol.
+    expect(['K_REACHED', 'NO_ADMISSIBLE_CHILD']).toContain(report.stopReason)
+    expect(report.rebuildRejections.length).toBe(1)
+    expect(report.rebuildRejections[0]).toMatchObject({
+      actionId: 'prop-1',
+      stage: 'typeLintUnit',
+    })
+    expect(report.rebuildRejections[0]?.reason).toContain('candidate tests failed')
+    // The rejected child is auditable but NOT admitted: absent from the
+    // archive catalog, and the admitted count matches the catalog exactly.
+    const catalog = JSON.parse(
+      await readFile(join(fx.runRoot, 'archive-catalog.json'), 'utf8'),
+    ) as { entries: Array<{ candidateId: string; parentCandidateId: string | null }> }
+    const catalogued = catalog.entries.filter((entry) => entry.parentCandidateId !== null)
+    expect(catalogued.length).toBe(report.admittedNonBaseline)
+    expect(catalogued.map((entry) => entry.candidateId)).not.toContain(
+      report.rebuildRejections[0]?.candidateId,
+    )
+  }, 120_000)
+
+  it('a crash mid-rebuild abandons the intent: one failure, children registered, resume proceeds', async () => {
+    // specs/03 §7: 恢复时仍未完成且没有 admitted child 的 intent 计作一次失败.
+    // A builder-ENVIRONMENT throw (the only kind that still crashes) kills
+    // the process after the proposal committed; the resume must close the
+    // intent as ONE failure, record its never-rebuilt children, re-bind the
+    // capsules built by the dead process, and drive on to the protocol stop.
+    const fx = await newRun('dsh-drive-abandon-')
+    const provider = new FakeProvider({ outcome: 'success' })
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    const failing = ceremony.ceremony.observedHandles[1]!
+    provider.script(`eval-eval-${shortId(baselineId)}-${failing}`, { outcome: 'failure' })
+    const clock = tickClock()
+
+    const explodingBuild: BuildCapsuleFn = async (sourceDir, parentTreeDir) => {
+      if (parentTreeDir !== undefined) throw new Error('simulated builder environment death')
+      return fakeBuildCapsule(sourceDir)
+    }
+    await expect(
+      makeDriver(fx, provider, fakeBridge(), fakeSandboxRunner(), {
+        buildCapsule: explodingBuild,
+        clock,
+      }).drive(),
+    ).rejects.toThrow(/simulated builder environment death/)
+
+    // Resume in a NEW process shape: fresh bridge (empty capsule registry —
+    // rebindCapsuleRecords must repopulate it from the run root) and the
+    // healthy builder.
+    const resumedBridge = fakeBridge()
+    const report = await makeDriver(fx, provider, resumedBridge, fakeSandboxRunner(), {
+      clock,
+    }).drive()
+
+    expect(report.stopReason).toBe('K_REACHED')
+    // The abandoned intent was closed as exactly one failure + attempt.
+    expect(report.abandonedIntents.length).toBeGreaterThanOrEqual(1)
+    expect(report.abandonedIntents[0]?.actionId).toBe('prop-1')
+    expect(report.expansionAttempts).toBe(2)
+    expect(report.consecutiveExpansionFailures).toBe(0)
+    // Capsules from the dead process are launchable in the new one.
+    expect(resumedBridge.capsules.size).toBeGreaterThanOrEqual(2)
+    // The abandoned child never admitted.
+    const catalog = JSON.parse(
+      await readFile(join(fx.runRoot, 'archive-catalog.json'), 'utf8'),
+    ) as { entries: Array<{ candidateId: string }> }
+    expect(catalog.entries.map((entry) => entry.candidateId)).not.toContain(
+      report.abandonedIntents[0]?.candidateId,
+    )
+
+    // Idempotence: a third drive settles nothing new.
+    const again = await makeDriver(fx, provider, fakeBridge(), fakeSandboxRunner(), {
+      clock,
+    }).drive()
+    expect(again.expansionAttempts).toBe(2)
+    expect(again.abandonedIntents.length).toBe(report.abandonedIntents.length)
+    expect(again.stateHash).toBe(report.stateHash)
+  }, 180_000)
 
   it('an exhausted budget stops the loop BEFORE the next paid launch', async () => {
     // $1 total. Each discovery trial reserves the worst case

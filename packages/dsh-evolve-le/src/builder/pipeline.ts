@@ -34,6 +34,7 @@ import { doubleCompile } from './compile.js'
 import { toolchainFingerprints } from './pins.js'
 import { describeSandbox, runSandboxed, sandboxedCommand, sandboxEnvironment } from './sandbox.js'
 import { assembleOfflineNodeModules, captureStagedSource, stageDeclaredSource } from './staging.js'
+import { materializeNodeRuntime } from './pinned-runtime.js'
 
 /** The canonical stage order; receipts always list exactly these ten. */
 export const STAGE_ORDER = [
@@ -435,6 +436,11 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
     | undefined
   let bootSolve: ProbeReport | undefined
   if (failed === undefined && source !== undefined && closure !== undefined) {
+    // The capsule embeds its own pinned node interpreter (specs/02 §12): the
+    // TB task images ship no node, so a missing or drifted reference is
+    // builder-environment infrastructure failure — it throws (fail closed)
+    // rather than poisoning the lineage with a fake candidate rejection.
+    const nodeRuntime = await materializeNodeRuntime({ workDir: join(workRoot, 'node-runtime') })
     const toolchain = await toolchainFingerprints()
     const { bundle, files: bundleFiles } = await buildBundle(source, compiledDir)
     // The Loader resolves entries via bare import(packageName): install the
@@ -459,6 +465,7 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
       sourceDigest,
       toolchain: { node: toolchain.node, pnpm: toolchain.pnpm, typescript: toolchain.typescript },
       runnerSourceDir: coreLibDir,
+      nodeRuntime,
     })
 
     // stage 7: real Loader boot of the packed capsule (solve mode). The
@@ -559,7 +566,9 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
         }
       }
       if (failed === undefined) {
-        const argv = sandboxedCommand(process.execPath, [
+        // Same rule as runProbe: the ACP round must run on the embedded
+        // runtime the task containers will exec, not on the host interpreter.
+        const argv = sandboxedCommand(join(capsuleDir, 'runtime/node'), [
           join(capsuleDir, 'runner/bin/acp-boot.js'),
           'cordis.yml',
         ])
@@ -630,6 +639,7 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
         sourceDigest,
         toolchain: { node: toolchain.node, pnpm: toolchain.pnpm, typescript: toolchain.typescript },
         runnerSourceDir: coreLibDir,
+        nodeRuntime,
       } as const
       await rm(capsuleDir, { recursive: true, force: true })
       await assembleCapsule({ ...assembleOptions, capsuleDir })
@@ -756,8 +766,10 @@ async function runProbe(
   configName: string,
   timeoutMs: number,
 ): Promise<ProbeRun> {
+  // Boot through the capsule's own embedded runtime, not the host node: the
+  // probe must exercise exactly the interpreter the task containers exec.
   const run = await runSandboxed(
-    process.execPath,
+    join(capsuleDir, 'runtime/node'),
     [join(capsuleDir, 'runner/bin/probe.js'), configName],
     { cwd: capsuleDir, timeoutMs },
   )

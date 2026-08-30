@@ -24,7 +24,7 @@
  */
 
 import { existsSync } from 'node:fs'
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { buildCandidate } from '../builder/pipeline.js'
@@ -69,7 +69,39 @@ export interface BuiltCapsule {
   archivePath: string
 }
 
-export type BuildCapsuleFn = (sourceDir: string, parentTreeDir?: string) => Promise<BuiltCapsule>
+export type BuildCapsuleFn = (
+  sourceDir: string,
+  parentTreeDir?: string,
+) => Promise<BuildCapsuleResult>
+
+/**
+ * One trusted-build outcome. A `rejected` verdict is the builder judging the
+ * SOURCE TREE (candidate tests, contract stages) and is a per-child result —
+ * specs/03 §7 counts an expansion whose builds all reject as ONE failure,
+ * never a driver crash. Builder-ENVIRONMENT failures (missing pinned runtime,
+ * fs errors) are thrown by the builder itself and stay fail-closed.
+ */
+export type BuildCapsuleResult =
+  | { outcome: 'admitted'; capsule: BuiltCapsule }
+  | { outcome: 'rejected'; stage: string; reason: string }
+
+/** A child the trusted builder rejected during a rebuild (specs/03 §7):
+ * it stays registered in the store, is never admitted, and the reason is
+ * carried into the drive report so the accounting is auditable. */
+export interface RebuildRejection {
+  actionId: string
+  candidateId: string
+  stage: string
+  reason: string
+}
+
+/** A child of an expansion intent a crash left unfinished (specs/03 §7: the
+ * intent counts as ONE failure at recovery and is closed, not resumed); the
+ * child stays registered, is never rebuilt, never admitted. */
+export interface AbandonedIntent {
+  actionId: string
+  candidateId: string
+}
 
 /**
  * Trusted bridge to the benchmark provider: publish a capsule and bind it to
@@ -135,6 +167,11 @@ export interface DriveReport {
   lineageDepthMax: number
   expansionAttempts: number
   consecutiveExpansionFailures: number
+  /** Trusted-rebuild rejections (specs/03 §7): registered, never admitted. */
+  rebuildRejections: RebuildRejection[]
+  /** Children of crash-abandoned intents (specs/03 §7): registered, never
+   * rebuilt, never admitted. */
+  abandonedIntents: AbandonedIntent[]
   failurePool: string[]
   stateHash: string
   budget: Record<string, { spent: number; reserved: number }>
@@ -164,6 +201,12 @@ interface SearchState {
   expansionAttempts: number
   consecutiveExpansionFailures: number
   maxConsecutiveExpansionFailures: number
+  /** Trusted-rebuild rejections this run (specs/03 §7); absent on pre-ADR-026
+   * run roots, normalized to []. */
+  rebuildRejections?: RebuildRejection[]
+  /** Children of crash-abandoned expansion intents (specs/03 §7); absent on
+   * pre-ADR-026 run roots, normalized to []. */
+  abandonedIntents?: AbandonedIntent[]
 }
 
 interface FailurePoolDoc {
@@ -177,7 +220,10 @@ const CANARY_COUNT = 4
 
 /**
  * Default capsule build: the trusted builder, in scratch OUTSIDE the repo
- * (the lint stage must see a real tree), admitted-or-throw.
+ * (the lint stage must see a real tree). The builder's own verdict is
+ * returned, not thrown: a rejection is a per-child result (specs/03 §7
+ * "全部 build reject …… 计作一次失败"), while builder-environment errors the
+ * builder raises itself still propagate and fail the run closed.
  */
 const defaultBuildCapsule: BuildCapsuleFn = async (sourceDir, parentTreeDir) => {
   const workRoot = await mkdtemp(join(tmpdir(), 'dsh-iterate-build-'))
@@ -187,17 +233,22 @@ const defaultBuildCapsule: BuildCapsuleFn = async (sourceDir, parentTreeDir) => 
     ...(parentTreeDir !== undefined ? { parentTreeDir } : {}),
   })
   if (build.outcome !== 'admitted' || build.capsule === undefined) {
-    throw new IterationDriverError(
-      `trusted builder rejected ${sourceDir}: ${build.rejection?.reason ?? 'unknown'}`,
-    )
+    return {
+      outcome: 'rejected',
+      stage: build.rejection?.stage ?? 'unknown',
+      reason: build.rejection?.reason ?? 'unknown rejection',
+    }
   }
   return {
-    candidateId: build.candidateId,
-    sourceDigest: build.sourceDigest,
-    archiveSha256: build.capsule.archiveSha256,
-    capsuleDir: build.artifacts.capsuleDir,
-    stagedSourceDir: join(build.artifacts.workRoot, 'staged-src'),
-    archivePath: build.artifacts.capsuleArchive,
+    outcome: 'admitted',
+    capsule: {
+      candidateId: build.candidateId,
+      sourceDigest: build.sourceDigest,
+      archiveSha256: build.capsule.archiveSha256,
+      capsuleDir: build.artifacts.capsuleDir,
+      stagedSourceDir: join(build.artifacts.workRoot, 'staged-src'),
+      archivePath: build.artifacts.capsuleArchive,
+    },
   }
 }
 
@@ -303,7 +354,7 @@ export class IterationDriver {
   /** Ensure a capsule record exists and is bound (idempotent across resumes). */
   private async ensureCapsuleBound(
     candidateId: string,
-    build: () => Promise<BuiltCapsule>,
+    build: () => Promise<BuildCapsuleResult>,
   ): Promise<CapsuleRecord> {
     const existing = await this.readJson<CapsuleRecord>(this.recordPath(candidateId))
     if (existing !== null) {
@@ -313,7 +364,32 @@ export class IterationDriver {
       })
       return existing
     }
-    return this.persistCapsule(await build())
+    const fresh = await build()
+    if (fresh.outcome !== 'admitted') {
+      throw new IterationDriverError(
+        `trusted builder rejected ${candidateId} at ${fresh.stage}: ${fresh.reason}`,
+      )
+    }
+    return this.persistCapsule(fresh.capsule)
+  }
+
+  /**
+   * Re-bind every persisted capsule record to the fresh provider bridge —
+   * resume safety (specs/06 §12): the in-process capsule registry dies with
+   * the process, but every admitted candidate must stay launchable or the
+   * first post-resume child evaluation dies at the provider boundary.
+   */
+  private async rebindCapsuleRecords(): Promise<void> {
+    const capsulesRoot = this.capsulesRoot()
+    const entries = await readdir(capsulesRoot).catch(() => [] as string[])
+    for (const entry of entries.filter((name) => name.endsWith('.json'))) {
+      const record = await this.readJson<CapsuleRecord>(join(capsulesRoot, entry))
+      if (record?.protocol !== ITERATION_PROTOCOL) continue
+      await this.input.bridge.registerCapsule(record.candidateId, {
+        archiveSha256: record.archiveSha256,
+        archivePath: join(this.runRoot, record.archivePath),
+      })
+    }
   }
 
   private nextRngCounter(stream: string): number {
@@ -344,7 +420,13 @@ export class IterationDriver {
           'search-state protocol/maxConsecutiveExpansionFailures disagree with the frozen run config',
         )
       }
-      return existing
+      // Pre-ADR-026 run roots predate the rejection/abandonment accounting;
+      // normalize so one code path reads the state.
+      return {
+        ...existing,
+        rebuildRejections: existing.rebuildRejections ?? [],
+        abandonedIntents: existing.abandonedIntents ?? [],
+      }
     }
     const fresh: SearchState = {
       protocol: SEARCH_STATE_PROTOCOL,
@@ -352,6 +434,8 @@ export class IterationDriver {
       expansionAttempts: 0,
       consecutiveExpansionFailures: 0,
       maxConsecutiveExpansionFailures: frozen,
+      rebuildRejections: [],
+      abandonedIntents: [],
     }
     await this.writeJson(path, fresh)
     return fresh
@@ -420,6 +504,9 @@ export class IterationDriver {
       if (controller.state.phase === 'DRAFT') {
         await controller.changePhase('PREFLIGHT', `run manifest frozen ${this.input.configHash}`)
       }
+      // Every previously admitted capsule must be launchable in THIS process
+      // too — the provider registry is memory-only (specs/06 §12 resume).
+      await this.rebindCapsuleRecords()
 
       // --- baseline: build once, register, admit -------------------------
       const baselineId = await this.ensureBaseline()
@@ -469,6 +556,8 @@ export class IterationDriver {
         lineageDepthMax,
         expansionAttempts: searchState.expansionAttempts,
         consecutiveExpansionFailures: searchState.consecutiveExpansionFailures,
+        rebuildRejections: searchState.rebuildRejections ?? [],
+        abandonedIntents: searchState.abandonedIntents ?? [],
         failurePool: pool ?? [],
         stateHash: controller.status().stateHash,
         budget: Object.fromEntries(
@@ -534,7 +623,15 @@ export class IterationDriver {
       }
       return existing.candidateId
     }
-    const built = await this.buildCapsule(this.config.benchmark.baselineSourceDir)
+    // The baseline is TCB-maintained: a trusted-builder rejection of it is a
+    // run-invalid defect, not a per-child result — fail closed (ADR-026).
+    const baselineBuild = await this.buildCapsule(this.config.benchmark.baselineSourceDir)
+    if (baselineBuild.outcome !== 'admitted') {
+      throw new IterationDriverError(
+        `trusted builder rejected the baseline source at ${baselineBuild.stage}: ${baselineBuild.reason}`,
+      )
+    }
+    const built = baselineBuild.capsule
     const record = await this.persistCapsule(built)
     await controller.registerCandidate({
       candidateId: built.candidateId,
@@ -768,6 +865,8 @@ export class IterationDriver {
       }
     }
 
+    await this.settleAbandonedIntents(searchState)
+
     for (;;) {
       const state = controller.state
       const observations = Object.values(state.observations)
@@ -805,9 +904,13 @@ export class IterationDriver {
       if (expand) {
         if (this.budgetWouldExhaust(this.proposalEstimate()))
           return { stopReason: 'BUDGET_EXHAUSTED', searchState }
-        const admittedChild = await this.expand(pool)
+        const expansion = await this.expand(pool)
         searchState.expansionAttempts += 1
-        if (admittedChild) {
+        searchState.rebuildRejections = [
+          ...(searchState.rebuildRejections ?? []),
+          ...expansion.rebuildRejections,
+        ]
+        if (expansion.admittedAny) {
           searchState.consecutiveExpansionFailures = 0
         } else {
           searchState.consecutiveExpansionFailures += 1
@@ -886,9 +989,12 @@ export class IterationDriver {
   /**
    * One expansion (specs/03 §5, §7): parent Thompson draw → label-filtered
    * evidence export → proposal saga in the one-shot sandbox → trusted child
-   * rebuilds → admission. Returns true when at least one child was admitted.
+   * rebuilds → admission. Reports whether any child admitted and every
+   * per-child trusted-rebuild rejection for the drive report.
    */
-  private async expand(pool: readonly string[]): Promise<boolean> {
+  private async expand(
+    pool: readonly string[],
+  ): Promise<{ admittedAny: boolean; rebuildRejections: RebuildRejection[] }> {
     const controller = this.controller
     if (controller === undefined) throw new IterationDriverError('controller not open')
     const state = controller.state
@@ -966,34 +1072,107 @@ export class IterationDriver {
       canaryTokens,
     })
     if (result.status !== 'COMMITTED' || result.summary.admitted.length === 0) {
-      return false
+      return { admittedAny: false, rebuildRejections: [] }
     }
 
-    // Trusted rebuild of every admitted child → admission (specs/03 §2).
+    // Trusted rebuild of every admitted child → admission (specs/03 §2). A
+    // builder REJECTION is a per-child outcome, not a crash (specs/03 §7:
+    // "全部 build reject …… 计作一次失败"): the child stays registered, is
+    // never admitted, and the reason rides the drive report. Builder-
+    // environment failures still throw and fail the run closed.
     const candidatesRoot = join(this.runRoot, 'controller', 'candidates')
     let admittedAny = false
+    const rebuildRejections: RebuildRejection[] = []
     for (const verdict of result.summary.admitted) {
       const stored = await loadCandidateSource(candidatesRoot, verdict.sourceHash)
       const built = await this.buildCapsule(
         stored.treeDir,
         join(this.runRoot, parentRecord.stagedSourceDir),
       )
-      if (built.candidateId !== stored.candidateId) {
+      if (built.outcome !== 'admitted') {
+        rebuildRejections.push({
+          actionId,
+          candidateId: stored.candidateId,
+          stage: built.stage,
+          reason: built.reason.slice(0, 500),
+        })
+        continue
+      }
+      if (built.capsule.candidateId !== stored.candidateId) {
         throw new IterationDriverError(
-          `rebuild identity mismatch: ${built.candidateId} != registered ${stored.candidateId}`,
+          `rebuild identity mismatch: ${built.capsule.candidateId} != registered ${stored.candidateId}`,
         )
       }
-      const record = await this.persistCapsule(built)
-      const child = controller.state.candidates[built.candidateId]
+      const record = await this.persistCapsule(built.capsule)
+      const child = controller.state.candidates[built.capsule.candidateId]
       if (child?.status === 'registered') {
         await controller.changeCandidateStatus({
-          candidateId: built.candidateId,
+          candidateId: built.capsule.candidateId,
           to: 'admitted',
           reason: `trusted rebuild admitted (${record.archiveSha256.slice(0, 16)}…)`,
         })
       }
       admittedAny = true
     }
-    return admittedAny
+    return { admittedAny, rebuildRejections }
+  }
+
+  /**
+   * Close out expansion intents a crash left unfinished (specs/03 §7: "恢复时
+   * 仍未完成且没有 admitted child 的 intent，都计作一次失败"): each such intent
+   * counts as ONE expansion attempt and ONE consecutive failure unless one of
+   * its children had already admitted; its never-rebuilt children stay
+   * registered and are recorded as abandoned. Idempotent across repeated
+   * resumes — an intent is settled exactly once, in the same durable write as
+   * its counters.
+   */
+  private async settleAbandonedIntents(searchState: SearchState): Promise<void> {
+    const controller = this.controller
+    if (controller === undefined) throw new IterationDriverError('controller not open')
+    const settled = new Set((searchState.rebuildRejections ?? []).map((entry) => entry.candidateId))
+    for (const entry of searchState.abandonedIntents ?? []) settled.add(entry.candidateId)
+
+    // Registered children of terminal proposals with no capsule record: the
+    // rebuild loop never reached them (only a crash leaves that shape — the
+    // fixed expand() records its own rejections, which are settled above).
+    const pending = Object.values(controller.state.candidates).filter(
+      (candidate) =>
+        candidate.parentCandidateId !== null &&
+        candidate.proposalActionId !== null &&
+        candidate.status === 'registered' &&
+        !settled.has(candidate.candidateId) &&
+        !existsSync(this.recordPath(candidate.candidateId)),
+    )
+    if (pending.length === 0) return
+    const byIntent = new Map<string, typeof pending>()
+    for (const candidate of pending) {
+      const actionId = candidate.proposalActionId as string
+      byIntent.set(actionId, [...(byIntent.get(actionId) ?? []), candidate])
+    }
+    for (const [actionId, children] of byIntent) {
+      const intentAdmittedChild = this.intentHasAdmittedChild(actionId)
+      searchState.expansionAttempts += 1
+      if (intentAdmittedChild) {
+        searchState.consecutiveExpansionFailures = 0
+      } else {
+        searchState.consecutiveExpansionFailures += 1
+      }
+      searchState.abandonedIntents = [
+        ...(searchState.abandonedIntents ?? []),
+        ...children.map((candidate) => ({ actionId, candidateId: candidate.candidateId })),
+      ]
+      await this.saveSearchState(searchState)
+    }
+  }
+
+  /** Did any child of this proposal action reach admission? */
+  private intentHasAdmittedChild(actionId: string): boolean {
+    const state = this.controller?.state
+    if (state === undefined) return false
+    return Object.values(state.candidates).some(
+      (candidate) =>
+        candidate.proposalActionId === actionId &&
+        (candidate.status === 'admitted' || candidate.status === 'dev-champion'),
+    )
   }
 }

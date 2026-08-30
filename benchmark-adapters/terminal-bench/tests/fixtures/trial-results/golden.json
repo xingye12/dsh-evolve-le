@@ -3,7 +3,9 @@
   "task_name": "terminal-bench/extract-elf",
   "trial_name": "extract-elf__golden1",
   "trial_uri": "file:///jobs/dsh-golden/extract-elf__golden1",
-  "task_id": { "path": "/tasks/extract-elf" },
+  "task_id": {
+    "path": "/tasks/extract-elf"
+  },
   "source": "adhoc",
   "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
   "agent_info": {
@@ -14,9 +16,50 @@
     "n_input_tokens": 1200,
     "n_cache_tokens": 0,
     "n_output_tokens": 340,
-    "cost_usd": 0.0021
+    "cost_usd": 0.0021,
+    "metadata": {
+      "acp": {
+        "registry_entry_id": "dsh-evolve-le-capsule",
+        "registry_entry_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source": null,
+        "auth_policy": "disabled",
+        "selected_authenticate_method_id": null,
+        "authenticate_response": null,
+        "requested_model": null,
+        "resolved_session_model_id": null,
+        "set_model_response": null,
+        "set_model_error": null,
+        "set_model_attempts": null,
+        "initial_session_models": null,
+        "latest_session_info_update": null,
+        "initialize": {
+          "protocolVersion": 1,
+          "agentCapabilities": {
+            "loadSession": false,
+            "promptCapabilities": {
+              "image": false,
+              "audio": false,
+              "embeddedContext": false
+            }
+          }
+        },
+        "agent_info": null,
+        "auth_methods": null,
+        "error": null,
+        "prompt_response": {
+          "stopReason": "end_turn"
+        },
+        "latest_usage_update": null,
+        "selected_distribution": "binary",
+        "events_file": "acp-events.jsonl"
+      }
+    }
   },
-  "verifier_result": { "rewards": { "reward": 1 } },
+  "verifier_result": {
+    "rewards": {
+      "reward": 1
+    }
+  },
   "verifier_environment_mode": "shared",
   "exception_info": null,
   "started_at": "2026-08-29T00:00:00Z",
@@ -25,6 +68,9 @@
     "started_at": "2026-08-29T00:00:05Z",
     "finished_at": "2026-08-29T00:00:45Z"
   },
-  "verifier": { "started_at": "2026-08-29T00:00:46Z", "finished_at": "2026-08-29T00:00:58Z" },
+  "verifier": {
+    "started_at": "2026-08-29T00:00:46Z",
+    "finished_at": "2026-08-29T00:00:58Z"
+  },
   "step_results": null
 }

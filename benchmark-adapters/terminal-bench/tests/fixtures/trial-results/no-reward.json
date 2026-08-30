@@ -3,15 +3,60 @@
   "task_name": "terminal-bench/extract-elf",
   "trial_name": "extract-elf__noreward",
   "trial_uri": "file:///jobs/dsh-noreward/extract-elf__noreward",
-  "task_id": { "path": "/tasks/extract-elf" },
+  "task_id": {
+    "path": "/tasks/extract-elf"
+  },
   "source": "adhoc",
   "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
   "agent_info": {
     "name": "dsh-evolve-le-capsule",
     "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
-  "agent_result": { "n_input_tokens": 100, "n_output_tokens": 5, "cost_usd": 0.0001 },
-  "verifier_result": { "rewards": null },
+  "agent_result": {
+    "n_input_tokens": 100,
+    "n_output_tokens": 5,
+    "cost_usd": 0.0001,
+    "metadata": {
+      "acp": {
+        "registry_entry_id": "dsh-evolve-le-capsule",
+        "registry_entry_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source": null,
+        "auth_policy": "disabled",
+        "selected_authenticate_method_id": null,
+        "authenticate_response": null,
+        "requested_model": null,
+        "resolved_session_model_id": null,
+        "set_model_response": null,
+        "set_model_error": null,
+        "set_model_attempts": null,
+        "initial_session_models": null,
+        "latest_session_info_update": null,
+        "initialize": {
+          "protocolVersion": 1,
+          "agentCapabilities": {
+            "loadSession": false,
+            "promptCapabilities": {
+              "image": false,
+              "audio": false,
+              "embeddedContext": false
+            }
+          }
+        },
+        "agent_info": null,
+        "auth_methods": null,
+        "error": null,
+        "prompt_response": {
+          "stopReason": "end_turn"
+        },
+        "latest_usage_update": null,
+        "selected_distribution": "binary",
+        "events_file": "acp-events.jsonl"
+      }
+    }
+  },
+  "verifier_result": {
+    "rewards": null
+  },
   "verifier_environment_mode": "shared",
   "exception_info": null,
   "started_at": "2026-08-29T00:00:00Z",
@@ -20,6 +65,9 @@
     "started_at": "2026-08-29T00:00:05Z",
     "finished_at": "2026-08-29T00:00:20Z"
   },
-  "verifier": { "started_at": "2026-08-29T00:00:21Z", "finished_at": "2026-08-29T00:00:29Z" },
+  "verifier": {
+    "started_at": "2026-08-29T00:00:21Z",
+    "finished_at": "2026-08-29T00:00:29Z"
+  },
   "step_results": null
 }

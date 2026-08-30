@@ -1,26 +1,39 @@
 /**
- * Record the Gate 8 pilot profile (specs/07 §10, specs/04 §4.2): a fresh
- * development-only run over the pinned Terminal-Bench 2.1 dataset whose
- * proposer is a REAL networked model through the TCB proxy route, with the
- * K=10 development sample pre-registered by the split ceremony and the
- * baseline frozen on it BEFORE any proposal:
+ * Record the Gate 8 pilot profile (specs/07 §10, specs/03 §2, specs/04 §4.2):
+ * a fresh development-only run over the pinned Terminal-Bench 2.1 dataset
+ * whose proposer is a REAL networked model through the TCB proxy route.
+ * K = 10 ADMITTED non-baseline candidates (specs/03 §2: K always counts
+ * candidates through the full build/admission pipeline — never the discovery
+ * sample size), reached by real-model expansions of width W_p=3; the pilot
+ * freezes its OWN §4.2 baseline first via the §4.1 discovery protocol
+ * (first batch 6 observed handles in the frozen ceremony order, second batch
+ * 6 only when the first shows no failure, hard cap 12 trials):
  *
  *   1. `init` freezes a run config with proposerRoute = zen-compatible
  *      (endpoint/model/temperature + the 0600 credential path OUTSIDE the
- *      repo) and discovery shaped to exactly the first K=10 observed handles
- *      in the frozen ceremony order (discoveryBatchSize=10,
- *      maxDiscoveryTrials=10);
- *   2. baseline discovery runs those 10 tasks once each on real Harbor trials
- *      and freezes the failure pool at the batch boundary — this IS the
- *      §4.2 baseline freeze for the pilot;
+ *      repo), kTarget=10, maxDiscoveryTrials=12, discoveryBatchSize=6,
+ *      maxSolverTrials=60 (ADR-026, from the measured attempt-5 curve: 6
+ *      batch-1 freeze + ≤12 q0 cold starts + ~2.8 pool trials per admitted
+ *      child ≈ 49; the ADR-025 cap of 48 exhausted at 12 admitted children
+ *      with 2 q0s unfunded, which specs/03 §6 forbids as a terminal state);
+ *   2. baseline discovery runs §4.1 batches on real Harbor trials and freezes
+ *      the failure pool at the first batch boundary with ≥1 failure — this
+ *      IS the §4.2 baseline freeze for the pilot;
  *   3. every expansion is a REAL model proposal: uid+netns sandbox, TCB proxy
  *      receipts, controller receipt-chain verification, authoritative usage;
- *   4. children rebuild through the trusted builder, cold-start from the
- *      frozen pool, and cite the raw evidence objects they came from;
- *   5. exactly-once external effects, hash-chain audit, sealed/guard
+ *   4. children rebuild through the trusted builder (capsule self-contained:
+ *      the pinned node runtime rides at runtime/node — TB task images ship
+ *      no node), cold-start from the frozen pool, and cite the raw evidence
+ *      objects they came from;
+ *   5. every trial's agent participation is classified from harbor's ACP
+ *      bookkeeping: a FAIL whose agent never initialized must carry a
+ *      pre-launch phase exception (ADR-025) — an agent-process death (the
+ *      original `exec: node: not found` defect) fails the gate, and the
+ *      §4.2 baseline freeze must be all-ran;
+ *   6. exactly-once external effects, hash-chain audit, sealed/guard
  *      invisibility, exact budget accounting, and the credential never on
  *      disk in any run or job artifact (CLAUDE.md rule 8);
- *   6. timing/usage actuals recorded for the budget extrapolation the pilot
+ *   7. timing/usage actuals recorded for the budget extrapolation the pilot
  *      exists to produce (specs/04 §12).
  *
  * Machine-checkable document: evidence/gate8/pilot/pilot-run.json
@@ -60,7 +73,20 @@ const ARTIFACT_PORT =
   process.env['GATE8_ARTIFACT_PORT'] ?? process.env['GATE6_ARTIFACT_PORT'] ?? '8443'
 const RUN_ID = 'gate8-pilot'
 const MASTER_SEED = 'gate8-pilot-master-seed-1'
-const K_DEV = 10
+// specs/03 §2: K counts ADMITTED non-baseline candidates. specs/04 §4.1/§4.2:
+// the pilot's own baseline freeze uses the 6+6≤12 discovery protocol.
+const K_TARGET = 10
+const DISCOVERY_BATCH = 6
+const DISCOVERY_CAP = 12
+// Funds the §4.1 discovery (≤12) plus every admitted child's pool trials.
+// Sizing history: ADR-025 raised 24 → 48 from live scheduler spend (~2.8 pool
+// trials per admitted child beyond the q0 cold start); attempt 5 then spent
+// the full 48/48 at 12 admitted children with the final wave's last 2 q0 cold
+// starts unfunded (STOPPED:TRIAL_CAP — specs/03 §6 requires admitted nodes to
+// complete q0, so that run is budget-calibration evidence, not the recorded
+// pilot). ADR-026 re-sizes from the measured curve: 6 batch-1 freeze + ≤12
+// q0 + ~2.8×11 pool ≈ 49; 60 adds overshoot/flake headroom.
+const MAX_SOLVER_TRIALS = 60
 
 const credentialPath =
   process.env['DSH_GATE8_CREDENTIAL'] ?? '/root/.config/dsh-evolve-le/zen-compatible.key'
@@ -80,9 +106,10 @@ async function cli(args: readonly string[], env: Record<string, string> = {}): P
   try {
     const { stdout, stderr } = await exec(process.execPath, [CLI_BIN, ...args], {
       cwd: repoRoot,
-      // 10 discovery trials + real-model proposals (~10 min each) + 3
-      // cold-start Harbor trials (~340s each) + Harbor/container overhead.
-      timeout: 21_600_000,
+      // 48 Harbor trials (~5 min each, sequential) + real-model proposals
+      // (~10 min each) + capsule builds per child + Harbor/container overhead
+      // — up to ~7h; the 8h ceiling leaves crash-recovery headroom.
+      timeout: 28_800_000,
       maxBuffer: 64 << 20,
       env: { ...process.env, ...env },
     })
@@ -156,6 +183,15 @@ interface DriveReportDoc {
   lineageDepthMax: number
   expansionAttempts: number
   consecutiveExpansionFailures: number
+  /** ADR-026: per-child trusted-rebuild rejections and crash-abandoned
+   * intents — registered, never admitted, each with its accounting reason. */
+  rebuildRejections?: Array<{
+    actionId: string
+    candidateId: string
+    stage: string
+    reason: string
+  }>
+  abandonedIntents?: Array<{ actionId: string; candidateId: string }>
   failurePool: string[]
   stateHash: string
   budget: Record<string, { spent: number; reserved: number }>
@@ -284,14 +320,21 @@ async function main(): Promise<void> {
       ARTIFACT_HOST,
       '--artifact-port',
       ARTIFACT_PORT,
-      // K=10 pre-registration: discovery is exactly one batch of the first 10
-      // observed handles in the frozen ceremony order.
+      // K=10 pre-registration (specs/03 §2): K is the ADMITTED-candidate
+      // target; discovery follows §4.1 (6+6, hard cap 12) and the trial cap
+      // funds every admitted child's q0 cold start.
       '--set',
-      `discoveryBatchSize=${String(K_DEV)}`,
+      `kTarget=${String(K_TARGET)}`,
       '--set',
-      `maxDiscoveryTrials=${String(K_DEV)}`,
+      `maxDiscoveryTrials=${String(DISCOVERY_CAP)}`,
+      '--set',
+      `discoveryBatchSize=${String(DISCOVERY_BATCH)}`,
+      '--set',
+      `maxSolverTrials=${String(MAX_SOLVER_TRIALS)}`,
+      '--set',
+      `taskTrials=${String(MAX_SOLVER_TRIALS)}`,
     ]
-    console.log('gate8 pilot: dsh-evolve init (zen-compatible proposer route, K=10 discovery)…')
+    console.log('gate8 pilot: dsh-evolve init (zen-compatible proposer route, K=10 admitted)…')
     const init = await cli(initArgs)
     initDoc =
       init.code === 0 ? (JSON.parse(init.stdout) as { configHash: string; handles: number }) : null
@@ -334,9 +377,10 @@ async function main(): Promise<void> {
   const search = frozenConfig.search ?? {}
   check(
     'configIsK10PilotShape',
-    search['discoveryBatchSize'] === K_DEV &&
-      search['maxDiscoveryTrials'] === K_DEV &&
-      search['kTarget'] === 3 &&
+    search['kTarget'] === K_TARGET &&
+      search['maxDiscoveryTrials'] === DISCOVERY_CAP &&
+      search['discoveryBatchSize'] === DISCOVERY_BATCH &&
+      search['maxSolverTrials'] === MAX_SOLVER_TRIALS &&
       frozenConfig['sealedAccess'] === false,
     JSON.stringify(search),
   )
@@ -387,7 +431,7 @@ async function main(): Promise<void> {
     }
   } else {
     console.log(
-      'gate8 pilot: dsh-evolve run (10 baseline Harbor trials + REAL model proposals + cold starts; hours)…',
+      'gate8 pilot: dsh-evolve run (§4.1 discovery batches + REAL model proposals to K=10 admitted + q0 cold starts; hours)…',
     )
     const runStart = Date.now()
     const run = await cli(['run', '--run-root', runRoot])
@@ -404,19 +448,20 @@ async function main(): Promise<void> {
     `gate8 pilot: ${report.stopReason} / ${report.status} — ` +
       `trials=${String(report.trials)} discovery=${String(report.discoveryTrials)} ` +
       `expansions=${String(report.expansionAttempts)} admitted=${String(report.admittedNonBaseline)} ` +
-      `depth=${String(report.lineageDepthMax)} pool=${String(report.failurePool.length)}` +
+      `depth=${String(report.lineageDepthMax)} pool=${String(report.failurePool.length)} ` +
+      `rebuild-rejected=${String((report.rebuildRejections ?? []).length)} ` +
+      `abandoned=${String((report.abandonedIntents ?? []).length)}` +
       (runSeconds === null ? '' : ` (${String(runSeconds)}s)`),
   )
 
   // ---- the pilot shape ----------------------------------------------------------
-  // specs/07 §10: the pilot exists for "tuning stability and budgets". The
-  // driver's STABLE_ITERATION_VERIFIED label is the GATE 6 stable-demo bar —
-  // it additionally demands lineageDepthMax ≥ 2, which measures how many
-  // EXPANSIONS the proposer needed, not whether the frozen protocol played
-  // out. A proposer that admits all K children in one expansion reaches K at
-  // depth 1; that is a measured pilot actual, reported verbatim below. The
-  // pilot invariants are: K reached, every admitted child cold-started on the
-  // frozen pool, and the report reproducible from durable state.
+  // specs/03 §2 + specs/07 §10: the pilot's K=10 is the ADMITTED-candidate
+  // target. The loop stops at K_REACHED once admittedNonBaseline ≥ K and no
+  // cold start is pending; the final W_p=3 wave may overshoot K by up to 2,
+  // which is pre-registered and budgeted (maxSolverTrials funds 12 children).
+  // The driver's STABLE_ITERATION_VERIFIED label is the GATE 6 stable-demo
+  // bar (lineageDepthMax ≥ 2); a wave-shaped pilot may reach K at any depth,
+  // recorded verbatim below.
   check(
     'stopReasonKReached',
     report.stopReason === 'K_REACHED',
@@ -424,16 +469,94 @@ async function main(): Promise<void> {
   )
   if (report.lineageDepthMax < 2) {
     notes.push(
-      `lineageDepthMax=${String(report.lineageDepthMax)}: the live proposer admitted all K=3 children from a single expansion, so K was reached at depth 1 and the driver honestly reported ${report.status}; the ≥2-depth bar belongs to the Gate 6 stable-demo profile`,
+      `lineageDepthMax=${String(report.lineageDepthMax)}: K was reached within one expansion wave, so the driver honestly reported ${report.status}; the ≥2-depth bar belongs to the Gate 6 stable-demo profile`,
     )
   }
+  // specs/04 §4.1: batches of 6 in the frozen order, hard cap 12. With ≥1
+  // real baseline failure in batch 1 the pool freezes at 6; only a clean
+  // first batch pays for the second.
   check(
-    'discoveryWasExactlyTheK10Sample',
-    report.discoveryTrials === K_DEV,
+    'discoveryHonoredThePreRegisteredProtocol',
+    report.discoveryTrials === DISCOVERY_BATCH || report.discoveryTrials === DISCOVERY_CAP,
     `${String(report.discoveryTrials)} discovery trials`,
   )
 
-  // ---- §4.2 baseline freeze: K=10 pre-registered, pool frozen before proposals --
+  // ---- agent participation: deaths must be pre-launch infra, never the agent (rule 7) ------
+  // Harbor's installed-agent runner records the ACP `initialize` response in
+  // agent_result.metadata.acp the moment the agent speaks; null with an
+  // exception means the process died before one protocol byte. Two classes
+  // must stay distinguishable (ADR-025): pre-launch provisioning timeouts
+  // (`AgentSetupTimeoutError` etc. — harbor's own venv bootstrap, before the
+  // candidate process exists) are disclosed infra deaths that keep
+  // FAIL-in-the-denominator semantics, while an agent-process death
+  // (`NonZeroAgentExitCodeError` — the original Gate 8 defect,
+  // `exec: node: not found`) is a capability/harness-integration failure and
+  // fails the gate outright. The self-contained capsule (runtime/node) must
+  // make agent-process deaths impossible.
+  const { participationOf, INFRA_RETRYABLE_EXCEPTIONS } = await importBuilt(
+    'benchmark-adapters/terminal-bench/lib/normalize.js',
+  )
+  const partTally = { ran: 0, never: 0, unknown: 0 }
+  const neverInitializedTrials: string[] = []
+  const preLaunchInfraDeaths: Record<string, number> = {}
+  const agentProcessDeaths: string[] = []
+  const trialParticipation: Array<{
+    handle: string
+    capsule: string
+    state: string
+    exceptionType: string | null
+  }> = []
+  for (const trialPath of await trialDirs(jobsRoot)) {
+    const resultPath = join(trialPath, 'result.json')
+    const configPath = join(trialPath, 'config.json')
+    if (!existsSync(resultPath) || !existsSync(configPath)) {
+      partTally.unknown += 1
+      continue
+    }
+    const parsed = JSON.parse(await readFile(resultPath, 'utf8')) as {
+      task_name?: string
+      agent_info?: { version?: string }
+      exception_info?: { exception_type?: string } | null
+    }
+    // Handle from result.json's task_name, falling back to the trial's own
+    // config.json task.path (the normalizer's authoritative attribution link).
+    const handle =
+      parsed.task_name?.split('/').filter(Boolean).pop() ??
+      (JSON.parse(await readFile(configPath, 'utf8')) as { task?: { path?: string } }).task?.path
+        ?.split('/')
+        .filter(Boolean)
+        .pop()
+    const state = participationOf(parsed)
+    const exceptionType = parsed.exception_info?.exception_type ?? null
+    if (state === 'ran') partTally.ran += 1
+    else if (state === 'never-initialized') {
+      partTally.never += 1
+      const label = trialPath.split('/').slice(-2).join('/')
+      neverInitializedTrials.push(label)
+      if (exceptionType !== null && INFRA_RETRYABLE_EXCEPTIONS.has(exceptionType)) {
+        preLaunchInfraDeaths[exceptionType] = (preLaunchInfraDeaths[exceptionType] ?? 0) + 1
+      } else {
+        agentProcessDeaths.push(`${label} (${exceptionType ?? 'no-exception'})`)
+      }
+    } else partTally.unknown += 1
+    if (handle !== undefined) {
+      trialParticipation.push({
+        handle,
+        capsule: parsed.agent_info?.version ?? '',
+        state,
+        exceptionType,
+      })
+    }
+  }
+  check(
+    'noAgentProcessDeath',
+    partTally.unknown === 0 && agentProcessDeaths.length === 0,
+    `ran=${String(partTally.ran)} never-initialized=${String(partTally.never)} ` +
+      `(pre-launch infra: ${JSON.stringify(preLaunchInfraDeaths)}) ` +
+      `unknown=${String(partTally.unknown)}; agent-process deaths: ${agentProcessDeaths.slice(0, 5).join(',')}`,
+  )
+
+  // ---- §4.2 baseline freeze: pre-registered, pool frozen before proposals --------
   const { runSplitCeremony } = await importBuilt('packages/dsh-evolve-le/lib/split/ceremony.js')
   const handles = (
     JSON.parse(await readFile(join(runRoot, 'dataset-handles.json'), 'utf8')) as {
@@ -449,7 +572,7 @@ async function main(): Promise<void> {
     JSON.stringify(ceremonyDoc.observedHandles) ===
       JSON.stringify(rederived.ceremony.observedHandles),
   )
-  const kSample = rederived.ceremony.observedHandles.slice(0, K_DEV)
+  const kSample: string[] = rederived.ceremony.observedHandles.slice(0, report.discoveryTrials)
   const catalog = JSON.parse(await readFile(join(runRoot, 'archive-catalog.json'), 'utf8')) as {
     entries: CatalogEntry[]
   }
@@ -459,27 +582,55 @@ async function main(): Promise<void> {
   )
   check(
     'baselineRanExactlyThePreRegisteredSample',
-    baselineTasks.size === K_DEV &&
+    baselineTasks.size === report.discoveryTrials &&
       kSample.every((handle) => baselineTasks.get(handle)?.attempts === 1),
-    `${String(baselineTasks.size)} baseline tasks vs K=${String(K_DEV)}`,
+    `${String(baselineTasks.size)} baseline tasks vs discovery ${String(report.discoveryTrials)}`,
   )
   const poolDoc = JSON.parse(await readFile(join(runRoot, 'failure-pool.json'), 'utf8')) as {
     handles: string[]
     frozenFromObservations: number
   }
   check(
-    'failurePoolFrozenFromTheK10BaselineOnly',
-    poolDoc.frozenFromObservations === K_DEV &&
+    'failurePoolFrozenFromThePilotsOwnBaselineOnly',
+    poolDoc.frozenFromObservations === report.discoveryTrials &&
       poolDoc.handles.every((handle) => kSample.includes(handle)),
     JSON.stringify(poolDoc),
   )
-  const baselineFreeze = kSample.map((handle) => ({
-    opaqueTaskId: handle,
-    attempts: baselineTasks.get(handle)?.attempts ?? 0,
-    successes: baselineTasks.get(handle)?.successes ?? 0,
-    failures: baselineTasks.get(handle)?.failures ?? 0,
-    outcome: (baselineTasks.get(handle)?.successes ?? 0) > 0 ? 'PASS' : 'FAIL',
-  }))
+  // The pilot's own baseline capsule: discovery trials are its only trials,
+  // so its archive sha attributes participation for the freeze (a child's
+  // infra death on the same handle must not stain the baseline freeze).
+  const capsuleRecords: CapsuleRecord[] = []
+  for (const entry of await readdir(join(runRoot, 'capsules')).catch(() => [])) {
+    if (!entry.endsWith('.json')) continue
+    capsuleRecords.push(
+      JSON.parse(await readFile(join(runRoot, 'capsules', entry), 'utf8')) as CapsuleRecord,
+    )
+  }
+  const baselineSha =
+    capsuleRecords.find((record) => record.candidateId === baselineEntry?.candidateId)
+      ?.archiveSha256 ?? ''
+  const baselineFreeze = kSample.map((handle) => {
+    const own = trialParticipation.filter((t) => t.handle === handle && t.capsule === baselineSha)
+    const part =
+      own.length === 0 || own.every((t) => t.state !== 'ran')
+        ? own.some((t) => t.state === 'never-initialized')
+          ? 'never-initialized'
+          : 'unknown'
+        : 'ran'
+    return {
+      opaqueTaskId: handle,
+      attempts: baselineTasks.get(handle)?.attempts ?? 0,
+      successes: baselineTasks.get(handle)?.successes ?? 0,
+      failures: baselineTasks.get(handle)?.failures ?? 0,
+      outcome: (baselineTasks.get(handle)?.successes ?? 0) > 0 ? 'PASS' : 'FAIL',
+      agentParticipation: part,
+    }
+  })
+  check(
+    'baselineFreezeTrialsAllRanAgents',
+    baselineFreeze.every((entry) => entry.agentParticipation === 'ran'),
+    JSON.stringify(baselineFreeze.filter((entry) => entry.agentParticipation !== 'ran')),
+  )
 
   // ---- every expansion was a REAL model proposal through the TCB proxy ---------
   const sandboxesRoot = join(runRoot, 'controller', 'sandboxes')
@@ -550,12 +701,28 @@ async function main(): Promise<void> {
     `usd spent ${String(report.budget['usd']?.spent ?? 0)} < proposer ${String(proposerCostMicros)}`,
   )
 
-  // ---- children: 3 unique, ≥2 depths, cold-started, cite raw evidence ----------
+  // ---- children: K admitted, cold-started, cite raw evidence --------------------
   const children = catalog.entries.filter((entry) => entry.parentCandidateId !== null)
+  // ADR-026 accounting: every non-admission the driver recorded must name a
+  // candidate that is NOT in the archive catalog (an admitted child can never
+  // also be rejected or abandoned), and no candidate may be counted twice.
+  const unadmittedIds = [
+    ...(report.rebuildRejections ?? []).map((entry) => entry.candidateId),
+    ...(report.abandonedIntents ?? []).map((entry) => entry.candidateId),
+  ]
+  const admittedIds = new Set(children.map((child) => child.candidateId))
   check(
-    'threeUniqueChildrenAdmitted',
-    report.admittedNonBaseline === 3 && children.length === report.admittedNonBaseline,
-    `${String(report.admittedNonBaseline)} admitted / ${String(children.length)} catalogued`,
+    'expansionAccountingDisjoint',
+    unadmittedIds.every((id) => !admittedIds.has(id)) &&
+      new Set(unadmittedIds).size === unadmittedIds.length,
+    `${String((report.rebuildRejections ?? []).length)} rebuild rejections + ${String(
+      (report.abandonedIntents ?? []).length,
+    )} abandoned, overlap=${String(unadmittedIds.filter((id) => admittedIds.has(id)).length)}`,
+  )
+  check(
+    'admittedChildrenMeetK',
+    report.admittedNonBaseline >= K_TARGET && children.length === report.admittedNonBaseline,
+    `${String(report.admittedNonBaseline)} admitted (K=${String(K_TARGET)}), ${String(children.length)} catalogued`,
   )
   const depthOf = (entry: CatalogEntry, seen = new Set<string>()): number => {
     if (entry.parentCandidateId === null || seen.has(entry.candidateId)) return 0
@@ -643,13 +810,7 @@ async function main(): Promise<void> {
   )
 
   // ---- Harbor trials attributed to capsule archives ------------------------------
-  const capsuleRecords: CapsuleRecord[] = []
-  for (const entry of await readdir(join(runRoot, 'capsules')).catch(() => [])) {
-    if (!entry.endsWith('.json')) continue
-    capsuleRecords.push(
-      JSON.parse(await readFile(join(runRoot, 'capsules', entry), 'utf8')) as CapsuleRecord,
-    )
-  }
+  // (capsuleRecords hoisted above the baseline-freeze block)
   const archiveShas = new Set(capsuleRecords.map((record) => record.archiveSha256))
   let attributed = 0
   const unattributed: string[] = []
@@ -829,7 +990,8 @@ async function main(): Promise<void> {
     verificationMode: verifyOnly
       ? 'verify-only (DSH_GATE8_PILOT_RUN_ROOT over the completed run root)'
       : 'fresh run (init + doctor + run + verify)',
-    configProfile: 'stable-demo + zen-compatible proposer route + K=10 discovery',
+    configProfile:
+      'stable-demo base + zen-compatible proposer route + Gate 8 pilot K=10 (admitted candidates; specs/03 §2, specs/07 §10)',
     route: {
       id: 'deepseek/zen-compatible',
       baseUrl,
@@ -840,10 +1002,21 @@ async function main(): Promise<void> {
     },
     dataset: { tarball: 'terminal-bench-2-1-7131e43.tar.gz', handles: handles.length },
     preRegistration: {
-      kDev: K_DEV,
+      kTarget: K_TARGET,
+      discoveryBatch: DISCOVERY_BATCH,
+      discoveryCap: DISCOVERY_CAP,
+      maxSolverTrials: MAX_SOLVER_TRIALS,
       sample: kSample,
-      selectionRule: 'first 10 observed handles in the frozen ceremony order',
+      selectionRule:
+        'specs/04 §4.1 protocol over the frozen ceremony order: first batch 6 observed handles, second batch 6 only if the first shows no failure, hard cap 12; specs/04 §4.2 requires this pilot to freeze its OWN baseline (stable-demo evidence may not be reused)',
       seedCommitment: rederived.ceremony.seedCommitment,
+    },
+    agentParticipation: {
+      tally: partTally,
+      neverInitializedTrials,
+      preLaunchInfraDeaths,
+      agentProcessDeaths,
+      note: 'harbor agent_result.metadata.acp.initialize non-null ⇔ the agent spoke the protocol. Per ADR-025 a never-initialized trial is disclosed infra (FAIL-in-denominator) only when its exception is a pre-launch phase class (e.g. AgentSetupTimeoutError); an agent-process death (NonZeroAgentExitCodeError — the original Gate 8 defect) fails the gate, and the baseline freeze must be all-ran.',
     },
     baselineFreeze,
     failurePool: poolDoc.handles,
@@ -865,8 +1038,9 @@ async function main(): Promise<void> {
     flags,
     notes,
     claimBoundary:
-      'pilot profile only: tuning stability and budget actuals on a K=10 development sample; ' +
-      'no sealed unblinding, no search/sealed/official profile, no performance claim',
+      'pilot profile only: tuning stability and budget actuals for K=10 ADMITTED candidates ' +
+      "(specs/03 §2) on the pilot's own §4.2 baseline freeze; no sealed unblinding, no " +
+      'search/sealed/official profile, no performance claim',
   }
   await writeFile(join(pilotDir, 'pilot-run.json'), `${JSON.stringify(document, null, 2)}\n`)
   const documentSha = createHash('sha256')
@@ -892,6 +1066,11 @@ async function main(): Promise<void> {
           admittedChildren: report.admittedNonBaseline,
           lineageDepthMax: report.lineageDepthMax,
           trials: report.trials,
+          agentParticipation: `${String(partTally.ran)} ran / ${String(partTally.never)} never-initialized / ${String(partTally.unknown)} unknown`,
+          expansionAccounting: {
+            rebuildRejections: report.rebuildRejections ?? [],
+            abandonedIntents: report.abandonedIntents ?? [],
+          },
           proposerCostUsdMicros: proposerCostMicros,
           runSeconds,
         },
@@ -907,8 +1086,9 @@ async function main(): Promise<void> {
   }
   if (!verifyOnly) await rm(scratch, { recursive: true, force: true })
   console.log(
-    `gate8 pilot: PASS — K=10 baseline freeze + ${String(report.expansionAttempts)} real-model proposal(s), ` +
-      `${String(report.admittedNonBaseline)} children, ${String(report.trials)} trials, ` +
+    `gate8 pilot: PASS — K=${String(K_TARGET)} admitted candidates over ${String(report.expansionAttempts)} real-model proposal(s), ` +
+      `${String(report.discoveryTrials)} discovery trials, ${String(report.trials)} trials, ` +
+      `participation ran=${String(partTally.ran)}/never=${String(partTally.never)}, ` +
       `${String(proposerCostMicros)} µUSD proposer cost` +
       (runSeconds === null ? '' : `, ${String(runSeconds)}s`) +
       (verifyOnly ? ' (verify-only pass)' : ''),

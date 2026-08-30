@@ -17,13 +17,18 @@ import { promisify } from 'node:util'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildCandidate, type BuildResult } from '../src/builder/pipeline.js'
 import { runAcpSession } from '../src/acp/driver.js'
+import { NODE_RUNTIME_BINARY_SHA256, NODE_RUNTIME_VERSION } from '../src/builder/pinned-runtime.js'
 
 const exec = promisify(execFile)
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..')
-// The default proves boot on a clean current node; pointing this at the real
-// task image (e.g. alexgshaw/extract-elf:20251031, node 18) proves the capsule
-// boots on the benchmark's own runtime, not only on our reference.
-const NODE_IMAGE = process.env['CAPSULE_CONTAINER_IMAGE'] ?? 'node:24-alpine'
+// The default proves boot on a node-less image: TB 2.1 task images are
+// per-task and 88/89 of them ship no node, which is exactly the environment
+// the capsule must survive (the Gate 8 pilot lost all 13 trials to
+// `exec: node: not found` before this was fixed). ubuntu:24.04 is glibc like
+// every TB image surveyed. Pointing CAPSULE_CONTAINER_IMAGE at a real task
+// image (e.g. alexgshaw/extract-elf:20251031, one of the node-bearing ones)
+// adds the benchmark's own-runtime proof on top.
+const NODE_IMAGE = process.env['CAPSULE_CONTAINER_IMAGE'] ?? 'ubuntu:24.04'
 
 const scratchDirs: string[] = []
 
@@ -40,7 +45,7 @@ async function freshScratch(prefix: string): Promise<string> {
 describe('packed capsule boots in a fresh offline container', () => {
   let build: BuildResult
   let payloadDir: string
-  let containerNodeVersion: string
+  let imageShipsNoNode: boolean
 
   beforeAll(async () => {
     let serverVersion: string
@@ -59,8 +64,9 @@ describe('packed capsule boots in a fresh offline container', () => {
     }
     void serverVersion
     await exec('docker', ['pull', NODE_IMAGE])
-    // --entrypoint sh: the probe must not depend on the image's own entrypoint.
-    const { stdout } = await exec('docker', [
+    // --entrypoint sh: the boot must not depend on the image's own entrypoint.
+    // A node-bearing override image is allowed; the default must not ship one.
+    const probe = await exec('docker', [
       'run',
       '--rm',
       '--network',
@@ -69,9 +75,12 @@ describe('packed capsule boots in a fresh offline container', () => {
       'sh',
       NODE_IMAGE,
       '-c',
-      'node --version',
+      'command -v node >/dev/null 2>&1 && echo yes || echo no',
     ])
-    containerNodeVersion = stdout.trim()
+    imageShipsNoNode = probe.stdout.trim() === 'no'
+    if (!imageShipsNoNode && !process.env['CAPSULE_CONTAINER_IMAGE']) {
+      throw new Error(`${NODE_IMAGE} unexpectedly ships node; the default image must be node-less`)
+    }
     build = await buildCandidate({
       sourceDir: join(repoRoot, 'packages/candidate-baseline'),
       workRoot: await freshScratch('dsh-evolve-acp-'),
@@ -144,10 +153,10 @@ describe('packed capsule boots in a fresh offline container', () => {
     expect(acp.report?.sections.afterUnload).toEqual([])
   }, 180_000)
 
-  it('container holds only the payload mount and a real node', async () => {
-    // Nothing but the read-only payload directory is mounted; the capsule is
-    // the whole runtime. The node version is recorded for the evidence
-    // document; overriding the image (task-image boot proof) changes it.
+  it('the capsule is the whole runtime: nothing mounted but the payload, no node in the image', async () => {
+    // Nothing but the read-only payload directory is mounted. On the default
+    // node-less image the only node anywhere in the container is the one the
+    // capsule carries — which is the pinned, digest-locked runtime.
     const { stdout } = await exec('docker', [
       'run',
       '--rm',
@@ -159,11 +168,21 @@ describe('packed capsule boots in a fresh offline container', () => {
       `${payloadDir}:/payload:ro`,
       NODE_IMAGE,
       '-c',
-      'ls /payload && node --version',
+      [
+        'ls /payload',
+        'command -v node >/dev/null 2>&1 && echo image-node || echo image-no-node',
+        'mkdir /capsule && tar -C /capsule -xf /payload/capsule.tar.gz',
+        '/capsule/runtime/node --version',
+        'sha256sum /capsule/runtime/node',
+      ].join('; '),
     ])
-    const [listing, version] = stdout.trim().split('\n')
-    expect(listing).toBe('capsule.tar.gz')
-    expect(version).toMatch(/^v\d+\.\d+\.\d+$/)
-    expect(containerNodeVersion).toBe(version)
-  }, 120_000)
+    const lines = stdout.trim().split('\n')
+    expect(lines[0]).toBe('capsule.tar.gz')
+    if (!process.env['CAPSULE_CONTAINER_IMAGE']) {
+      expect(lines[1]).toBe('image-no-node')
+      expect(imageShipsNoNode).toBe(true)
+    }
+    expect(lines[2]).toBe(NODE_RUNTIME_VERSION)
+    expect(lines[3]).toBe(`${NODE_RUNTIME_BINARY_SHA256}  /capsule/runtime/node`)
+  }, 300_000)
 })

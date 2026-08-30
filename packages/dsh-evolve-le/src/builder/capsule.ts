@@ -36,17 +36,21 @@ export { BUILDER_VERSION }
  * (`./dsh-evolve-le-acp`) with the task workspace as cwd, so the wrapper
  * resolves its own directory — never the cwd — and execs the embedded runner
  * with an absolute config path. A task workspace cannot redirect which
- * composition boots.
+ * composition boots. The interpreter is the capsule's own pinned runtime
+ * (specs/02 §12): TB task images are per-task and almost none ship `node`,
+ * so a PATH `node` here would kill every trial on those images before the
+ * first ACP byte.
  */
 export const ACP_ENTRYPOINT_NAME = 'dsh-evolve-le-acp'
 export const ACP_ENTRYPOINT = [
   '#!/bin/sh',
   '# dsh-evolve-le capsule ACP entrypoint (Harbor inline binary distribution).',
   '# Resolves its own directory, never the task cwd, so the workspace cannot',
-  '# redirect which composition boots (specs/01 §5.3).',
+  '# redirect which composition boots (specs/01 §5.3). The interpreter is the',
+  "# capsule's own pinned runtime (specs/02 §12) — never a PATH node.",
   'set -e',
   'DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)',
-  'exec node "$DIR/runner/bin/acp-boot.js" "$DIR/cordis.yml" "$@"',
+  'exec "$DIR/runtime/node" "$DIR/runner/bin/acp-boot.js" "$DIR/cordis.yml" "$@"',
   '',
 ].join('\n')
 
@@ -246,6 +250,8 @@ export async function assembleCapsule(options: {
   sourceDigest: string
   toolchain: { node: string; pnpm: string; typescript: string }
   runnerSourceDir: string
+  /** The pinned, digest-verified node binary embedded at runtime/node. */
+  nodeRuntime: { path: string; sha256: string; version: string }
 }): Promise<CapsuleDocuments> {
   const {
     capsuleDir,
@@ -258,6 +264,7 @@ export async function assembleCapsule(options: {
     sourceDigest,
     toolchain,
     runnerSourceDir,
+    nodeRuntime,
   } = options
   await mkdir(capsuleDir, { recursive: true })
 
@@ -273,13 +280,25 @@ export async function assembleCapsule(options: {
     )
   }
 
-  // runtime/: install manifest + trusted systemPrompt boot stub.
+  // runtime/: install manifest + trusted systemPrompt boot stub + the pinned
+  // node interpreter the ACP entrypoint execs. The binary arrives
+  // digest-verified from materializeNodeRuntime; the copy is verified again
+  // so a drifted staging area fails closed instead of shipping silently.
   await mkdir(join(capsuleDir, 'runtime'), { recursive: true })
   await writeFile(join(capsuleDir, 'runtime/install-manifest.json'), installManifest.text, 'utf8')
   await cp(
     join(runnerSourceDir, 'probe/system-prompt-stub.js'),
     join(capsuleDir, 'runtime/system-prompt-stub.mjs'),
   )
+  const runtimeNodePath = join(capsuleDir, 'runtime/node')
+  await cp(nodeRuntime.path, runtimeNodePath)
+  await chmod(runtimeNodePath, 0o755)
+  const embeddedNodeSha256 = sha256(await readFile(runtimeNodePath))
+  if (embeddedNodeSha256 !== nodeRuntime.sha256) {
+    throw new Error(
+      `capsule runtime/node: sha256 ${embeddedNodeSha256} != staged ${nodeRuntime.sha256}; the pinned runtime drifted mid-build`,
+    )
+  }
 
   // candidate/: metadata + compiled bundle.
   await mkdir(join(capsuleDir, 'candidate'), { recursive: true })
@@ -358,6 +377,7 @@ export async function assembleCapsule(options: {
     sha256SumsDigest,
     bundleTarSha256: bundle.tarSha256,
     toolchain,
+    nodeRuntime: { version: nodeRuntime.version, sha256: nodeRuntime.sha256 },
     note: 'Timestamp-free by construction; build time lives only in the out-of-capsule build manifest.',
   }
   const provenanceText = `${JSON.stringify(provenance, null, 2)}\n`
@@ -390,6 +410,11 @@ export async function assembleCapsule(options: {
       digest: installManifest.sha256,
       detail:
         'Flat pinned Cordis closure verified per package in runtime/install-manifest.json; full DSH ACP closure staged at the Gate 1 container E2E.',
+      nodeRuntime: {
+        version: nodeRuntime.version,
+        path: 'runtime/node',
+        sha256: nodeRuntime.sha256,
+      },
     },
     sbom: { path: 'sbom.spdx.json', sha256: sha256(Buffer.from(sbomText, 'utf8')) },
   }
@@ -432,7 +457,9 @@ export async function tarCapsule(capsuleDir: string): Promise<{
  * ACP binary distribution (`archive` must be HTTPS + sha256; Harbor extracts
  * with `tar -xf` inside the task container). zlib deflate is deterministic for
  * a fixed level, so double builds must agree byte-for-byte — asserted by the
- * builder test suite.
+ * builder test suite. Level 6, not 9: the embedded node runtime makes the
+ * payload ~120 MB, and level 9 costs ~2.6× the CPU for <1% size — a cost
+ * every candidate build pays twice (the double-build proof).
  */
 export async function archiveCapsule(capsuleDir: string): Promise<{
   tar: Buffer
@@ -443,7 +470,7 @@ export async function archiveCapsule(capsuleDir: string): Promise<{
   bytes: number
 }> {
   const { tar, tarSha256, fileCount, bytes } = await tarCapsule(capsuleDir)
-  const archive = gzipSync(tar, { level: 9 })
+  const archive = gzipSync(tar, { level: 6 })
   return {
     tar,
     archive,

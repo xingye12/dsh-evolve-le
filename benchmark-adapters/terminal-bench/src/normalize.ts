@@ -29,18 +29,36 @@ export const TRIAL_PROTOCOL = 'dsh-evolve-le/tb-trial/v1'
 export const RUN_PROTOCOL = 'dsh-evolve-le/tb-run/v1'
 
 /**
- * Pre-registered, reward-blind infrastructure exception types (specs/04 §5):
+ * Pre-registered, reward-blind infrastructure exception types (specs/04 §5-6):
  * every entry fails before the agent can influence the environment, so the
- * reward cannot depend on candidate behavior. Adding an entry requires an
- * ADR; ambiguity resolves to FAIL, never to retry.
+ * reward cannot depend on candidate behavior. `AgentSetupTimeoutError` is
+ * harbor's agent-install phase (`agent.setup()` = venv/pip bootstrap + archive
+ * fetch, before the agent process is launched — ADR-025), raised from the phase
+ * adjacent to the already-registered `EnvironmentStartTimeoutError`. The
+ * original Gate 8 capsule defect was a different class
+ * (`NonZeroAgentExitCodeError`: the agent launched and died) and remains a
+ * capability FAIL. Adding an entry requires an ADR; ambiguity resolves to
+ * FAIL, never to retry.
  */
 export const INFRA_RETRYABLE_EXCEPTIONS = new Set([
   'EnvironmentStartTimeoutError',
   'SandboxBuildFailedError',
   'HealthcheckError',
+  'AgentSetupTimeoutError',
 ])
 
 export type TrialStatus = 'pass' | 'fail' | 'infra_retryable' | 'protocol_invalid'
+
+/**
+ * Did the agent ever speak the ACP protocol? Harbor's installed-agent runner
+ * records the `initialize` response inside `agent_result.metadata.acp`; it
+ * is null exactly when the agent process died before one protocol byte (the
+ * Gate 8 pilot: `exec: node: not found`). This is a machine fact for
+ * auditing and reporting — it NEVER changes the reward classification: a
+ * never-initialized trial is still FAIL in the denominator (rule 7), it just
+ * must not masquerade as a capability result.
+ */
+export type AgentParticipation = 'ran' | 'never-initialized' | 'unknown'
 
 export type OutcomeCategory =
   | 'reward'
@@ -74,6 +92,8 @@ export interface NormalizedTrial {
     reward: number | null
     exceptionType: string | null
     reason: string
+    /** ACP participation fact (above) — reporting-only, reward-blind. */
+    agentParticipation: AgentParticipation
   }
   usage: {
     agentExecutionMs: number | null
@@ -111,6 +131,8 @@ export interface RunArtifact {
     /** Reward denominator: planned trials; infra retries reported separately. */
     denominator: number
     passRate: number | null
+    /** FAIL trials whose agent never spoke ACP (reporting-only, rule 7). */
+    agentNeverInitialized: number
   }
   artifactSha256: string
 }
@@ -146,6 +168,8 @@ interface HarborResultJson {
     n_input_tokens?: number | null
     n_output_tokens?: number | null
     cost_usd?: number | null
+    /** Harbor's installed-agent runner records the ACP session here. */
+    metadata?: { acp?: { initialize?: unknown } | null } | null
   } | null
   agent_execution?: HarborTiming | null
   verifier?: HarborTiming | null
@@ -164,6 +188,21 @@ function durationMs(timing: HarborTiming | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null
 }
 
+/**
+ * Agent-participation fact from harbor's ACP bookkeeping: `initialize` is
+ * recorded the moment the agent answers the protocol handshake. Null with an
+ * exception means the process died before one byte (never booted); null
+ * without any recorded fact stays honestly unknown. Exported for evidence
+ * recorders that classify raw trial directories without a full job plan.
+ */
+export function participationOf(parsed: HarborResultJson): AgentParticipation {
+  const initialize = parsed.agent_result?.metadata?.acp?.initialize
+  if (initialize !== null && initialize !== undefined) return 'ran'
+  return parsed.exception_info !== null && parsed.exception_info !== undefined
+    ? 'never-initialized'
+    : 'unknown'
+}
+
 function failRecord(
   identity: TrialIdentity,
   category: OutcomeCategory,
@@ -178,7 +217,7 @@ function failRecord(
     agentInfo: { name: null, version: null },
     status:
       category === 'attribution' || category === 'plan-mismatch' ? 'protocol_invalid' : 'fail',
-    outcome: { category, reward: null, exceptionType: null, reason },
+    outcome: { category, reward: null, exceptionType: null, reason, agentParticipation: 'unknown' },
     usage: {
       agentExecutionMs: null,
       verifierMs: null,
@@ -227,6 +266,7 @@ function normalizeResult(
     },
     resultDigest: digest,
   }
+  const participation = participationOf(parsed)
 
   // Attribution first (specs/04 §5): a trial that cannot be pinned to the
   // planned candidate invalidates the run, whatever its reward says.
@@ -239,6 +279,7 @@ function normalizeResult(
         reward: null,
         exceptionType: null,
         reason: `agent_info.name ${String(parsed.agent_info?.name)} != planned ${plan.agentName}`,
+        agentParticipation: participation,
       },
     }
   }
@@ -251,6 +292,7 @@ function normalizeResult(
         reward: null,
         exceptionType: null,
         reason: `agent_info.version ${String(parsed.agent_info?.version)} != capsule ${plan.capsuleArchiveSha256}`,
+        agentParticipation: participation,
       },
     }
   }
@@ -267,6 +309,7 @@ function normalizeResult(
         reward: reward === undefined ? null : reward,
         exceptionType,
         reason: parsed.exception_info.exception_message?.slice(0, 500) ?? exceptionType,
+        agentParticipation: participation,
       },
     }
   }
@@ -285,6 +328,7 @@ function normalizeResult(
         reward: reward === undefined ? null : reward,
         exceptionType: null,
         reason: 'agent/trajectory.json is missing or not JSON (specs/07 §4: explicit FAIL)',
+        agentParticipation: participation,
       },
     }
   }
@@ -297,6 +341,7 @@ function normalizeResult(
         reward: null,
         exceptionType: null,
         reason: 'verifier_result.rewards has no "reward" key (specs/04 §5: default fail)',
+        agentParticipation: participation,
       },
     }
   }
@@ -308,6 +353,7 @@ function normalizeResult(
       reward,
       exceptionType: null,
       reason: reward === 1 ? 'reward == 1' : `reward ${reward} != 1`,
+      agentParticipation: participation,
     },
   }
 }
@@ -504,6 +550,9 @@ export async function normalizeJob(input: NormalizeJobInput): Promise<RunArtifac
         counts.protocolInvalid === 0 && trials.length === plannedTrials
           ? counts.pass / plannedTrials
           : null,
+      agentNeverInitialized: trials.filter(
+        (trial) => trial.outcome.agentParticipation === 'never-initialized',
+      ).length,
     },
     artifactSha256: '',
   }

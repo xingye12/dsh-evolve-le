@@ -313,3 +313,71 @@ builder-owned config remove compiler read/write authority from candidate configu
 can differ because the trusted compiler no longer emits candidate-selected incremental metadata; no historical receipt
 is relabeled or migrated. Resume continues to verify stored receipts rather than silently rebuilding them under the new
 builder.
+
+## ADR-025 — `AgentSetupTimeoutError` is pre-agent infrastructure, retry-eligible
+
+**Decision:** add harbor's `AgentSetupTimeoutError` to the pre-registered, reward-blind infrastructure
+exception set (`INFRA_RETRYABLE_EXCEPTIONS`) alongside `EnvironmentStartTimeoutError`,
+`SandboxBuildFailedError` and `HealthcheckError`. Such a trial keeps FAIL-in-the-denominator semantics
+(CLAUDE.md rule 7; it enters the search state as a pessimistic failure observation), but it is disclosed
+as an infrastructure death — the agent never spoke ACP — and never as a capability result. The Gate 8
+pilot's participation gate is correspondingly refined: a never-initialized trial fails the gate unless its
+exception belongs to a pre-launch phase class, and every baseline-freeze (discovery) trial must have run
+an agent.
+
+**Why:** harbor 0.21.0 raises `AgentSetupTimeoutError` only inside `_setup_agent()`, which wraps
+`agent.setup()` = `mkdir /installed-agent` + `install()` (the ACP venv bootstrap: `python3 -m venv`,
+`pip install --upgrade pip`, `pip install agent-client-protocol`, archive fetch). The candidate process
+is not launched until after setup, so the candidate cannot cause, influence, or observe this timeout —
+identical in kind to the already-registered `EnvironmentStartTimeoutError` from the adjacent phase.
+specs/04 §6 pre-registers the category in words ("sandbox provisioning 在 agent 启动前失败"); the string
+allowlist simply predated any occurrence (Gate 2's bootstrap was always fast). Two Gate 8 pilot attempts
+(2026-08-30) hit ~5% per-trial flakes of this class on a warm machine, both corroborated by
+`agent_result.metadata.acp.initialize === null`.
+
+**Not reopened:** the original Gate 8 capsule defect surfaced as `NonZeroAgentExitCodeError` — the agent
+process launched and died (`exec: node: not found`). That class stays FAIL + never-initialized and still
+fails the participation gate on its own; agent-process deaths remain capability/harness-integration
+failures.
+
+**Disclosure:** this ADR was authored after the class was observed in pilot attempts, with the mechanism
+argument above as its basis (not the reward outcome — an infra-classified trial counts against the
+candidate either way). Trial-budget funding for the pilot was corrected in the same amendment: observed
+scheduler behavior spends ~2.8 pool trials per admitted child (UCB exploration beyond the q0 cold start),
+so `maxSolverTrials` was raised from 24 to 48 to fund K=10; the old 24-trial cap would have exhausted the
+budget at ~7 admitted children.
+
+## ADR-026 — A trusted-rebuild rejection is a per-child outcome, not a run crash
+
+**Decision:** the driver's capsule-build seam returns a discriminated verdict
+(`admitted | rejected`) instead of throwing on every builder rejection. In `expand()`, a rejected child is
+skipped: it stays `registered` in the candidate store, is never admitted, and the stage + reason ride the
+drive report (`rebuildRejections`). An expansion whose children all reject counts as exactly ONE
+consecutive-expansion failure. A crash that cuts an expansion between the committed proposal and its
+rebuilds is closed the same way at recovery (`settleAbandonedIntents`): the intent counts as one attempt
+and one failure unless one of its children had already admitted, and its never-rebuilt children are
+recorded as abandoned (`abandonedIntents`) rather than silently lost. Two things remain fail-closed:
+builder-ENVIRONMENT errors (the builder itself throws — missing pinned runtime, fs faults) and a
+trusted-builder rejection of the BASELINE source, which is a TCB defect that invalidates the run.
+
+**Why:** specs/03 §7 pre-registers exactly this: "空 proposal、全部 build reject、全部 duplicate，以及恢复时
+仍未完成且没有 admitted child 的 intent，都计作一次失败……任一 attempt admitted child 后连续失败计数归零。" The
+proposal-bundle validation (`validateProposalBundle`) is deliberately structural — diff sanity, canary scan,
+candidate scan, manifest schema — and never runs the child's own test suite; the trusted rebuild IS the
+admission gate (specs/03 §2). A real proposer therefore routinely produces children that fail their own
+contract tests, and the pre-fix `admitted-or-throw` bridge converted that ordinary event into
+`IterationDriverError`, killing the whole run after the money was spent.
+
+**Disclosure:** authored 2026-08-30 after two live Gate 8 attempt-5 crashes (prop-6/prop-7 children failing
+`registers exactly one candidate:identity section in solve mode`), BEFORE resuming that run root; the six
+orphaned children were then settled under this rule (two expansion failures recorded), not rebuilt. The
+same change re-binds persisted capsule records to the provider bridge at drive() start — the in-process
+registry dies with the process, and a resumed run must be able to launch previously admitted children.
+
+**Amendment (trial-cap re-sizing, same day, pre-registered before the next pilot launch):** the resumed
+attempt 5 finished `STOPPED:TRIAL_CAP` at a fully-spent 48/48 trials with **12 admitted children** (K=10
+exceeded by the pre-registered W_p overshoot; prop-8 admitted 3/3 with zero rebuild rejections) but with
+the final wave's last 2 q0 cold starts unfunded. specs/03 §6 requires every admitted node to complete q0,
+so that run is recorded as the pilot's budget-calibration measurement — not as the recorded pilot profile,
+and no acceptance check was bent to fit it. From the measured curve (6 batch-1 freeze + ≤12 q0 + ~2.8 pool
+trials per admitted child ≈ 49) the pilot cap is re-sized to `maxSolverTrials=60` (budget `taskTrials=60`).

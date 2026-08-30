@@ -1,8 +1,8 @@
 {
-  "id": "3f8a8cd2-0000-4000-8000-000000000002",
+  "id": "3f8a8cd2-0000-4000-8000-0000000000fe",
   "task_name": "terminal-bench/extract-elf",
-  "trial_name": "extract-elf__nop0001",
-  "trial_uri": "file:///jobs/dsh-nop/extract-elf__nop0001",
+  "trial_name": "extract-elf__setupTimeout",
+  "trial_uri": "file:///jobs/dsh-golden/extract-elf__setupTimeout",
   "task_id": {
     "path": "/tasks/extract-elf"
   },
@@ -13,10 +13,11 @@
     "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
   "agent_result": {
-    "n_input_tokens": 1200,
-    "n_cache_tokens": 0,
-    "n_output_tokens": 12,
-    "cost_usd": 0.0004,
+    "n_input_tokens": null,
+    "n_cache_tokens": null,
+    "n_output_tokens": null,
+    "cost_usd": null,
+    "rollout_details": null,
     "metadata": {
       "acp": {
         "registry_entry_id": "dsh-evolve-le-capsule",
@@ -32,23 +33,11 @@
         "set_model_attempts": null,
         "initial_session_models": null,
         "latest_session_info_update": null,
-        "initialize": {
-          "protocolVersion": 1,
-          "agentCapabilities": {
-            "loadSession": false,
-            "promptCapabilities": {
-              "image": false,
-              "audio": false,
-              "embeddedContext": false
-            }
-          }
-        },
+        "initialize": null,
         "agent_info": null,
         "auth_methods": null,
         "error": null,
-        "prompt_response": {
-          "stopReason": "end_turn"
-        },
+        "prompt_response": null,
         "latest_usage_update": null,
         "selected_distribution": "binary",
         "events_file": "acp-events.jsonl"
@@ -57,20 +46,20 @@
   },
   "verifier_result": {
     "rewards": {
-      "reward": 0
+      "reward": 0.0
     }
   },
   "verifier_environment_mode": "shared",
-  "exception_info": null,
-  "started_at": "2026-08-29T00:00:00Z",
-  "finished_at": "2026-08-29T00:01:00Z",
-  "agent_execution": {
-    "started_at": "2026-08-29T00:00:05Z",
-    "finished_at": "2026-08-29T00:00:10Z"
+  "exception_info": {
+    "exception_type": "AgentSetupTimeoutError",
+    "exception_message": "Agent setup timed out after 360.0 seconds"
   },
+  "started_at": "2026-08-29T00:00:00Z",
+  "finished_at": "2026-08-29T00:06:10Z",
+  "agent_execution": null,
   "verifier": {
-    "started_at": "2026-08-29T00:00:11Z",
-    "finished_at": "2026-08-29T00:00:20Z"
+    "started_at": "2026-08-29T00:06:01Z",
+    "finished_at": "2026-08-29T00:06:09Z"
   },
   "step_results": null
 }
