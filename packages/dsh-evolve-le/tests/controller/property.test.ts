@@ -161,7 +161,12 @@ async function runPass(
 }
 
 describe('seeded property: random crash chains converge to the clean state', () => {
-  it('chains of random crash points reach the clean run state hash exactly', async () => {
+  // Up to 10 seeds × (1 clean + ≤13 crash passes), each pass replaying the
+  // whole journal with a per-event fsync — the durability contract, not
+  // something to optimize away. Measured ~30 s at HEAD (ba146ac measured
+  // slower), so the 30 s suite default makes this test environment-jitter
+  // flaky; the property asserts convergence, never wall-clock speed.
+  it('chains of random crash points reach the clean run state hash exactly', { timeout: 180_000 }, async () => {
     for (let seed = 1; seed <= 10; seed += 1) {
       const spec = worldFor(seed * 0x9e3779b9)
       const rng = makeRng(seed * 7919)

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:f4d7bc0a140328e20d19b14f7697a6e20af2091f97f4014d69aaf492934298a2",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "Strengthening the pre-final execution gate to require two distinct observed tool results closes reward-zero trials whose agentExecutionMs is null.",
+    "evidenceRefs": [
+      "evidence://export/b4e13feaccd4687eae86871d696a82fd7452350421595301402412a705ac76f0",
+      "evidence://export/8fbb68cb236ee9d5b2606662ab15cbbcc7354f7227bafccd3c35af3db3f3d6f8"
+    ],
+    "targetFailureModes": ["reward-0-no-execution"],
+    "expectedBehaviorChange": "Solve-mode prompt now requires two distinct observed tool invocations before any final reply, hardening the parent's single-inspection gate against null-execution trials.",
+    "regressionRisks": [],
+    "touchedSurfaces": ["system-prompt"]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [{ "name": "candidate:identity", "order": 100 }],
+      "propose": [{ "name": "candidate:proposal-policy", "order": 100 }]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy.",
+      "In solve mode the candidate:identity text requires at least two distinct observable tool invocations before a final message."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

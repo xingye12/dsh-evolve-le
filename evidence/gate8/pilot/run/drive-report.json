@@ -2,41 +2,39 @@
   "runId": "gate8-pilot",
   "phase": "SEARCHING",
   "stopReason": "K_REACHED",
-  "status": "STOPPED:K_REACHED",
-  "trials": 13,
-  "discoveryTrials": 10,
-  "admittedNonBaseline": 3,
-  "lineageDepthMax": 1,
-  "expansionAttempts": 1,
+  "status": "STABLE_ITERATION_VERIFIED",
+  "trials": 50,
+  "discoveryTrials": 6,
+  "admittedNonBaseline": 12,
+  "lineageDepthMax": 4,
+  "expansionAttempts": 4,
   "consecutiveExpansionFailures": 0,
+  "rebuildRejections": [],
+  "abandonedIntents": [],
   "failurePool": [
     "adaptive-rejection-sampler",
     "bn-fit-modify",
     "build-pmars",
     "caffe-cifar-10",
     "chess-best-move",
-    "circuit-fibsqrt",
-    "configure-git-webserver",
-    "count-dataset-tokens",
-    "custom-memory-heap-crash",
-    "dna-insert"
+    "circuit-fibsqrt"
   ],
-  "stateHash": "512f10b75af375ffde9a461c240d0fde3626b693400c07812058abfc00b5aa6e",
+  "stateHash": "10f4c37e65cb0cb22872c2ed1c6786b447f90c1dc45d1dde774dd48ce944fbad",
   "budget": {
     "usd": {
-      "spent": 23392,
+      "spent": 90712,
       "reserved": 0
     },
     "task-trials": {
-      "spent": 13,
+      "spent": 50,
       "reserved": 0
     },
     "proposer-tokens": {
-      "spent": 109580,
+      "spent": 457451,
       "reserved": 0
     },
     "proposal-calls": {
-      "spent": 1,
+      "spent": 4,
       "reserved": 0
     }
   }

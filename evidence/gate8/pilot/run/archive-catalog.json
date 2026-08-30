@@ -4,8 +4,101 @@
   "runId": "gate8-pilot",
   "entries": [
     {
-      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
-      "sourceHash": "sha256:f124537ea4ed88a7f9516f953c922219ba0902e58d66f6f851ab276038600f61",
+      "candidateId": "c_5sgdw7n54zpkoxf3nfqwhfunew",
+      "sourceHash": "sha256:ec8c3b7dbde65ea75cbb696163968d2597391f3133309522ddd8dc24d75ebf50",
+      "parentCandidateId": "c_jj2pultew2e2tosc7xwxfqduk6",
+      "proposalActionId": "prop-3",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "bn-fit-modify",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "build-pmars",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 3,
+      "totalSuccesses": 0,
+      "totalFailures": 3,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_6tl3ycquamuoedizwfhxnf5g4i",
+      "sourceHash": "sha256:f4d7bc0a140328e20d19b14f7697a6e20af2091f97f4014d69aaf492934298a2",
+      "parentCandidateId": "c_jj2pultew2e2tosc7xwxfqduk6",
+      "proposalActionId": "prop-3",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "build-pmars",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "circuit-fibsqrt",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 5,
+      "totalSuccesses": 0,
+      "totalFailures": 5,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_afuceyvo4alxxnk7e7a3vdrntb",
+      "sourceHash": "sha256:01682262aee0177bb55f27c1ba8e2d9866061e29cc7f171e2588449ada716b66",
+      "parentCandidateId": "c_6tl3ycquamuoedizwfhxnf5g4i",
+      "proposalActionId": "prop-4",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "circuit-fibsqrt",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 1,
+      "totalSuccesses": 0,
+      "totalFailures": 1,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_bi7tfxq6rk5sefcmuxmlckhkee",
+      "sourceHash": "sha256:0a3f32de1e8abb22144ca5d8b128ea212d4a3376bf7203d046470acf851012e5",
       "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
       "proposalActionId": "prop-1",
       "status": "admitted",
@@ -15,22 +108,40 @@
           "attempts": 1,
           "successes": 0,
           "failures": 1
+        },
+        {
+          "opaqueTaskId": "bn-fit-modify",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
         }
       ],
-      "totalAttempts": 1,
+      "totalAttempts": 4,
       "totalSuccesses": 0,
-      "totalFailures": 1,
+      "totalFailures": 4,
       "guardObservationsExcluded": 0
     },
     {
-      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
-      "sourceHash": "sha256:292f9a7546eccc72add06f9181a8ce92d3c840792e3f60bd775da49d3e2e61c1",
-      "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
-      "proposalActionId": "prop-1",
+      "candidateId": "c_dbee2aigie5psetcon7bhlabbk",
+      "sourceHash": "sha256:18484d0106413af91262737e13ac010aa8b62b864026a9d86c002062d9cb9589",
+      "parentCandidateId": "c_6tl3ycquamuoedizwfhxnf5g4i",
+      "proposalActionId": "prop-4",
       "status": "admitted",
       "tasks": [
         {
-          "opaqueTaskId": "chess-best-move",
+          "opaqueTaskId": "caffe-cifar-10",
           "attempts": 1,
           "successes": 0,
           "failures": 1
@@ -42,14 +153,14 @@
       "guardObservationsExcluded": 0
     },
     {
-      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
-      "sourceHash": "sha256:298866e5177bcc40abd74829256ead20605899497bfe5088b5e5b7a26cf894ba",
-      "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
-      "proposalActionId": "prop-1",
+      "candidateId": "c_hrxy5nyuayganrzngwr4d4uuoi",
+      "sourceHash": "sha256:3c6f8eb714060c06c72d35a3c1f29472249988ade69a2c088dee4137e3f7f48a",
+      "parentCandidateId": "c_6tl3ycquamuoedizwfhxnf5g4i",
+      "proposalActionId": "prop-4",
       "status": "admitted",
       "tasks": [
         {
-          "opaqueTaskId": "chess-best-move",
+          "opaqueTaskId": "bn-fit-modify",
           "attempts": 1,
           "successes": 0,
           "failures": 1
@@ -58,6 +169,141 @@
       "totalAttempts": 1,
       "totalSuccesses": 0,
       "totalFailures": 1,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_jgxzbew442td55cwx36nnhgpma",
+      "sourceHash": "sha256:49af9092dce6a63ef456befcd69ccf60084590dade9c3a6a3aaa10d9e679115d",
+      "parentCandidateId": "c_jj2pultew2e2tosc7xwxfqduk6",
+      "proposalActionId": "prop-3",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "bn-fit-modify",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "build-pmars",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "circuit-fibsqrt",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 6,
+      "totalSuccesses": 0,
+      "totalFailures": 6,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_jj2pultew2e2tosc7xwxfqduk6",
+      "sourceHash": "sha256:4a74fa2e64b689a9ba42fded72c074579d33301f247d3ebac91fb4a2274b493c",
+      "parentCandidateId": "c_y4yg4bbex7mvx56gq6x6e3perf",
+      "proposalActionId": "prop-2",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "bn-fit-modify",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 4,
+      "totalSuccesses": 0,
+      "totalFailures": 4,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_ryi73i7fthrii775rh7uquqzfq",
+      "sourceHash": "sha256:8e11fda3e599e2847ffd89ff4852192c1c1a67e5d36410fde5aa6206f03c6fa4",
+      "parentCandidateId": "c_y4yg4bbex7mvx56gq6x6e3perf",
+      "proposalActionId": "prop-2",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "bn-fit-modify",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "build-pmars",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "circuit-fibsqrt",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 6,
+      "totalSuccesses": 0,
+      "totalFailures": 6,
       "guardObservationsExcluded": 0
     },
     {
@@ -102,37 +348,130 @@
           "attempts": 1,
           "successes": 0,
           "failures": 1
-        },
+        }
+      ],
+      "totalAttempts": 6,
+      "totalSuccesses": 0,
+      "totalFailures": 6,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_woigeva3memwr3l3b34jxsjykr",
+      "sourceHash": "sha256:b39062541b611968ed7b0ef89bc938546c0504ed12b11b87b2e8961b52c09d3e",
+      "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "proposalActionId": "prop-1",
+      "status": "admitted",
+      "tasks": [
         {
-          "opaqueTaskId": "configure-git-webserver",
+          "opaqueTaskId": "bn-fit-modify",
           "attempts": 1,
           "successes": 0,
           "failures": 1
         },
         {
-          "opaqueTaskId": "count-dataset-tokens",
+          "opaqueTaskId": "build-pmars",
           "attempts": 1,
           "successes": 0,
           "failures": 1
         },
         {
-          "opaqueTaskId": "custom-memory-heap-crash",
+          "opaqueTaskId": "caffe-cifar-10",
           "attempts": 1,
           "successes": 0,
           "failures": 1
         },
         {
-          "opaqueTaskId": "dna-insert",
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "circuit-fibsqrt",
           "attempts": 1,
           "successes": 0,
           "failures": 1
         }
       ],
-      "totalAttempts": 10,
+      "totalAttempts": 5,
       "totalSuccesses": 0,
-      "totalFailures": 10,
+      "totalFailures": 5,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_xoaa4rvx4a5zp5up7crn3qjlow",
+      "sourceHash": "sha256:bb800e46b7e03b97f68ff8a2ddc12b759ea2b5a9287de007940f55bbcaaa26c6",
+      "parentCandidateId": "c_y4yg4bbex7mvx56gq6x6e3perf",
+      "proposalActionId": "prop-2",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "build-pmars",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 3,
+      "totalSuccesses": 0,
+      "totalFailures": 3,
+      "guardObservationsExcluded": 0
+    },
+    {
+      "candidateId": "c_y4yg4bbex7mvx56gq6x6e3perf",
+      "sourceHash": "sha256:c7306e0424bfd95bf7c687afe26de48954ba99e6cca88b35330b87e53e14c716",
+      "parentCandidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
+      "proposalActionId": "prop-1",
+      "status": "admitted",
+      "tasks": [
+        {
+          "opaqueTaskId": "adaptive-rejection-sampler",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "bn-fit-modify",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "build-pmars",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "caffe-cifar-10",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        },
+        {
+          "opaqueTaskId": "chess-best-move",
+          "attempts": 1,
+          "successes": 0,
+          "failures": 1
+        }
+      ],
+      "totalAttempts": 5,
+      "totalSuccesses": 0,
+      "totalFailures": 5,
       "guardObservationsExcluded": 0
     }
   ],
-  "createdFromStateHash": "sha256:512f10b75af375ffde9a461c240d0fde3626b693400c07812058abfc00b5aa6e"
+  "createdFromStateHash": "sha256:10f4c37e65cb0cb22872c2ed1c6786b447f90c1dc45d1dde774dd48ce944fbad"
 }

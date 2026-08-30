@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/proposal/v1",
+  "parentSourceHash": "sha256:4a74fa2e64b689a9ba42fded72c074579d33301f247d3ebac91fb4a2274b493c",
+  "children": [
+    {
+      "childName": "verification-loop-enforcement",
+      "hypothesis": "Requiring a successful verification exit code and a freshly observed pass before any final message prevents reward-zero premature exits.",
+      "donorCandidates": [],
+      "evidenceRefs": [
+        "99865c7f46a73e27d55243b24feb2651dcc07bf8298c9ed5689bf2482ec8ec6e"
+      ],
+      "targetFailureModes": [
+        "reward-0-premature-exit"
+      ]
+    },
+    {
+      "childName": "no-op-execution-guard",
+      "hypothesis": "Requiring at least one observable workspace inspection and tool invocation before any final reply addresses reward-zero trials with no recorded agent execution.",
+      "donorCandidates": [],
+      "evidenceRefs": [
+        "ce3fefbeb563c9a89a70cee88065aefbf8ca581b3b5222f600b2c68eaf8428c7"
+      ],
+      "targetFailureModes": [
+        "reward-0-no-execution"
+      ]
+    },
+    {
+      "childName": "artifact-presence-gate",
+      "hypothesis": "Requiring the agent to confirm the expected output artifact exists on disk before final submission addresses reward-zero failures where no usable artifact was produced.",
+      "donorCandidates": [],
+      "evidenceRefs": [
+        "a5393a5dd8ff2d6a00775a0b5bf8becae60dce226ade63ae39d8838bd1e13502"
+      ],
+      "targetFailureModes": [
+        "reward-0-missing-artifact"
+      ]
+    }
+  ]
+}

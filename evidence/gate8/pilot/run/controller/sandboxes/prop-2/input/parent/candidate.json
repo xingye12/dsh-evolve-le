@@ -1,0 +1,49 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "The all-zero trials share a solve-mode prompt that omits an explicit task-execution directive; adding one forces the terminal-bench agent to perform rather than exit after identity framing.",
+    "evidenceRefs": [
+      "evidence://export/9a6175b8b8e40df6d3471ecd03f22c824d96a8e631e164c5b7c6f9e2d41a9964"
+    ],
+    "targetFailureModes": [
+      "reward-0-no-task-execution"
+    ],
+    "expectedBehaviorChange": "Solve-mode prompt now explicitly instructs execution of the assigned terminal-bench task before exit.",
+    "regressionRisks": [],
+    "touchedSurfaces": [
+      "system-prompt"
+    ]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [
+        {
+          "name": "candidate:identity",
+          "order": 100
+        }
+      ],
+      "propose": [
+        {
+          "name": "candidate:proposal-policy",
+          "order": 100
+        }
+      ]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

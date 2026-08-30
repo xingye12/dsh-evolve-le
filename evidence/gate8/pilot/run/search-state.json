@@ -1,7 +1,9 @@
 {
   "protocol": "dsh-evolve-le/search-state/v1",
   "protocolVersion": 1,
-  "expansionAttempts": 1,
+  "expansionAttempts": 4,
   "consecutiveExpansionFailures": 0,
-  "maxConsecutiveExpansionFailures": 3
+  "maxConsecutiveExpansionFailures": 3,
+  "rebuildRejections": [],
+  "abandonedIntents": []
 }

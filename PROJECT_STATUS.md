@@ -1,7 +1,7 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（377/377 测试 + specs/07 §10 pilot profile evidence：K=10 预注册 baseline 冻结 + 真实模型 proposal + 3 子代 cold-start，13 trials、23 392 µUSD、3763s，机器断言全绿；search/sealed/official profiles 未运行）；`NO_SEALED_RESULTS`**
-**更新时间：2026-08-30（Asia/Tokyo）**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`NO_SEALED_RESULTS`**
+**更新时间：2026-08-31（Asia/Tokyo）**
 
 ## Claim boundaries
 
@@ -47,51 +47,68 @@
   zen-compatible 路由经 TCB proxy 贯通 CLI/config/sandbox/controller，真实 deepseek-v4-flash
   在 uid+netns 沙箱内经 Unix socket 完成 1 次 proposal（13 turns、3 子代、28 816 µUSD），
   全部子代通过 trusted builder 重建。这只是**真实模型路由与协议成立的管线证明**，不是
-  benchmark profile：`specs/07` §10 的 pilot（K=10）/search（K=80）/sealed/official 四个
-  profile 均未运行。前代项目的通过记录不是本仓库的完成证据（见 2026-08-28 节）。
+  benchmark profile：`specs/07` §10 的 pilot（K=10）profile 已于 2026-08-31 重新记录
+  （首记录因 infra 伪装作废，见当日节）；search（K=80）/sealed/official 三个 profile
+  未运行。前代项目的通过记录不是本仓库的完成证据（见 2026-08-28 节）。
 
-## 2026-08-30 Gate 8 pilot profile recorded (K=10, real model, machine-verified)
+## 2026-08-31 Gate 8 pilot recorded — voided first recording, five-defect repair chain, 50/50 real-agent trials
 
-- **Profile 形状（`specs/07` §10、`specs/04` §4.2）**：`runId=gate8-pilot`，K=10 开发样本 =
-  frozen split ceremony 顺序的前 10 个 observed handle（由 seed commitment 预注册，
-  `discoveryBatchSize=maxDiscoveryTrials=10`，单批恰好跑完即冻结）。为此把 run-config
-  schema 的 `discoveryBatchSize` 上限从 6 放宽到 §4.1 硬上限 12（§4.1 的 6 是
-  stable-demo 默认值，§4.2 要求 K=10 profile 另行冻结自己的 baseline），并新增
-  `discoveryBatchSize ≤ maxDiscoveryTrials` 跨字段校验；两者均有契约测试（377/377）。
-- **Baseline 冻结**：10/10 全 FAIL → failure pool = 全部 10 个 handle，
-  `frozenFromObservations=10`，任何 proposal 之前冻结；机器断言 baseline 恰好跑了
-  预注册样本（每题 1 attempt）。
-- **真实模型 proposal（1 次扩张）**：live `deepseek-v4-flash` 经 TCB proxy（routeHash
-  `892fad67…` 与 smoke 一致）6 条 receipt 全部 ok 且绑定 routeHash，transcript 锚定到
-  receipt 链；usage 52 067 prompt + 57 513 completion tokens = 23 392 µUSD（~$0.023，
-  API 上报 × 冻结单价，权威结算恰好一次）。3 个子代全部过 scanner+manifest+diff/canary/
-  dedup admission 并由 trusted builder 以 parentTreeDir 重建 admitted；每个子代在冻结
-  pool 上各完成 1 次 cold-start Harbor trial；子代引用 3/4/2 个 raw evidence object，
-  全部解析存在。
-- **终态**：`trials=13`（10 discovery + 3 cold-start）≤ cap 15，exactly-once（trial 目录 /
-  ledger 行 / 沙箱一一对应，二次 resume 字节不变），audit 全绿，status 命令从持久
-  evidence 重放出同一 stateHash/stopReason/status。sealed/guard 对 proposer/selector 不可见
-  （与 Gate 6 相同扫描面），凭据未出现在任何 run/job artifact。
-- **`STOPPED:K_REACHED`（depth 1）是测量结果，不是违规**：live proposer 单次扩张就
-  3/3 子代全部 admitted，loop 头部 `K 达到且无待补 cold-start` 即停 —— `lineageDepthMax=1`。
-  `STABLE_ITERATION_VERIFIED` 的 ≥2 层深度是 **Gate 6 stable-demo** 的验收定义，衡量的是
-  proposer 需要几次扩张，不是协议是否走完；pilot（specs/07 §10："tuning stability and
-  budgets"）的机器断言改为：K 达到 + 每个 admitted 子代都在冻结 pool 上 cold-start +
-  report 可从持久状态重放，depth 如实记录为测量值。
-- **Recorder 诚实记录**：首跑 recorder 有两个自身缺陷（变量名笔误导致 crash；把 Gate 6
-  标签误当 pilot 断言），泄漏扫描面也过宽（把按设计携带全部 89 个名字的 population
-  document `dataset-handles.json` 当泄漏面 —— Gate 6 本就排除它）。终态 PASS 由
-  `DSH_GATE8_PILOT_RUN_ROOT` verify-only 模式对**同一已完成 run root**复核得出（每条
-  检查照跑，wall-clock 由 controller journal 首/末事件重导出 3763s），
-  `pilot-run.json` 的 `verificationMode`/`notes` 如实记载 —— 这是复核同一份付费运行，
-  不是重跑。
-- **预算外推原始数据（specs/04 §12）**：整条 pilot 3763s（~63 min，13 trials ≈ 290s/trial
-  含 Harbor 容器开销）、proposer 成本 23 392 µUSD/次扩张、baseline 冻结 10 trials。
-  全程 usd spent 23 392 µUSD ≪ $500 预算。
-- **产物**：`evidence/gate8/pilot/{pilot-run.json,STATUS.json,run/,jobs/}`（`STATUS.json`
-  PASS、failedChecks 空）；`scripts/record-gate8-pilot.ts`（`pnpm evidence:gate8-pilot`）。
-- **边界**：pilot 只证明 K=10 开发样本上的 tuning 稳定性与预算量级，**不含** sealed
-  揭盲、search（K=80）/sealed/official profile 与任何性能声明；`NO_SEALED_RESULTS` 维持。
+- **旧记录作废（VOID）**：2026-08-30 首次记录的 pilot（13 trials、"10/10 baseline FAIL"）
+  是无效测量：capsule 入口 `exec node` 依赖 PATH 里的 node，而 TB task 镜像不带 node，
+  **全部 baseline trial 实为 `exec: node: not found` 的 infra 死亡，从未有 agent 运行**，
+  "10/10 FAIL" 把基础设施死亡伪装成了能力结果。当时的 recorder 没有 participation
+  分类，伪装未被拦截。作废依据：ADR-025 与 git 历史中的旧 evidence（本次 PASS 已替换）。
+- **修复链（attempts 5→9，每步先 ADR 后实现，旧 run root 一律保留为缺陷证据）**：
+  - ADR-025：capsule 自包含（pinned node runtime 随包分发，TB 镜像无 node）；
+    normalizer 引入 agent-participation 事实（`agent_result.metadata.acp.initialize`
+    非空 ⇔ agent 真实说过协议）与 infra 分类（never-initialized + 预登记 pre-launch
+    异常 → INFRA_RETRYABLE，按 rule 7 留在分母计 reward 0；agent 进程死亡 fail
+    gate）；trial cap 24→48。
+  - ADR-026：trusted builder 拒绝子代 = 逐 child 结果而非 run crash（specs/03 §7）；
+    crash-mid-rebuild 的 intent 结算与计数修复；**K 语义纠正**——specs/03 §2 的 K 恒指
+    admitted 子代数，首个 pilot 错把 K=10 解释成 10 个开发样本；cap 48→60（实测曲线
+    6 freeze + ≤12 q0 + ~2.8 pool/child ≈ 49）。
+  - ADR-027：harbor 双时钟域使 `agent_execution` 出现负增量 → 归一为 null（attempt 6
+    的 run root 被一条持久化非法 observation 砖死，不可重放）；`validatePayload` 前置
+    到 journal append 之前，malformed payload fail closed 而 run root 保持可重放。
+  - ADR-028：harbor 层预登记 infra retry（1 次、include-list 与 normalizer 的
+    INFRA_RETRYABLE_EXCEPTIONS 同源）+ `agent_setup_timeout_multiplier` 5（1800s；
+    实测 ubuntu:24.04 真基座 ACP bootstrap 隔离 ~383s、现场两次 >850s，360s/900s
+    两档均被 `AgentSetupTimeoutError` 击穿）+ driver 对 infra-dead discovery 立即
+    fail closed（attempt 7 曾把一个从未运行 agent 的 handle 冻进 pool，被
+    `baselineFreezeTrialsAllRanAgents` 拦下）；recorder 修复相对路径 bug（此前把
+    participation 全部误读为 unknown=42，掩盖真实 ran=33/never=9）且证据目录改为
+    仅 PASS 写入（verify-only 重跑不再能覆盖已提交证据）。
+- **本次记录（attempt 9，run root `dsh-gate8-pilot-DCJKdk`，configHash `d5a7982a…`）**：
+  `runId=gate8-pilot`，§4.1 首批 6 个 observed handle（seed commitment 预注册）全部
+  真实运行并 FAIL → failure pool 6 题在首个 batch 边界冻结（任何 proposal 之前）；
+  live `deepseek-v4-flash`（routeHash `892fad67…` 与 smoke 一致）**4 次扩张全部
+  receipt ok**（28 receipts、267k prompt + 190k completion tokens、90 712 µUSD 权威
+  结算恰好一次）；**12 个 admitted 子代**（第 4 次扩张使 K=10 达成，补齐全部 q0 后
+  `STOPPED:K_REACHED` 停机，depthMax 4、深度分布 1–4 层），0 rebuild 拒绝、
+  0 abandoned intent；**50 trials 全部 participation ran=50 / never-initialized=0 /
+  unknown=0**（此前五次尝试的 infra 伪装类彻底消失）；50 个 trial 目录 = 50 行
+  ledger = 50 个归属 capsule 归档，二次 resume 字节不变，audit 全绿，**37 条机器
+  断言全 true**；sealed/guard（29/12 handle）对 proposer/selector 不可见，凭据未
+  出现在任何 run/job artifact。
+- **预算外推原始数据（specs/04 §12，外推是设计输入不是已验证结论）**：整条 pilot
+  13 386s（~3.7 h；50 trials ≈ 268s/trial 含 Harbor 容器与 bootstrap 开销）；
+  proposer 90 712 µUSD / 4 次扩张（~22.7k µUSD/扩张、3 子代/扩张）→ K=80 外推
+  ~27 次扩张 ≈ **$0.6 金钱侧**、~302 trials ≈ **22.5 h 顺序时间侧**：$500/16h 验收
+  在金钱侧宽裕、时间侧需要 trial 并行化，这是 search profile 的已知设计输入。
+- **产物**：`evidence/gate8/pilot/{pilot-run.json,STATUS.json,EVIDENCE.md,run/,jobs/}`
+  （PASS、failedChecks 空、evidenceSha256 `0549bfb5…`）；`scripts/record-gate8-pilot.ts`
+  （`pnpm evidence:gate8-pilot`）。attempts 5–8 的 run root 保留在 scratch 作缺陷
+  证据（`84ayxu`=TRIAL_CAP 预算校准、`ilqc34`=poisoned journal、`Gyz9DL`=attempt 7
+  infra 冻结、`tHdvWP`=attempt 8 setup 击穿）。证据是**文档化子集**（ADR-029）：13 个
+  capsule tarball 因体积未入库（digest 已 pin 在 `capsules/*.json`，可由归档源码 +
+  pinned runtime 重建比对）；audit 的 `capsule-archives` 检查在 live run root 上
+  13/13 通过（PASS 当时），对子集直接重跑会报 archive missing，属子集语义非篡改。
+- **边界**：pilot 只证明 K=10 admitted 的 tuning 稳定性、infra 分类下 50/50 的
+  真实 agent 参与率、以及预算量级；failure pool 按协议选自 baseline 失败题
+  （选择偏差是设计），**不构成**该模型/harness 在 Terminal-Bench 上的任何性能
+  陈述；不含 sealed 揭盲与 search（K=80）/sealed/official profile；
+  `NO_SEALED_RESULTS` 维持。
 
 ## 2026-08-30 Gate 8 remote proposer route + real-model smoke
 

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "The baseline prompt's 'changes no tools and no protocol' framing is read as a permission boundary, suppressing harness-supplied task tools; explicitly authorizing tool use unblocks tool-dependent terminal-bench trials.",
+    "evidenceRefs": [
+      "evidence://export/a62d1cffa9c8de3ff2dd6470c211477f2b57fa102d998d9ac316c1c1995589a6"
+    ],
+    "targetFailureModes": [
+      "reward-0-tools-suppressed"
+    ],
+    "expectedBehaviorChange": "Solve-mode prompt now explicitly authorizes use of all harness-provided tools and files while scoping the no-change statement to the candidate plugin itself.",
+    "regressionRisks": [],
+    "touchedSurfaces": [
+      "system-prompt"
+    ]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [
+        {
+          "name": "candidate:identity",
+          "order": 100
+        }
+      ],
+      "propose": [
+        {
+          "name": "candidate:proposal-policy",
+          "order": 100
+        }
+      ]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

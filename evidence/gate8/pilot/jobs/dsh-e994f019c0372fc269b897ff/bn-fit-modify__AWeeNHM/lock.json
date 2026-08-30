@@ -1,0 +1,65 @@
+{
+    "schema_version": 2,
+    "task": {
+        "name": "bn-fit-modify",
+        "type": "local",
+        "digest": "sha256:b5f9644970c17ad9ddb46b7266f7bcd87c761d77d7e6f55d7cfe7284d5ff66e9",
+        "path": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/tasks/bn-fit-modify"
+    },
+    "install_only": false,
+    "timeout_multiplier": 1.0,
+    "agent_setup_timeout_multiplier": 5.0,
+    "agent": {
+        "name": "acp",
+        "skills": [],
+        "resume_trajectory": false,
+        "extra_allowed_hosts": [],
+        "kwargs": {
+            "registry_entry": {
+                "id": "dsh-evolve-le-capsule",
+                "name": "dsh-evolve-le-capsule",
+                "version": "ea8cc08a219ec055e6b5ea5f8fcdd39568e7582bab96f617e91e225f1773f851",
+                "description": "dsh-evolve-le candidate capsule: Cordis composition booted through the real Loader, serving ACP with a deterministic recorded-LLM replay. Builder-authored, content-addressed.",
+                "distribution": {
+                    "binary": {
+                        "linux-x86_64": {
+                            "archive": "https://172.17.0.1:8443/ea8cc08a219ec055e6b5ea5f8fcdd39568e7582bab96f617e91e225f1773f851.tar.gz",
+                            "cmd": "./dsh-evolve-le-acp",
+                            "args": [],
+                            "checksum": "ea8cc08a219ec055e6b5ea5f8fcdd39568e7582bab96f617e91e225f1773f851"
+                        }
+                    }
+                }
+            },
+            "permission_mode": "deny",
+            "auth_policy": "disabled"
+        },
+        "mcp_servers": []
+    },
+    "skills": [],
+    "environment": {
+        "type": "docker",
+        "force_build": false,
+        "delete": true,
+        "cpu_enforcement_policy": "auto",
+        "memory_enforcement_policy": "auto",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/runs/gate8-pilot/tls/ca-bundle.crt",
+                "target": "/opt/dsh-evolve-le/ca-bundle.crt",
+                "read_only": true
+            }
+        ],
+        "extra_docker_compose": [],
+        "env": {
+            "SSL_CERT_FILE": "/opt/dsh-evolve-le/ca-bundle.crt"
+        },
+        "kwargs": {},
+        "extra_allowed_hosts": []
+    },
+    "verifier": {
+        "disable": false,
+        "environment_mode": "shared"
+    }
+}

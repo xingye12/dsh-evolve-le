@@ -1,0 +1,36 @@
+{
+  "schema_version": "ATIF-v1.6",
+  "session_id": "a6feacc5-c3ef-4590-bea0-86a5b9b2e34b",
+  "agent": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "3ede0942cea7352d95585d512a5e63a45558c86fe99b9279f62590d20d9e2be4",
+    "extra": {
+      "auth_policy": "disabled",
+      "selected_authenticate_method_id": null,
+      "selected_distribution": "binary",
+      "source": null
+    }
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "The file chess_board.png has an image of a chess board. It is currently white to move. Write the best move for white to play to /app/move.txt in the form [src][dst], for example, e2e4 or h1h8. If there are multiple winning moves, print them all, one per line.\n"
+    },
+    {
+      "step_id": 2,
+      "source": "agent",
+      "message": "[dsh-evolve-le replay] no recorded response for prompt sha256:9dcdb8b7265c125ecc814c0034506ed2712a0f797e9ec24d4e23e56f992592e2 (workspace: /app); composed sections:[candidate:identity]\nYou are executing under self-evolving candidate c_ryi73i7fthrii775rh7uquqzfq in solve mode. Execute the assigned terminal-bench task now: read the task specification, inspect the workspace, use the provided tools and files, and produce the required artifact. Identify the concrete artifact the task verifier checks \u2014 its file path, contents and format \u2014 from the task specification, create exactly that artifact in the workspace, and verify its contents before finishing. Do not stop after acknowledging these instructions; finish only when the task checks pass.",
+      "extra": {
+        "session_update_counts": {
+          "agent_message_chunk": 2
+        },
+        "permissions_requested": 0
+      }
+    }
+  ],
+  "notes": "Converted from ACP session updates captured in acp-events.jsonl. Step boundaries are inferred best-effort from chunked ACP events.",
+  "final_metrics": {
+    "total_steps": 2
+  }
+}

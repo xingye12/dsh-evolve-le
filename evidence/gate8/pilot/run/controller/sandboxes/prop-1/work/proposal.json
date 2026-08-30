@@ -4,45 +4,36 @@
   "parentSourceHash": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
   "children": [
     {
-      "childName": "coding-failure-discipline",
-      "hypothesis": "Adding diagnose-first-error and incremental re-run guidance to the solve prompt reduces non-zero-exit implementation failures.",
+      "childName": "solve-task-execution-directive",
+      "hypothesis": "The all-zero trials share a solve-mode prompt that omits an explicit task-execution directive; adding one forces the terminal-bench agent to perform rather than exit after identity framing.",
       "donorCandidates": [],
       "evidenceRefs": [
-        "f9253c6cdd9a8f1b344681177f8e6b78d3d72afca65ffd4f20091f10f5aa00d6",
-        "279c34b3d29658b24aaaa43ab0eaacfe13c4d20beecb8153eb41f23bd244fb2d",
-        "6afd7e548da7fa56931ab71742d2e315f2890fb3cb29be8abd46d3a4b97b4a6e"
+        "9a6175b8b8e40df6d3471ecd03f22c824d96a8e631e164c5b7c6f9e2d41a9964"
       ],
       "targetFailureModes": [
-        "NonZeroAgentExitCodeError in coding-implementation tasks",
-        "release-only crashes masked in debug builds"
+        "reward-0-no-task-execution"
       ]
     },
     {
-      "childName": "source-build-methodology",
-      "hypothesis": "Advising the agent to prefer distro-package sources, read project build docs, and disable X/GPU features improves build-from-source task outcomes.",
+      "childName": "solve-tool-activation-permission",
+      "hypothesis": "The baseline prompt's 'changes no tools and no protocol' framing is read as a permission boundary, suppressing harness-supplied task tools; explicitly authorizing tool use unblocks tool-dependent terminal-bench trials.",
       "donorCandidates": [],
       "evidenceRefs": [
-        "e9871cb398bcc01f12fdd7b22724bfc198155d53cbbbc621cfdae4be0b23a518",
-        "8d53d971b47419be061355dcea484aa0e23698ec83cf27758cdcaa48735ca639"
+        "a62d1cffa9c8de3ff2dd6470c211477f2b57fa102d998d9ac316c1c1995589a6"
       ],
       "targetFailureModes": [
-        "NonZeroAgentExitCodeError building C/C++ projects from source",
-        "builds failing on missing X11 or GPU dependencies"
+        "reward-0-tools-suppressed"
       ]
     },
     {
-      "childName": "data-verification-discipline",
-      "hypothesis": "Prompting the agent to inspect dataset READMEs and schemas and validate exact output formats before exit reduces failures on data-analysis tasks.",
+      "childName": "solve-verify-loop",
+      "hypothesis": "The baseline solve prompt has no verify-and-retry loop, so the agent exits before the bench verifier observes success; instructing iteration until verification passes addresses terminal-bench reward failures.",
       "donorCandidates": [],
       "evidenceRefs": [
-        "2cc97141c8978c12376c5ea0206e69cc88a9182011429981beb8845d91b2baf0",
-        "861ada2ed9d8787ed4cfaa9c6a5a8a30605fa5445ac7274b81efa8d2bd3b470c",
-        "0de54ba64eedc671e818c9b1aad9b68c14a32d6589a3ee3ad1b7004009c322a1",
-        "fef07bb535ea84a62f1e79f98b7b5c3b9dcd5ff10464bc15fa78eb838be0cc62"
+        "80deb46bf0dcb8336912da59a706a00d5076d672ee6e02527c92cac0a376bcc0"
       ],
       "targetFailureModes": [
-        "NonZeroAgentExitCodeError in data-analysis tasks",
-        "output-format or schema misreads on dataset tasks"
+        "reward-0-early-exit-before-verification"
       ]
     }
   ]

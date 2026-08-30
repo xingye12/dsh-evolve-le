@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "protocol": "dsh-evolve-le/gate8-pilot/v1",
-  "generatedAt": "2026-08-29T20:12:46.773Z",
+  "generatedAt": "2026-08-30T20:13:17.428Z",
   "runId": "gate8-pilot",
   "masterSeed": "gate8-pilot-master-seed-1",
-  "configHash": "sha256:89656f3c6c9793c50d13e246459a74dbf3a424eca9b744c5b2d0e94122d1e3c6",
-  "verificationMode": "verify-only (DSH_GATE8_PILOT_RUN_ROOT over the completed run root)",
-  "configProfile": "stable-demo + zen-compatible proposer route + K=10 discovery",
+  "configHash": "sha256:d5a7982ab94a39ed4f4bbc4974f06f3853ca5b2d66ece048033157b26c221cda",
+  "verificationMode": "fresh run (init + doctor + run + verify)",
+  "configProfile": "stable-demo base + zen-compatible proposer route + Gate 8 pilot K=10 (admitted candidates; specs/03 §2, specs/07 §10)",
   "route": {
     "id": "deepseek/zen-compatible",
     "baseUrl": "http://one-api.wattman.cn:805/v1",
@@ -20,21 +20,31 @@
     "handles": 89
   },
   "preRegistration": {
-    "kDev": 10,
+    "kTarget": 10,
+    "discoveryBatch": 6,
+    "discoveryCap": 12,
+    "maxSolverTrials": 60,
     "sample": [
       "adaptive-rejection-sampler",
       "bn-fit-modify",
       "build-pmars",
       "caffe-cifar-10",
       "chess-best-move",
-      "circuit-fibsqrt",
-      "configure-git-webserver",
-      "count-dataset-tokens",
-      "custom-memory-heap-crash",
-      "dna-insert"
+      "circuit-fibsqrt"
     ],
-    "selectionRule": "first 10 observed handles in the frozen ceremony order",
+    "selectionRule": "specs/04 §4.1 protocol over the frozen ceremony order: first batch 6 observed handles, second batch 6 only if the first shows no failure, hard cap 12; specs/04 §4.2 requires this pilot to freeze its OWN baseline (stable-demo evidence may not be reused)",
     "seedCommitment": "288222f82c22cca3e9549bbdb145df6fb6dd023df97aeb29d6f7bc41937d2bf3"
+  },
+  "agentParticipation": {
+    "tally": {
+      "ran": 50,
+      "never": 0,
+      "unknown": 0
+    },
+    "neverInitializedTrials": [],
+    "preLaunchInfraDeaths": {},
+    "agentProcessDeaths": [],
+    "note": "harbor agent_result.metadata.acp.initialize non-null ⇔ the agent spoke the protocol. Per ADR-025 a never-initialized trial is disclosed infra (FAIL-in-denominator) only when its exception is a pre-launch phase class (e.g. AgentSetupTimeoutError); an agent-process death (NonZeroAgentExitCodeError — the original Gate 8 defect) fails the gate, and the baseline freeze must be all-ran."
   },
   "baselineFreeze": [
     {
@@ -42,70 +52,48 @@
       "attempts": 1,
       "successes": 0,
       "failures": 1,
-      "outcome": "FAIL"
+      "outcome": "FAIL",
+      "agentParticipation": "ran"
     },
     {
       "opaqueTaskId": "bn-fit-modify",
       "attempts": 1,
       "successes": 0,
       "failures": 1,
-      "outcome": "FAIL"
+      "outcome": "FAIL",
+      "agentParticipation": "ran"
     },
     {
       "opaqueTaskId": "build-pmars",
       "attempts": 1,
       "successes": 0,
       "failures": 1,
-      "outcome": "FAIL"
+      "outcome": "FAIL",
+      "agentParticipation": "ran"
     },
     {
       "opaqueTaskId": "caffe-cifar-10",
       "attempts": 1,
       "successes": 0,
       "failures": 1,
-      "outcome": "FAIL"
+      "outcome": "FAIL",
+      "agentParticipation": "ran"
     },
     {
       "opaqueTaskId": "chess-best-move",
       "attempts": 1,
       "successes": 0,
       "failures": 1,
-      "outcome": "FAIL"
+      "outcome": "FAIL",
+      "agentParticipation": "ran"
     },
     {
       "opaqueTaskId": "circuit-fibsqrt",
       "attempts": 1,
       "successes": 0,
       "failures": 1,
-      "outcome": "FAIL"
-    },
-    {
-      "opaqueTaskId": "configure-git-webserver",
-      "attempts": 1,
-      "successes": 0,
-      "failures": 1,
-      "outcome": "FAIL"
-    },
-    {
-      "opaqueTaskId": "count-dataset-tokens",
-      "attempts": 1,
-      "successes": 0,
-      "failures": 1,
-      "outcome": "FAIL"
-    },
-    {
-      "opaqueTaskId": "custom-memory-heap-crash",
-      "attempts": 1,
-      "successes": 0,
-      "failures": 1,
-      "outcome": "FAIL"
-    },
-    {
-      "opaqueTaskId": "dna-insert",
-      "attempts": 1,
-      "successes": 0,
-      "failures": 1,
-      "outcome": "FAIL"
+      "outcome": "FAIL",
+      "agentParticipation": "ran"
     }
   ],
   "failurePool": [
@@ -114,167 +102,373 @@
     "build-pmars",
     "caffe-cifar-10",
     "chess-best-move",
-    "circuit-fibsqrt",
-    "configure-git-webserver",
-    "count-dataset-tokens",
-    "custom-memory-heap-crash",
-    "dna-insert"
+    "circuit-fibsqrt"
   ],
   "report": {
     "runId": "gate8-pilot",
     "phase": "SEARCHING",
     "stopReason": "K_REACHED",
-    "status": "STOPPED:K_REACHED",
-    "trials": 13,
-    "discoveryTrials": 10,
-    "admittedNonBaseline": 3,
-    "lineageDepthMax": 1,
-    "expansionAttempts": 1,
+    "status": "STABLE_ITERATION_VERIFIED",
+    "trials": 50,
+    "discoveryTrials": 6,
+    "admittedNonBaseline": 12,
+    "lineageDepthMax": 4,
+    "expansionAttempts": 4,
     "consecutiveExpansionFailures": 0,
+    "rebuildRejections": [],
+    "abandonedIntents": [],
     "failurePool": [
       "adaptive-rejection-sampler",
       "bn-fit-modify",
       "build-pmars",
       "caffe-cifar-10",
       "chess-best-move",
-      "circuit-fibsqrt",
-      "configure-git-webserver",
-      "count-dataset-tokens",
-      "custom-memory-heap-crash",
-      "dna-insert"
+      "circuit-fibsqrt"
     ],
-    "stateHash": "512f10b75af375ffde9a461c240d0fde3626b693400c07812058abfc00b5aa6e",
+    "stateHash": "10f4c37e65cb0cb22872c2ed1c6786b447f90c1dc45d1dde774dd48ce944fbad",
     "budget": {
       "usd": {
-        "spent": 23392,
+        "spent": 90712,
         "reserved": 0
       },
       "task-trials": {
-        "spent": 13,
+        "spent": 50,
         "reserved": 0
       },
       "proposer-tokens": {
-        "spent": 109580,
+        "spent": 457451,
         "reserved": 0
       },
       "proposal-calls": {
-        "spent": 1,
+        "spent": 4,
         "reserved": 0
       }
     }
   },
-  "runSeconds": 3763,
+  "runSeconds": 13386,
   "proposals": [
     {
       "actionId": "prop-1",
       "modelKind": "remote",
       "routeHash": "892fad67d823bd42a1754a4b9e8e71474d48924c8b7023fb73e66b45181eb5e7",
+      "receipts": 7,
+      "allOk": true,
+      "promptTokens": 40979,
+      "completionTokens": 71111,
+      "costUsdMicros": 25649
+    },
+    {
+      "actionId": "prop-2",
+      "modelKind": "remote",
+      "routeHash": "892fad67d823bd42a1754a4b9e8e71474d48924c8b7023fb73e66b45181eb5e7",
       "receipts": 6,
       "allOk": true,
-      "promptTokens": 52067,
-      "completionTokens": 57513,
-      "costUsdMicros": 23392
+      "promptTokens": 34361,
+      "completionTokens": 21072,
+      "costUsdMicros": 10709
+    },
+    {
+      "actionId": "prop-3",
+      "modelKind": "remote",
+      "routeHash": "892fad67d823bd42a1754a4b9e8e71474d48924c8b7023fb73e66b45181eb5e7",
+      "receipts": 8,
+      "allOk": true,
+      "promptTokens": 96619,
+      "completionTokens": 64746,
+      "costUsdMicros": 31655
+    },
+    {
+      "actionId": "prop-4",
+      "modelKind": "remote",
+      "routeHash": "892fad67d823bd42a1754a4b9e8e71474d48924c8b7023fb73e66b45181eb5e7",
+      "receipts": 7,
+      "allOk": true,
+      "promptTokens": 95003,
+      "completionTokens": 33560,
+      "costUsdMicros": 22699
     }
   ],
-  "proposerCostUsdMicros": 23392,
-  "perTrialSeconds": 289,
+  "proposerCostUsdMicros": 90712,
+  "perTrialSeconds": 268,
   "lineage": {
-    "depthMax": 1,
+    "depthMax": 4,
     "childDepths": [
+      3,
+      3,
+      4,
       1,
+      4,
+      4,
+      3,
+      2,
+      2,
       1,
+      2,
       1
     ]
   },
   "poolCoverage": [
     {
-      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
+      "candidateId": "c_5sgdw7n54zpkoxf3nfqwhfunew",
+      "poolTrials": 3
+    },
+    {
+      "candidateId": "c_6tl3ycquamuoedizwfhxnf5g4i",
+      "poolTrials": 5
+    },
+    {
+      "candidateId": "c_afuceyvo4alxxnk7e7a3vdrntb",
       "poolTrials": 1
     },
     {
-      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
+      "candidateId": "c_bi7tfxq6rk5sefcmuxmlckhkee",
+      "poolTrials": 4
+    },
+    {
+      "candidateId": "c_dbee2aigie5psetcon7bhlabbk",
       "poolTrials": 1
     },
     {
-      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
+      "candidateId": "c_hrxy5nyuayganrzngwr4d4uuoi",
       "poolTrials": 1
+    },
+    {
+      "candidateId": "c_jgxzbew442td55cwx36nnhgpma",
+      "poolTrials": 6
+    },
+    {
+      "candidateId": "c_jj2pultew2e2tosc7xwxfqduk6",
+      "poolTrials": 4
+    },
+    {
+      "candidateId": "c_ryi73i7fthrii775rh7uquqzfq",
+      "poolTrials": 6
+    },
+    {
+      "candidateId": "c_woigeva3memwr3l3b34jxsjykr",
+      "poolTrials": 5
+    },
+    {
+      "candidateId": "c_xoaa4rvx4a5zp5up7crn3qjlow",
+      "poolTrials": 3
+    },
+    {
+      "candidateId": "c_y4yg4bbex7mvx56gq6x6e3perf",
+      "poolTrials": 5
     }
   ],
   "capsules": [
     {
       "protocol": "dsh-evolve-le/iteration/v1",
-      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
-      "sourceDigest": "sha256:f124537ea4ed88a7f9516f953c922219ba0902e58d66f6f851ab276038600f61",
-      "archiveSha256": "517f11598641bad04729f0a1ece6bab7c86491994d038d782bcb6abde581aab7",
-      "capsuleDir": "capsules/c_6esfg7ve5wekp6krn6ktzercdg/capsule",
-      "stagedSourceDir": "capsules/c_6esfg7ve5wekp6krn6ktzercdg/src",
-      "archivePath": "capsules/517f11598641bad04729f0a1ece6bab7c86491994d038d782bcb6abde581aab7.tar.gz"
+      "candidateId": "c_5sgdw7n54zpkoxf3nfqwhfunew",
+      "sourceDigest": "sha256:ec8c3b7dbde65ea75cbb696163968d2597391f3133309522ddd8dc24d75ebf50",
+      "archiveSha256": "facf744e2fd62df5ae3f5a462684871375bb15c21e9263fda37d4f35c681fe41",
+      "capsuleDir": "capsules/c_5sgdw7n54zpkoxf3nfqwhfunew/capsule",
+      "stagedSourceDir": "capsules/c_5sgdw7n54zpkoxf3nfqwhfunew/src",
+      "archivePath": "capsules/facf744e2fd62df5ae3f5a462684871375bb15c21e9263fda37d4f35c681fe41.tar.gz"
     },
     {
       "protocol": "dsh-evolve-le/iteration/v1",
-      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
-      "sourceDigest": "sha256:292f9a7546eccc72add06f9181a8ce92d3c840792e3f60bd775da49d3e2e61c1",
-      "archiveSha256": "fc1c67fdedd325370a85bfed1bfb764eed9c6cdaec395fc4469a9fa18dac931d",
-      "capsuleDir": "capsules/c_fexzu5kg5tghfloqn6iydkgosl/capsule",
-      "stagedSourceDir": "capsules/c_fexzu5kg5tghfloqn6iydkgosl/src",
-      "archivePath": "capsules/fc1c67fdedd325370a85bfed1bfb764eed9c6cdaec395fc4469a9fa18dac931d.tar.gz"
+      "candidateId": "c_6tl3ycquamuoedizwfhxnf5g4i",
+      "sourceDigest": "sha256:f4d7bc0a140328e20d19b14f7697a6e20af2091f97f4014d69aaf492934298a2",
+      "archiveSha256": "ac52b96fe3d6d3bf91990fb9e23ab64c899f319ec0629a1addd950f2f1515046",
+      "capsuleDir": "capsules/c_6tl3ycquamuoedizwfhxnf5g4i/capsule",
+      "stagedSourceDir": "capsules/c_6tl3ycquamuoedizwfhxnf5g4i/src",
+      "archivePath": "capsules/ac52b96fe3d6d3bf91990fb9e23ab64c899f319ec0629a1addd950f2f1515046.tar.gz"
     },
     {
       "protocol": "dsh-evolve-le/iteration/v1",
-      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
-      "sourceDigest": "sha256:298866e5177bcc40abd74829256ead20605899497bfe5088b5e5b7a26cf894ba",
-      "archiveSha256": "4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69",
-      "capsuleDir": "capsules/c_fgegnzixppgebk6xjausk3vneb/capsule",
-      "stagedSourceDir": "capsules/c_fgegnzixppgebk6xjausk3vneb/src",
-      "archivePath": "capsules/4f25d4051197fcc7a79e0aa1b8c1607f69021db7fd6b26d4ae4b92c2e4bf3e69.tar.gz"
+      "candidateId": "c_afuceyvo4alxxnk7e7a3vdrntb",
+      "sourceDigest": "sha256:01682262aee0177bb55f27c1ba8e2d9866061e29cc7f171e2588449ada716b66",
+      "archiveSha256": "d75ed8845abde05d35b219f7186b3749504c44a7cb46fcdf6e34a1097fc33cc5",
+      "capsuleDir": "capsules/c_afuceyvo4alxxnk7e7a3vdrntb/capsule",
+      "stagedSourceDir": "capsules/c_afuceyvo4alxxnk7e7a3vdrntb/src",
+      "archivePath": "capsules/d75ed8845abde05d35b219f7186b3749504c44a7cb46fcdf6e34a1097fc33cc5.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_bi7tfxq6rk5sefcmuxmlckhkee",
+      "sourceDigest": "sha256:0a3f32de1e8abb22144ca5d8b128ea212d4a3376bf7203d046470acf851012e5",
+      "archiveSha256": "fc96f03f48f0c99303ab68b69b2cbccd1cebec41824ae939a70ccdd188cffd24",
+      "capsuleDir": "capsules/c_bi7tfxq6rk5sefcmuxmlckhkee/capsule",
+      "stagedSourceDir": "capsules/c_bi7tfxq6rk5sefcmuxmlckhkee/src",
+      "archivePath": "capsules/fc96f03f48f0c99303ab68b69b2cbccd1cebec41824ae939a70ccdd188cffd24.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_dbee2aigie5psetcon7bhlabbk",
+      "sourceDigest": "sha256:18484d0106413af91262737e13ac010aa8b62b864026a9d86c002062d9cb9589",
+      "archiveSha256": "35974104df8e3404b0a7d5c7bf8d18aff309c050dda76473afc343175284dd33",
+      "capsuleDir": "capsules/c_dbee2aigie5psetcon7bhlabbk/capsule",
+      "stagedSourceDir": "capsules/c_dbee2aigie5psetcon7bhlabbk/src",
+      "archivePath": "capsules/35974104df8e3404b0a7d5c7bf8d18aff309c050dda76473afc343175284dd33.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_hrxy5nyuayganrzngwr4d4uuoi",
+      "sourceDigest": "sha256:3c6f8eb714060c06c72d35a3c1f29472249988ade69a2c088dee4137e3f7f48a",
+      "archiveSha256": "21938f7064e5062f87d1c9450d463bf22e6285c5e707ff794fdadb5c525cd827",
+      "capsuleDir": "capsules/c_hrxy5nyuayganrzngwr4d4uuoi/capsule",
+      "stagedSourceDir": "capsules/c_hrxy5nyuayganrzngwr4d4uuoi/src",
+      "archivePath": "capsules/21938f7064e5062f87d1c9450d463bf22e6285c5e707ff794fdadb5c525cd827.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_jgxzbew442td55cwx36nnhgpma",
+      "sourceDigest": "sha256:49af9092dce6a63ef456befcd69ccf60084590dade9c3a6a3aaa10d9e679115d",
+      "archiveSha256": "5c06149cde7ec53916ec8b46bfe133bcdab4cdf81e7a191cee0e3acf6a528f7a",
+      "capsuleDir": "capsules/c_jgxzbew442td55cwx36nnhgpma/capsule",
+      "stagedSourceDir": "capsules/c_jgxzbew442td55cwx36nnhgpma/src",
+      "archivePath": "capsules/5c06149cde7ec53916ec8b46bfe133bcdab4cdf81e7a191cee0e3acf6a528f7a.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_jj2pultew2e2tosc7xwxfqduk6",
+      "sourceDigest": "sha256:4a74fa2e64b689a9ba42fded72c074579d33301f247d3ebac91fb4a2274b493c",
+      "archiveSha256": "3f037396f15d2097db949f930302475ac8e703c7a6af31b073244fb6d57e11cf",
+      "capsuleDir": "capsules/c_jj2pultew2e2tosc7xwxfqduk6/capsule",
+      "stagedSourceDir": "capsules/c_jj2pultew2e2tosc7xwxfqduk6/src",
+      "archivePath": "capsules/3f037396f15d2097db949f930302475ac8e703c7a6af31b073244fb6d57e11cf.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_ryi73i7fthrii775rh7uquqzfq",
+      "sourceDigest": "sha256:8e11fda3e599e2847ffd89ff4852192c1c1a67e5d36410fde5aa6206f03c6fa4",
+      "archiveSha256": "3ede0942cea7352d95585d512a5e63a45558c86fe99b9279f62590d20d9e2be4",
+      "capsuleDir": "capsules/c_ryi73i7fthrii775rh7uquqzfq/capsule",
+      "stagedSourceDir": "capsules/c_ryi73i7fthrii775rh7uquqzfq/src",
+      "archivePath": "capsules/3ede0942cea7352d95585d512a5e63a45558c86fe99b9279f62590d20d9e2be4.tar.gz"
     },
     {
       "protocol": "dsh-evolve-le/iteration/v1",
       "candidateId": "c_u5py7hl4lksgqs6n2ipgw5aaei",
       "sourceDigest": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
-      "archiveSha256": "543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39",
+      "archiveSha256": "4c097dcd30eb2d147a22228085652903dcfcdb10b1efaf2aacbfa89070256c8d",
       "capsuleDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/capsule",
       "stagedSourceDir": "capsules/c_u5py7hl4lksgqs6n2ipgw5aaei/src",
-      "archivePath": "capsules/543649851bca8ccc1485ae0d2c84ae01f71fac9634a322173d1c5ea82d8c1a39.tar.gz"
+      "archivePath": "capsules/4c097dcd30eb2d147a22228085652903dcfcdb10b1efaf2aacbfa89070256c8d.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_woigeva3memwr3l3b34jxsjykr",
+      "sourceDigest": "sha256:b39062541b611968ed7b0ef89bc938546c0504ed12b11b87b2e8961b52c09d3e",
+      "archiveSha256": "ea8cc08a219ec055e6b5ea5f8fcdd39568e7582bab96f617e91e225f1773f851",
+      "capsuleDir": "capsules/c_woigeva3memwr3l3b34jxsjykr/capsule",
+      "stagedSourceDir": "capsules/c_woigeva3memwr3l3b34jxsjykr/src",
+      "archivePath": "capsules/ea8cc08a219ec055e6b5ea5f8fcdd39568e7582bab96f617e91e225f1773f851.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_xoaa4rvx4a5zp5up7crn3qjlow",
+      "sourceDigest": "sha256:bb800e46b7e03b97f68ff8a2ddc12b759ea2b5a9287de007940f55bbcaaa26c6",
+      "archiveSha256": "8b13a21c40e6e2dd66aa52d7e896b7f036e811a4d70dc236712af608167e21be",
+      "capsuleDir": "capsules/c_xoaa4rvx4a5zp5up7crn3qjlow/capsule",
+      "stagedSourceDir": "capsules/c_xoaa4rvx4a5zp5up7crn3qjlow/src",
+      "archivePath": "capsules/8b13a21c40e6e2dd66aa52d7e896b7f036e811a4d70dc236712af608167e21be.tar.gz"
+    },
+    {
+      "protocol": "dsh-evolve-le/iteration/v1",
+      "candidateId": "c_y4yg4bbex7mvx56gq6x6e3perf",
+      "sourceDigest": "sha256:c7306e0424bfd95bf7c687afe26de48954ba99e6cca88b35330b87e53e14c716",
+      "archiveSha256": "12a51a46fb734059d5011d7104952a06a1d7bd41ddc0e13c3fcf3f4b3a103917",
+      "capsuleDir": "capsules/c_y4yg4bbex7mvx56gq6x6e3perf/capsule",
+      "stagedSourceDir": "capsules/c_y4yg4bbex7mvx56gq6x6e3perf/src",
+      "archivePath": "capsules/12a51a46fb734059d5011d7104952a06a1d7bd41ddc0e13c3fcf3f4b3a103917.tar.gz"
     }
   ],
-  "harborTrialDirs": 13,
-  "attributedTrials": 13,
-  "ledgerLines": 13,
+  "harborTrialDirs": 50,
+  "attributedTrials": 50,
+  "ledgerLines": 50,
   "evidenceCitations": [
     {
-      "candidateId": "c_6esfg7ve5wekp6krn6ktzercdg",
-      "refs": 3,
-      "verified": 3
+      "candidateId": "c_5sgdw7n54zpkoxf3nfqwhfunew",
+      "refs": 1,
+      "verified": 1
     },
     {
-      "candidateId": "c_fexzu5kg5tghfloqn6iydkgosl",
-      "refs": 4,
-      "verified": 4
+      "candidateId": "c_6tl3ycquamuoedizwfhxnf5g4i",
+      "refs": 1,
+      "verified": 1
     },
     {
-      "candidateId": "c_fgegnzixppgebk6xjausk3vneb",
+      "candidateId": "c_afuceyvo4alxxnk7e7a3vdrntb",
       "refs": 2,
       "verified": 2
+    },
+    {
+      "candidateId": "c_bi7tfxq6rk5sefcmuxmlckhkee",
+      "refs": 1,
+      "verified": 1
+    },
+    {
+      "candidateId": "c_dbee2aigie5psetcon7bhlabbk",
+      "refs": 2,
+      "verified": 2
+    },
+    {
+      "candidateId": "c_hrxy5nyuayganrzngwr4d4uuoi",
+      "refs": 2,
+      "verified": 2
+    },
+    {
+      "candidateId": "c_jgxzbew442td55cwx36nnhgpma",
+      "refs": 1,
+      "verified": 1
+    },
+    {
+      "candidateId": "c_jj2pultew2e2tosc7xwxfqduk6",
+      "refs": 1,
+      "verified": 1
+    },
+    {
+      "candidateId": "c_ryi73i7fthrii775rh7uquqzfq",
+      "refs": 1,
+      "verified": 1
+    },
+    {
+      "candidateId": "c_woigeva3memwr3l3b34jxsjykr",
+      "refs": 1,
+      "verified": 1
+    },
+    {
+      "candidateId": "c_xoaa4rvx4a5zp5up7crn3qjlow",
+      "refs": 1,
+      "verified": 1
+    },
+    {
+      "candidateId": "c_y4yg4bbex7mvx56gq6x6e3perf",
+      "refs": 1,
+      "verified": 1
     }
   ],
   "sealedCount": 29,
   "guardCount": 12,
   "flags": {
+    "initFrozeConfigAndHandles": true,
     "configFrozeTheRealModelRoute": true,
     "configIsK10PilotShape": true,
     "doctorAllGreen": true,
+    "runExitZero": true,
     "stopReasonKReached": true,
-    "discoveryWasExactlyTheK10Sample": true,
+    "discoveryHonoredThePreRegisteredProtocol": true,
+    "noAgentProcessDeath": true,
     "ceremonyRe_derivesFromSeedAndDataset": true,
     "baselineRanExactlyThePreRegisteredSample": true,
-    "failurePoolFrozenFromTheK10BaselineOnly": true,
+    "failurePoolFrozenFromThePilotsOwnBaselineOnly": true,
+    "baselineFreezeTrialsAllRanAgents": true,
     "oneSandboxPerExpansion": true,
     "sandbox_prop-1_remote_route_frozen": true,
     "sandbox_prop-1_receipt_chain_verifies": true,
+    "sandbox_prop-2_remote_route_frozen": true,
+    "sandbox_prop-2_receipt_chain_verifies": true,
+    "sandbox_prop-3_remote_route_frozen": true,
+    "sandbox_prop-3_receipt_chain_verifies": true,
+    "sandbox_prop-4_remote_route_frozen": true,
+    "sandbox_prop-4_receipt_chain_verifies": true,
     "realModelDroveEveryExpansion": true,
     "budgetCoversTheAuthoritativeProposerCost": true,
-    "threeUniqueChildrenAdmitted": true,
+    "expansionAccountingDisjoint": true,
+    "admittedChildrenMeetK": true,
     "everyChildColdStartedFromFrozenPool": true,
     "childrenCiteHistoricalRawEvidence": true,
     "oneHarborTrialDirPerCommittedTrial": true,
@@ -288,10 +482,6 @@
     "credentialNeverOnDisk": true,
     "budgetAccountingExact": true
   },
-  "notes": [
-    "verify-only pass over the completed run root /tmp/dsh-gate8-pilot-EBb9TZ/runs/gate8-pilot",
-    "wall-clock re-derived from the controller journal (164 events): 3763s",
-    "lineageDepthMax=1: the live proposer admitted all K=3 children from a single expansion, so K was reached at depth 1 and the driver honestly reported STOPPED:K_REACHED; the ≥2-depth bar belongs to the Gate 6 stable-demo profile"
-  ],
-  "claimBoundary": "pilot profile only: tuning stability and budget actuals on a K=10 development sample; no sealed unblinding, no search/sealed/official profile, no performance claim"
+  "notes": [],
+  "claimBoundary": "pilot profile only: tuning stability and budget actuals for K=10 ADMITTED candidates (specs/03 §2) on the pilot's own §4.2 baseline freeze; no sealed unblinding, no search/sealed/official profile, no performance claim"
 }

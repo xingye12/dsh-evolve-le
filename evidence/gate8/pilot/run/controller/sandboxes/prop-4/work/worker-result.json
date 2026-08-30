@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "uid": 65534,
+  "dacProbes": [
+    {
+      "path": "prop-4/controller-private/credentials.json",
+      "outcome": "EACCES"
+    },
+    {
+      "path": "prop-4-sibling/sealed/canary.json",
+      "outcome": "EACCES"
+    }
+  ],
+  "boot": {
+    "capturedSections": [
+      {
+        "name": "candidate:proposal-policy",
+        "order": 100,
+        "text": "You are executing under self-evolving candidate c_6tl3ycquamuoedizwfhxnf5g4i in propose mode. Produce one proposal manifest describing a minimal, testable change; do not modify runtime behavior in this mode."
+      }
+    ],
+    "declaredMatch": true,
+    "quiescent": true,
+    "drift": {}
+  },
+  "turns": 7,
+  "usage": {
+    "requests": 7,
+    "promptTokens": 67116,
+    "completionTokens": 8960,
+    "totalTokens": 76076,
+    "costUsdMicros": 335748
+  },
+  "proposal": {
+    "schemaVersion": 1,
+    "protocol": "dsh-evolve-le/proposal/v1",
+    "parentSourceHash": "sha256:f4d7bc0a140328e20d19b14f7697a6e20af2091f97f4014d69aaf492934298a2",
+    "children": [
+      {
+        "childName": "no-op-execution-gate-v2",
+        "hypothesis": "Strengthening the pre-final execution gate to require two distinct observed tool results closes reward-zero trials whose agentExecutionMs is null.",
+        "donorCandidates": [],
+        "evidenceRefs": [
+          "b4e13feaccd4687eae86871d696a82fd7452350421595301402412a705ac76f0",
+          "8fbb68cb236ee9d5b2606662ab15cbbcc7354f7227bafccd3c35af3db3f3d6f8"
+        ],
+        "targetFailureModes": [
+          "reward-0-no-execution"
+        ]
+      },
+      {
+        "childName": "iterative-check-gate",
+        "hypothesis": "Banding final submission behind an iterate-until-checks-pass loop prevents reward-zero trials where the agent finalizes after a single short tool call.",
+        "donorCandidates": [],
+        "evidenceRefs": [
+          "fa68fe4454ec8219c289d88390212d99f9e75d1aa9ed3059fc2f69005b96d22e",
+          "d6cd2628faecc8425a936ace08005ce7c6e77604ff0df860a8dd5adbee1973b4"
+        ],
+        "targetFailureModes": [
+          "reward-0-premature-final"
+        ]
+      },
+      {
+        "childName": "verifier-result-loop",
+        "hypothesis": "Requiring the agent to run and observe the task's own verifier before submission addresses reward-zero trials returning a wrong artifact.",
+        "donorCandidates": [],
+        "evidenceRefs": [
+          "a62d1cffa9c8de3ff2dd6470c211477f2b57fa102d998d9ac316c1c1995589a6",
+          "5b9a088ab013262430357373991504cc613e537b99ef61292098bf204699db94"
+        ],
+        "targetFailureModes": [
+          "reward-0-wrong-artifact"
+        ]
+      }
+    ]
+  }
+}

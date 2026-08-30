@@ -1,0 +1,9 @@
+{
+  "protocol": "dsh-evolve-le/iteration/v1",
+  "candidateId": "c_xoaa4rvx4a5zp5up7crn3qjlow",
+  "sourceDigest": "sha256:bb800e46b7e03b97f68ff8a2ddc12b759ea2b5a9287de007940f55bbcaaa26c6",
+  "archiveSha256": "8b13a21c40e6e2dd66aa52d7e896b7f036e811a4d70dc236712af608167e21be",
+  "capsuleDir": "capsules/c_xoaa4rvx4a5zp5up7crn3qjlow/capsule",
+  "stagedSourceDir": "capsules/c_xoaa4rvx4a5zp5up7crn3qjlow/src",
+  "archivePath": "capsules/8b13a21c40e6e2dd66aa52d7e896b7f036e811a4d70dc236712af608167e21be.tar.gz"
+}

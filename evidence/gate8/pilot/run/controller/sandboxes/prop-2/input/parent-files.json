@@ -1,0 +1,8 @@
+[
+  "candidate.json",
+  "cordis.patch.yml",
+  "package.json",
+  "src/index.ts",
+  "tests/candidate.spec.ts",
+  "tsconfig.json"
+]

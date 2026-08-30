@@ -1,0 +1,39 @@
+{
+    "id": "6d11c1cb-3a54-495e-876d-8bc07fc0487a",
+    "started_at": "2026-08-31T04:02:48.939385",
+    "updated_at": "2026-08-31T04:06:51.265576",
+    "finished_at": "2026-08-31T04:06:51.265576",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "dsh-evolve-le-capsule__adhoc": {
+                "n_trials": 1,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "caffe-cifar-10__7gzNfd6"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}

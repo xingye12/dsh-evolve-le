@@ -1,0 +1,60 @@
+{
+    "job_name": "dsh-9757afa95e69b1b16d566561",
+    "jobs_dir": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/jobs",
+    "agent_setup_timeout_multiplier": 5.0,
+    "n_concurrent_trials": 1,
+    "quiet": true,
+    "retry": {
+        "max_retries": 1,
+        "include_exceptions": [
+            "SandboxBuildFailedError",
+            "EnvironmentStartTimeoutError",
+            "HealthcheckError",
+            "AgentSetupTimeoutError"
+        ]
+    },
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/runs/gate8-pilot/tls/ca-bundle.crt",
+                "target": "/opt/dsh-evolve-le/ca-bundle.crt",
+                "read_only": true
+            }
+        ],
+        "env": {
+            "SSL_CERT_FILE": "/opt/dsh-evolve-le/ca-bundle.crt"
+        }
+    },
+    "agents": [
+        {
+            "name": "acp",
+            "kwargs": {
+                "registry_entry": {
+                    "id": "dsh-evolve-le-capsule",
+                    "name": "dsh-evolve-le-capsule",
+                    "version": "5c06149cde7ec53916ec8b46bfe133bcdab4cdf81e7a191cee0e3acf6a528f7a",
+                    "description": "dsh-evolve-le candidate capsule: Cordis composition booted through the real Loader, serving ACP with a deterministic recorded-LLM replay. Builder-authored, content-addressed.",
+                    "distribution": {
+                        "binary": {
+                            "linux-x86_64": {
+                                "archive": "https://172.17.0.1:8443/5c06149cde7ec53916ec8b46bfe133bcdab4cdf81e7a191cee0e3acf6a528f7a.tar.gz",
+                                "cmd": "./dsh-evolve-le-acp",
+                                "args": [],
+                                "checksum": "5c06149cde7ec53916ec8b46bfe133bcdab4cdf81e7a191cee0e3acf6a528f7a"
+                            }
+                        }
+                    }
+                },
+                "permission_mode": "deny",
+                "auth_policy": "disabled"
+            }
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/tasks/circuit-fibsqrt"
+        }
+    ]
+}

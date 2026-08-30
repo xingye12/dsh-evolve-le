@@ -5,14 +5,14 @@
   "profile": "stable-demo",
   "masterSeed": "gate8-pilot-master-seed-1",
   "search": {
-    "kTarget": 3,
+    "kTarget": 10,
     "proposalWidth": 3,
     "coldStartTrials": 1,
     "ucbAirAlphaPerMille": 600,
     "shortlistSize": 2,
-    "maxSolverTrials": 15,
-    "maxDiscoveryTrials": 10,
-    "discoveryBatchSize": 10,
+    "maxSolverTrials": 60,
+    "maxDiscoveryTrials": 12,
+    "discoveryBatchSize": 6,
     "maxConsecutiveExpansionFailures": 3
   },
   "modelRoutes": [
@@ -40,12 +40,12 @@
   "proposerRoute": "deepseek/zen-compatible",
   "benchmark": {
     "provider": "terminal-bench-2-1",
-    "tasksRoot": "/tmp/dsh-gate8-pilot-EBb9TZ/tasks",
+    "tasksRoot": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/tasks",
     "baselineSourceDir": "/root/vibe/dsh/dsh-evolve-le/packages/candidate-baseline",
     "harbor": {
       "bin": "harbor",
       "version": "0.21.0",
-      "jobsRoot": "/tmp/dsh-gate8-pilot-EBb9TZ/jobs",
+      "jobsRoot": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/jobs",
       "concurrentTrials": 1
     },
     "artifactEndpoint": {
@@ -57,7 +57,7 @@
     "usd": 500000000,
     "proposerTokens": 20000000,
     "proposalCalls": 20,
-    "taskTrials": 15,
+    "taskTrials": 60,
     "wallClockMinutes": 960
   },
   "sealedAccess": false

@@ -1,0 +1,39 @@
+{
+    "id": "181d52cd-c556-43f1-b4e4-e981bef61b7f",
+    "started_at": "2026-08-31T01:19:42.237376",
+    "updated_at": "2026-08-31T01:22:25.648969",
+    "finished_at": "2026-08-31T01:22:25.648969",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "dsh-evolve-le-capsule__adhoc": {
+                "n_trials": 1,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "build-pmars__pn7hhKw"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}

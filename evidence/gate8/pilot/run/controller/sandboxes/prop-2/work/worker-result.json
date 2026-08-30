@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "uid": 65534,
+  "dacProbes": [
+    {
+      "path": "prop-2/controller-private/credentials.json",
+      "outcome": "EACCES"
+    },
+    {
+      "path": "prop-2-sibling/sealed/canary.json",
+      "outcome": "EACCES"
+    }
+  ],
+  "boot": {
+    "capturedSections": [
+      {
+        "name": "candidate:proposal-policy",
+        "order": 100,
+        "text": "You are executing under self-evolving candidate c_y4yg4bbex7mvx56gq6x6e3perf in propose mode. Produce one proposal manifest describing a minimal, testable change; do not modify runtime behavior in this mode."
+      }
+    ],
+    "declaredMatch": true,
+    "quiescent": true,
+    "drift": {}
+  },
+  "turns": 6,
+  "usage": {
+    "requests": 6,
+    "promptTokens": 25345,
+    "completionTokens": 7112,
+    "totalTokens": 32457,
+    "costUsdMicros": 182715
+  },
+  "proposal": {
+    "schemaVersion": 1,
+    "protocol": "dsh-evolve-le/proposal/v1",
+    "parentSourceHash": "sha256:c7306e0424bfd95bf7c687afe26de48954ba99e6cca88b35330b87e53e14c716",
+    "children": [
+      {
+        "childName": "terminal-first-directive",
+        "hypothesis": "Requiring at least one pre-flight shell command in solve mode forces the agent to engage the task workspace instead of terminating after identity framing.",
+        "donorCandidates": [],
+        "evidenceRefs": [
+          "99865c7f46a73e27d55243b24feb2651dcc07bf8298c9ed5689bf2482ec8ec6e"
+        ],
+        "targetFailureModes": [
+          "reward-0-no-terminal-interaction"
+        ]
+      },
+      {
+        "childName": "artifact-grounding-directive",
+        "hypothesis": "Grounding the solve prompt in the verifier's expected artifact path, contents and format makes the agent produce the checked deliverable rather than a generic reply.",
+        "donorCandidates": [],
+        "evidenceRefs": [
+          "a62d1cffa9c8de3ff2dd6470c211477f2b57fa102d998d9ac316c1c1995589a6"
+        ],
+        "targetFailureModes": [
+          "reward-0-artifact-not-produced"
+        ]
+      },
+      {
+        "childName": "verification-loop-directive",
+        "hypothesis": "Instructing the agent to rerun verification checks until they pass prevents premature exit after a single unverified attempt.",
+        "donorCandidates": [],
+        "evidenceRefs": [
+          "16a338255a23aa60412cc36a811a60115c3a345bce6c4aa6bccbe995b85ef879"
+        ],
+        "targetFailureModes": [
+          "reward-0-premature-exit"
+        ]
+      }
+    ]
+  }
+}

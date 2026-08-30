@@ -6,12 +6,8 @@
     "build-pmars",
     "caffe-cifar-10",
     "chess-best-move",
-    "circuit-fibsqrt",
-    "configure-git-webserver",
-    "count-dataset-tokens",
-    "custom-memory-heap-crash",
-    "dna-insert"
+    "circuit-fibsqrt"
   ],
-  "frozenFromObservations": 10,
-  "poolHash": "sha256:34461b6403e201517c176f33094c5cd52b7555a755347447c8c482ff44f10c70"
+  "frozenFromObservations": 6,
+  "poolHash": "sha256:ad983f0ed27eaac2a9669011f2cdff8602457b5e782908d24ecd8b242dc0588f"
 }

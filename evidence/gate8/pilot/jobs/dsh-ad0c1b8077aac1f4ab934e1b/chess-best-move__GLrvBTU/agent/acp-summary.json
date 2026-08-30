@@ -1,0 +1,47 @@
+{
+  "registry_entry_id": "dsh-evolve-le-capsule",
+  "registry_entry_version": "3ede0942cea7352d95585d512a5e63a45558c86fe99b9279f62590d20d9e2be4",
+  "workspace": "/app",
+  "auth_policy": "disabled",
+  "requested_model": null,
+  "instruction": "The file chess_board.png has an image of a chess board. It is currently white to move. Write the best move for white to play to /app/move.txt in the form [src][dst], for example, e2e4 or h1h8. If there are multiple winning moves, print them all, one per line.\n",
+  "initialize": {
+    "protocolVersion": 1,
+    "agentCapabilities": {
+      "loadSession": false,
+      "promptCapabilities": {
+        "image": false,
+        "audio": false,
+        "embeddedContext": false
+      },
+      "mcpCapabilities": {
+        "http": false,
+        "sse": false,
+        "acp": false
+      },
+      "sessionCapabilities": {},
+      "auth": {}
+    },
+    "authMethods": [],
+    "agentInfo": {
+      "name": "dsh-evolve-le-capsule-runner",
+      "version": "dsh-evolve-le-builder-0.0.2"
+    }
+  },
+  "agent_info": {
+    "name": "dsh-evolve-le-capsule-runner",
+    "version": "dsh-evolve-le-builder-0.0.2"
+  },
+  "auth_methods": [],
+  "selected_authenticate_method_id": null,
+  "session": {
+    "sessionId": "a6feacc5-c3ef-4590-bea0-86a5b9b2e34b"
+  },
+  "prompt_response": {
+    "stopReason": "end_turn"
+  },
+  "latest_usage_update": null,
+  "latest_session_info_update": null,
+  "permissions_requested": 0,
+  "events_file": "acp-events.jsonl"
+}

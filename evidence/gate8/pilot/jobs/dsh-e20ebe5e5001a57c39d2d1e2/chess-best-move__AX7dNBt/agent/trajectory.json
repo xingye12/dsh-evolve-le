@@ -1,0 +1,36 @@
+{
+  "schema_version": "ATIF-v1.6",
+  "session_id": "a39bdf84-ba23-4ed4-b0a9-b4b17a1fa3ae",
+  "agent": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "5c06149cde7ec53916ec8b46bfe133bcdab4cdf81e7a191cee0e3acf6a528f7a",
+    "extra": {
+      "auth_policy": "disabled",
+      "selected_authenticate_method_id": null,
+      "selected_distribution": "binary",
+      "source": null
+    }
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "The file chess_board.png has an image of a chess board. It is currently white to move. Write the best move for white to play to /app/move.txt in the form [src][dst], for example, e2e4 or h1h8. If there are multiple winning moves, print them all, one per line.\n"
+    },
+    {
+      "step_id": 2,
+      "source": "agent",
+      "message": "[dsh-evolve-le replay] no recorded response for prompt sha256:268c065752ef35db30d6d4932f3c3626731c82942f95526920cf41e3fd9a0976 (workspace: /app); composed sections:[candidate:identity]\nYou are executing under self-evolving candidate c_jgxzbew442td55cwx36nnhgpma in solve mode. Execute the assigned terminal-bench task now: read the task specification, inspect the workspace, use the provided tools and files, and produce the required artifact. After completing your work, locate the artifact the task specification requires and confirm it exists at the expected path. Only then run the provided verification checks to completion. You may send your final message only after the required artifact is present and the verification checks pass. Never claim completion while the required artifact is missing or the checks have not passed. Do not stop after acknowledging these instructions; finish only when the task checks pass.",
+      "extra": {
+        "session_update_counts": {
+          "agent_message_chunk": 2
+        },
+        "permissions_requested": 0
+      }
+    }
+  ],
+  "notes": "Converted from ACP session updates captured in acp-events.jsonl. Step boundaries are inferred best-effort from chunked ACP events.",
+  "final_metrics": {
+    "total_steps": 2
+  }
+}

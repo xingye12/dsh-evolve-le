@@ -1,0 +1,49 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "The baseline solve prompt has no verify-and-retry loop, so the agent exits before the bench verifier observes success; instructing iteration until verification passes addresses terminal-bench reward failures.",
+    "evidenceRefs": [
+      "evidence://export/80deb46bf0dcb8336912da59a706a00d5076d672ee6e02527c92cac0a376bcc0"
+    ],
+    "targetFailureModes": [
+      "reward-0-early-exit-before-verification"
+    ],
+    "expectedBehaviorChange": "Solve-mode prompt now requires post-change verification and iteration until the task checker passes.",
+    "regressionRisks": [],
+    "touchedSurfaces": [
+      "system-prompt"
+    ]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [
+        {
+          "name": "candidate:identity",
+          "order": 100
+        }
+      ],
+      "propose": [
+        {
+          "name": "candidate:proposal-policy",
+          "order": 100
+        }
+      ]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

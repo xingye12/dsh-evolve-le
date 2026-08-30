@@ -1,0 +1,37 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:f4d7bc0a140328e20d19b14f7697a6e20af2091f97f4014d69aaf492934298a2",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "Banding final submission behind an iterate-until-checks-pass loop prevents reward-zero trials where the agent finalizes after a single short tool call.",
+    "evidenceRefs": [
+      "evidence://export/fa68fe4454ec8219c289d88390212d99f9e75d1aa9ed3059fc2f69005b96d22e",
+      "evidence://export/d6cd2628faecc8425a936ace08005ce7c6e77604ff0df860a8dd5adbee1973b4"
+    ],
+    "targetFailureModes": ["reward-0-premature-final"],
+    "expectedBehaviorChange": "Solve-mode prompt now mandates an explicit iterate-until-checks-pass loop with at least two inspect-edit-verify cycles, preventing premature finalization after a single short tool call.",
+    "regressionRisks": [],
+    "touchedSurfaces": ["system-prompt"]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [{ "name": "candidate:identity", "order": 100 }],
+      "propose": [{ "name": "candidate:proposal-policy", "order": 100 }]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy.",
+      "In solve mode the candidate:identity text mandates an iterate-until-checks-pass loop before any final message."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

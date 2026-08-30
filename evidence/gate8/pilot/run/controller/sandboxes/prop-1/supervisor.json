@@ -8,12 +8,12 @@
   },
   "parentSourceHash": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
   "width": 3,
-  "capsuleDigest": "1bfccdefb6f53477390f40e4d0f62ea0a36c6727e913f0f837788b804284b94f",
-  "capsuleFileCount": 951,
+  "capsuleDigest": "c07d18715bad0e2fc751e6997093bf92af6f792b08b7a3a3bcb8faae6e2e7122",
+  "capsuleFileCount": 952,
   "model": {
     "kind": "remote",
     "routeId": "deepseek/zen-compatible",
     "routeHash": "892fad67d823bd42a1754a4b9e8e71474d48924c8b7023fb73e66b45181eb5e7",
-    "receiptsPath": "/tmp/dsh-gate8-pilot-EBb9TZ/runs/gate8-pilot/controller/sandboxes/prop-1-remote/remote-receipts.jsonl"
+    "receiptsPath": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/runs/gate8-pilot/controller/sandboxes/prop-1-remote/remote-receipts.jsonl"
   }
 }

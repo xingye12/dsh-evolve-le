@@ -3,7 +3,7 @@
   "protocol": "dsh-evolve-le/iteration/v1",
   "runId": "gate8-pilot",
   "profile": "stable-demo",
-  "configHash": "sha256:89656f3c6c9793c50d13e246459a74dbf3a424eca9b744c5b2d0e94122d1e3c6",
+  "configHash": "sha256:d5a7982ab94a39ed4f4bbc4974f06f3853ca5b2d66ece048033157b26c221cda",
   "datasetHandlesHash": "sha256:733562cbea1dd6f0af4b13e6c1c54702ec3f822037f05b978e56f63a1c6a1a36",
   "sealedRoot": "2154a6d186183c22bc46cc5f563cd7fd9d271e30f956910e0b05fc50bb44d684",
   "sealedCount": 29,
@@ -14,14 +14,14 @@
     "profile": "stable-demo",
     "masterSeed": "gate8-pilot-master-seed-1",
     "search": {
-      "kTarget": 3,
+      "kTarget": 10,
       "proposalWidth": 3,
       "coldStartTrials": 1,
       "ucbAirAlphaPerMille": 600,
       "shortlistSize": 2,
-      "maxSolverTrials": 15,
-      "maxDiscoveryTrials": 10,
-      "discoveryBatchSize": 10,
+      "maxSolverTrials": 60,
+      "maxDiscoveryTrials": 12,
+      "discoveryBatchSize": 6,
       "maxConsecutiveExpansionFailures": 3
     },
     "modelRoutes": [
@@ -49,12 +49,12 @@
     "proposerRoute": "deepseek/zen-compatible",
     "benchmark": {
       "provider": "terminal-bench-2-1",
-      "tasksRoot": "/tmp/dsh-gate8-pilot-EBb9TZ/tasks",
+      "tasksRoot": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/tasks",
       "baselineSourceDir": "/root/vibe/dsh/dsh-evolve-le/packages/candidate-baseline",
       "harbor": {
         "bin": "harbor",
         "version": "0.21.0",
-        "jobsRoot": "/tmp/dsh-gate8-pilot-EBb9TZ/jobs",
+        "jobsRoot": "/root/dsh-evolve-le-scratch/dsh-gate8-pilot-DCJKdk/jobs",
         "concurrentTrials": 1
       },
       "artifactEndpoint": {
@@ -66,7 +66,7 @@
       "usd": 500000000,
       "proposerTokens": 20000000,
       "proposalCalls": 20,
-      "taskTrials": 15,
+      "taskTrials": 60,
       "wallClockMinutes": 960
     },
     "sealedAccess": false

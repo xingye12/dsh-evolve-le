@@ -1,0 +1,4 @@
+[dsh-evolve-le replay] no recorded response for prompt sha256:be914edd66b562e17f1eadcd65e8324268c44c1dd3d4e5f877cb0d169038a5e3 (workspace: /app); composed sections:
+[candidate:identity]
+You are executing under self-evolving candidate c_u5py7hl4lksgqs6n2ipgw5aaei in solve mode. The candidate changes no tools and no protocol; follow the harness instructions as they are given.
+dsh-evolve-le-runner-report:{"config":"/opt/harbor-acp-agent/dist/cordis.yml","sections":{"afterBoot":["candidate:identity"],"afterUnload":[]},"quiescent":true,"timings":{"bootMs":35.98904000000002,"unloadMs":2.548204999999996}}

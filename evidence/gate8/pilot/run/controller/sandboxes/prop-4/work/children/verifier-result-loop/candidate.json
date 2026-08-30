@@ -1,0 +1,37 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:f4d7bc0a140328e20d19b14f7697a6e20af2091f97f4014d69aaf492934298a2",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "Requiring the agent to run and observe the task's own verifier before submission addresses reward-zero trials returning a wrong artifact.",
+    "evidenceRefs": [
+      "evidence://export/a62d1cffa9c8de3ff2dd6470c211477f2b57fa102d998d9ac316c1c1995589a6",
+      "evidence://export/5b9a088ab013262430357373991504cc613e537b99ef61292098bf204699db94"
+    ],
+    "targetFailureModes": ["reward-0-wrong-artifact"],
+    "expectedBehaviorChange": "Solve-mode prompt now requires running and observing the task's verifier or test entrypoint before any final reply, addressing wrong-artifact failures.",
+    "regressionRisks": [],
+    "touchedSurfaces": ["system-prompt"]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt"],
+    "optionalServices": [],
+    "newToolNames": [],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [{ "name": "candidate:identity", "order": 100 }],
+      "propose": [{ "name": "candidate:proposal-policy", "order": 100 }]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy.",
+      "In solve mode the candidate:identity text forbids a final reply while the task verifier reports failure."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

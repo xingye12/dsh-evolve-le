@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "parentSourceHash": "sha256:c7306e0424bfd95bf7c687afe26de48954ba99e6cca88b35330b87e53e14c716",
+  "width": 3,
+  "maxTurns": 24,
+  "modelSocket": "/root/dsh-evolve-le-scratch/dsh-gw-ZWqTt9/gw.sock",
+  "modelClientTimeoutMs": 630000,
+  "declaredProposeSections": [
+    "candidate:proposal-policy"
+  ],
+  "dacProbePaths": [
+    "prop-2/controller-private/credentials.json",
+    "prop-2-sibling/sealed/canary.json"
+  ]
+}

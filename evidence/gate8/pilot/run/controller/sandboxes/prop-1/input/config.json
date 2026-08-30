@@ -3,7 +3,7 @@
   "parentSourceHash": "sha256:a75f8f9d7c5aa4684bcdd21e6b740022063020f2f41dbdf55063cf74aed44df8",
   "width": 3,
   "maxTurns": 24,
-  "modelSocket": "/tmp/dsh-gw-ulYqkw/gw.sock",
+  "modelSocket": "/root/dsh-evolve-le-scratch/dsh-gw-2vDQzo/gw.sock",
   "modelClientTimeoutMs": 630000,
   "declaredProposeSections": [
     "candidate:proposal-policy"

@@ -453,3 +453,25 @@ exceeded 850 s twice inside one 30-minute window; 900 s was not enough.
 still 1× and still restricted to the pre-registered infra classes. Worst case per trial on an
 affected task is now ~1 h wall clock; discovery has 6 trials, of which historically only this task
 class is affected. Disclosed before the attempt-9 launch; no other protocol change.
+
+## ADR-029 — Gate 8 pilot evidence is a documented subset; capsule tarballs stay out
+
+**Context.** The PASS evidence copy for the Gate 8 pilot (attempt 9) deliberately includes
+`capsules/<candidateId>.json` records but not the 13 `<sha256>.tar.gz` capsule archives: every
+archive bundles the pinned node runtime (~130 MB each, ~1.7 GB total — ADR-025), out of
+proportion to the 522 MB evidence set. After the copy the recorder deletes the scratch run
+root (its job is done; scratch is not durable), so the subset is the only durable record.
+
+**Consequence.** Re-running `dsh-evolve audit` over the evidence subset reports
+`capsule-archives: archive missing` per record. The PASS-time audit ran over the live run
+root and verified all 13 (`capsule-archives: 13 archive(s) verified`). This is subset
+semantics, not tampering.
+
+**Position.** Capsules are content-addressed builds of the archived candidate source
+(`run/objects/`) plus the pinned runtime pinned by the manifest; the expected digest lives in
+each capsule record. An archive is therefore re-derivable and its authenticity checkable by
+rebuild-and-compare; a rebuild that misses `archiveSha256` is a real defect, a missing file in
+the evidence subset is designed. `evidence/gate8/pilot/EVIDENCE.md` documents the boundary
+in-place for future auditors. If a future gate needs bit-exact archive re-verification from
+evidence alone, the options are an external artifact store with recorded fetch digests or
+accepting the repo size — both are new decisions, not silent changes.

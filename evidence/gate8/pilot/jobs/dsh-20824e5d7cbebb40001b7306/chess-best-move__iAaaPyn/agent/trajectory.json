@@ -1,0 +1,36 @@
+{
+  "schema_version": "ATIF-v1.6",
+  "session_id": "be78998f-6ceb-40be-aa58-64ae26cb1a12",
+  "agent": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "ac52b96fe3d6d3bf91990fb9e23ab64c899f319ec0629a1addd950f2f1515046",
+    "extra": {
+      "auth_policy": "disabled",
+      "selected_authenticate_method_id": null,
+      "selected_distribution": "binary",
+      "source": null
+    }
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "The file chess_board.png has an image of a chess board. It is currently white to move. Write the best move for white to play to /app/move.txt in the form [src][dst], for example, e2e4 or h1h8. If there are multiple winning moves, print them all, one per line.\n"
+    },
+    {
+      "step_id": 2,
+      "source": "agent",
+      "message": "[dsh-evolve-le replay] no recorded response for prompt sha256:52c7366de8f1d6766ffed9ee30ce68a8ee9e7e77db4c49986135f2f2ce4d1b2a (workspace: /app); composed sections:[candidate:identity]\nYou are executing under self-evolving candidate c_6tl3ycquamuoedizwfhxnf5g4i in solve mode. Execute the assigned terminal-bench task now: read the task specification, inspect the workspace, use the provided tools and files, and produce the required artifact. Before you may send any final message, you must have performed at least one observable workspace inspection (for example listing files) and at least one tool invocation that inspects or changes the workspace. A final reply that is not preceded by such observable actions is forbidden. Even if you believe the task is trivial, take concrete actions and observe their results first. Do not stop after acknowledging these instructions; finish only when the task checks pass.",
+      "extra": {
+        "session_update_counts": {
+          "agent_message_chunk": 2
+        },
+        "permissions_requested": 0
+      }
+    }
+  ],
+  "notes": "Converted from ACP session updates captured in acp-events.jsonl. Step boundaries are inferred best-effort from chunked ACP events.",
+  "final_metrics": {
+    "total_steps": 2
+  }
+}
