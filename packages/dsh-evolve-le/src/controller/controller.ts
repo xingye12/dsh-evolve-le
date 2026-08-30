@@ -25,6 +25,7 @@ import { openObjectStore, type ObjectStore } from '../state/object-store.js'
 import {
   reduceEvent,
   stateHashOf,
+  validatePayload,
   waveDecisionSnapshot,
   type ActionState,
   type ActionStatus,
@@ -379,6 +380,10 @@ export class Controller {
   }
 
   private async emit(type: string, payload: Record<string, unknown>): Promise<JournalEvent> {
+    // Validate BEFORE the append: a malformed payload must fail closed while
+    // the run root stays replayable — an invalid event that reaches the
+    // journal poisons every future replay (crash-safety, specs/06 §12).
+    validatePayload(type, payload)
     const event = await this.journal.append({
       type,
       actor: 'controller',

@@ -226,6 +226,25 @@ describe('trial normalization — outcome classes', () => {
     })
   })
 
+  it('clock skew: a negative agent_execution delta is unknown duration, never a poisoned observation', async () => {
+    // Live Gate 8 attempt-6 defect: harbor stamps agent_execution from the
+    // ACP agent container's clock, the verifier from the host's — the agent
+    // finished 958ms BEFORE it started, the negative delta rode into the
+    // observation, and the reducer's non-negative invariant bricked the
+    // whole run root. Duration is usage metadata, never a reward fact: the
+    // honest normalized value is null (unknown), and the trial classifies
+    // exactly as the same-shaped nop would.
+    const { jobDir, identity } = await stageJob(
+      [{ trialName: 'extract-elf__clockskew1', resultFile: 'agent-clock-skew.json' }],
+      { handles: ['extract-elf'] },
+    )
+    const artifact = await normalizeJob(normalizeInput(jobDir, identity))
+    expect(artifact.trials[0]?.status).toBe('fail')
+    expect(artifact.trials[0]?.outcome).toMatchObject({ category: 'reward', reward: 0 })
+    expect(artifact.trials[0]?.usage).toMatchObject({ agentExecutionMs: null, verifierMs: null })
+    expect(artifact.counts).toMatchObject({ fail: 1, valid: true })
+  })
+
   it('records without a result.json carry unknown participation', async () => {
     const { jobDir, identity } = await stageJob(
       [{ trialName: 'extract-elf__nores', withResult: false }],

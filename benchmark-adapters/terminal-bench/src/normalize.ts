@@ -185,7 +185,13 @@ function durationMs(timing: HarborTiming | null | undefined): number | null {
     return null
   }
   const ms = Date.parse(timing.finished_at) - Date.parse(timing.started_at)
-  return Number.isFinite(ms) ? ms : null
+  if (!Number.isFinite(ms)) return null
+  // Harbor stamps agent_execution from different clock domains (the ACP
+  // agent container vs the host); a negative delta is ~1s skew, not negative
+  // time. Duration is usage metadata, never a reward fact — unknown (null)
+  // is the honest value (observed live: finished_at 958ms BEFORE started_at,
+  // which the reducer's non-negative invariant must never see).
+  return ms >= 0 ? ms : null
 }
 
 /**

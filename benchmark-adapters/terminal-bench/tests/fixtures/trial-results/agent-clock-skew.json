@@ -1,0 +1,76 @@
+{
+  "id": "3f8a8cd2-0000-4000-8000-0000000000cf",
+  "task_name": "terminal-bench/extract-elf",
+  "trial_name": "extract-elf__clockskew1",
+  "trial_uri": "file:///jobs/dsh-clockskew/extract-elf__clockskew1",
+  "task_id": {
+    "path": "/tasks/extract-elf"
+  },
+  "source": "adhoc",
+  "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+  "agent_info": {
+    "name": "dsh-evolve-le-capsule",
+    "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "agent_result": {
+    "n_input_tokens": 1200,
+    "n_cache_tokens": 0,
+    "n_output_tokens": 12,
+    "cost_usd": 0.0004,
+    "metadata": {
+      "acp": {
+        "registry_entry_id": "dsh-evolve-le-capsule",
+        "registry_entry_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source": null,
+        "auth_policy": "disabled",
+        "selected_authenticate_method_id": null,
+        "authenticate_response": null,
+        "requested_model": null,
+        "resolved_session_model_id": null,
+        "set_model_response": null,
+        "set_model_error": null,
+        "set_model_attempts": null,
+        "initial_session_models": null,
+        "latest_session_info_update": null,
+        "initialize": {
+          "protocolVersion": 1,
+          "agentCapabilities": {
+            "loadSession": false,
+            "promptCapabilities": {
+              "image": false,
+              "audio": false,
+              "embeddedContext": false
+            }
+          }
+        },
+        "agent_info": null,
+        "auth_methods": null,
+        "error": null,
+        "prompt_response": {
+          "stopReason": "end_turn"
+        },
+        "latest_usage_update": null,
+        "selected_distribution": "binary",
+        "events_file": "acp-events.jsonl"
+      }
+    }
+  },
+  "verifier_result": {
+    "rewards": {
+      "reward": 0
+    }
+  },
+  "verifier_environment_mode": "shared",
+  "exception_info": null,
+  "started_at": "2026-08-29T00:00:00Z",
+  "finished_at": "2026-08-29T00:01:00Z",
+  "agent_execution": {
+    "started_at": "2026-08-29T00:00:05.738664Z",
+    "finished_at": "2026-08-29T00:00:04.780281Z"
+  },
+  "verifier": {
+    "started_at": "2026-08-29T00:00:11Z",
+    "finished_at": "2026-08-29T00:00:10.2Z"
+  },
+  "step_results": null
+}

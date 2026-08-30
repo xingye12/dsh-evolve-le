@@ -381,3 +381,27 @@ the final wave's last 2 q0 cold starts unfunded. specs/03 §6 requires every adm
 so that run is recorded as the pilot's budget-calibration measurement — not as the recorded pilot profile,
 and no acceptance check was bent to fit it. From the measured curve (6 batch-1 freeze + ≤12 q0 + ~2.8 pool
 trials per admitted child ≈ 49) the pilot cap is re-sized to `maxSolverTrials=60` (budget `taskTrials=60`).
+
+## ADR-027 — External clock skew is unknown duration; payloads validate before durability
+
+**Decision:** two boundary fixes for the same live defect. (1) The Terminal-Bench normalizer treats a
+negative `started_at → finished_at` delta as UNKNOWN (`null`) duration — harbor stamps `agent_execution`
+from the ACP agent container's clock and the verifier from the host's, so a ~1s skew can put the finish
+before the start; duration is usage metadata, never a reward fact, and `null` is the honest value. (2)
+`Controller.emit` validates the payload (`validatePayload`, the fold's own invariants, now exported)
+BEFORE appending to the journal: a malformed event must fail closed while the run root stays replayable,
+never become durable and brick every future replay.
+
+**Why:** Gate 8 pilot attempt 6 (2026-08-30, run root `dsh-gate8-pilot-ilqc34`) died at discovery trial 5
+(`chess-best-move`: finished 958 ms before it started). The negative delta rode through the provider into
+an observation, the reducer rejected it — after `journal.append` had already made it durable — and the
+paid run root became permanently unreplayable (`status`/`resume`/`audit` all crash on the folded event).
+Sanitizing external data belongs at the provider boundary; validating payloads belongs before durability.
+
+**Not reopened:** reward classification is untouched — the skewed trial is an ordinary reward-0 FAIL in
+the denominator either way (rule 7). Only the metadata field and the crash-ordering changed. Attempt 6's
+scratch root is kept as the defect's evidence; the recorded pilot runs on a fresh root.
+
+**Disclosure:** authored immediately after the crash, before the replacement launch; the fix is covered by
+the `agent-clock-skew.json` normalizer fixture (negative deltas → null, classification unchanged) and a
+controller contract test (malformed payload throws, journal bytes unchanged, reopen folds cleanly).

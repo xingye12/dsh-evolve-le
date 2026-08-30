@@ -249,7 +249,14 @@ export function initialState(config: ReducerConfig): RunState {
 type Fields = Record<string, unknown>
 
 /** Exact field-set + shape validation per event type (fail closed). */
-function validatePayload(type: string, payload: Fields): void {
+/**
+ * Validate one event payload against the fold's invariants WITHOUT applying
+ * it. The controller calls this BEFORE appending to the journal: a malformed
+ * payload must fail closed while the root stays replayable — never become a
+ * durable event that bricks every future replay (Gate 8 attempt 6: one
+ * negative external timestamp delta in an observation poisoned the journal).
+ */
+export function validatePayload(type: string, payload: Fields): void {
   const keys = Object.keys(payload).sort().join(',')
   const expect = (wanted: string): void => {
     if (keys !== wanted) {
