@@ -27,11 +27,13 @@ export const INFRA_MAX_RETRIES = 1
 
 /**
  * The ACP agent bootstrap (apt + venv + `pip install agent-client-protocol`)
- * runs before the agent process exists and is pure infrastructure. Harbor's
- * 360 s default was exceeded on ~21% of Gate 8 attempt-7 trials under WSL2
- * IO; 2.5× (900 s) is the pre-registered headroom (ADR-028).
+ * runs before the agent process exists and is pure infrastructure. Measured on
+ * the real ubuntu:24.04 task base under the plan's 1-cpu/2G limits: ~380-420 s
+ * isolated, >850 s twice live under shared-host load (Gate 8 attempt 8 died on
+ * adaptive-rejection-sampler both with 360 s and 900 s). 5× (1800 s) covers
+ * ~4.7× the isolated cost plus the observed load variance (ADR-028).
  */
-export const AGENT_SETUP_TIMEOUT_MULTIPLIER = 2.5
+export const AGENT_SETUP_TIMEOUT_MULTIPLIER = 5
 
 export interface JobPlanInput {
   jobName: string

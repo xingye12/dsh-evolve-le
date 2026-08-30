@@ -435,3 +435,21 @@ trials ever had.
 **Disclosure:** the include-list is imported from `normalize.ts`, not re-typed; the upstream-contract
 test validates the plan through harbor's own pydantic `JobConfig`; a driver contract test pins the
 fail-closed throw (no freeze, zero paid proposals).
+
+### ADR-028 amendment — setup headroom re-calibrated to 5× after attempt 8
+
+Attempt 8 (2026-08-30, run root `dsh-gate8-pilot-tHdvWP`) was stopped early by hand: the
+`adaptive-rejection-sampler` discovery trial died with `AgentSetupTimeoutError` at the ADR-028 900 s
+limit, harbor's new retry fired correctly, and the retry died the same way — a durable `missing`
+discovery observation the driver would have failed closed on after paying for the rest of the batch.
+
+Measured on the host (compose-exec, 1 cpu / 2 GiB, the plan's env injection): the harbor ACP setup
+script costs ~133 s on the `alexgshaw` image but **~383 s on the task's real `ubuntu:24.04` base**
+(the local `environment/Dockerfile` overrides the tag in `task.toml`), with up to ~2× wall-clock
+variance under shared-host load (other always-on containers + WSL2 DNS/mirror latency). Live runs
+exceeded 850 s twice inside one 30-minute window; 900 s was not enough.
+
+**Change:** `agent_setup_timeout_multiplier` 2.5 → **5** (1800 s ≈ 4.7× the isolated cost), retry
+still 1× and still restricted to the pre-registered infra classes. Worst case per trial on an
+affected task is now ~1 h wall clock; discovery has 6 trials, of which historically only this task
+class is affected. Disclosed before the attempt-9 launch; no other protocol change.

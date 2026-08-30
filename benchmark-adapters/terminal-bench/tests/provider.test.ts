@@ -171,7 +171,7 @@ describe('harbor job config', () => {
     // Pre-registered infra retry + setup headroom (ADR-028): exactly one
     // retry, restricted to the normalizer's INFRA_RETRYABLE_EXCEPTIONS set so
     // the plan and the observation classification share one source of truth.
-    expect(round['agent_setup_timeout_multiplier']).toBe(2.5)
+    expect(round['agent_setup_timeout_multiplier']).toBe(5)
     expect(round['retry']).toEqual({
       max_retries: 1,
       include_exceptions: [
