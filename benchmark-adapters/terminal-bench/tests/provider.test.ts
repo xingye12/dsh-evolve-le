@@ -168,6 +168,19 @@ describe('harbor job config', () => {
     expect(agents[0]?.kwargs['registry_entry'] as unknown).toEqual(entry)
     expect(round['tasks']).toEqual([{ path: '/tasks/alpha' }, { path: '/tasks/beta' }])
     expect(plan.plannedTrials).toBe(4)
+    // Pre-registered infra retry + setup headroom (ADR-028): exactly one
+    // retry, restricted to the normalizer's INFRA_RETRYABLE_EXCEPTIONS set so
+    // the plan and the observation classification share one source of truth.
+    expect(round['agent_setup_timeout_multiplier']).toBe(2.5)
+    expect(round['retry']).toEqual({
+      max_retries: 1,
+      include_exceptions: [
+        'AgentSetupTimeoutError',
+        'EnvironmentStartTimeoutError',
+        'HealthcheckError',
+        'SandboxBuildFailedError',
+      ],
+    })
   })
 
   it('omits the mounts key entirely when no mounts are needed', () => {

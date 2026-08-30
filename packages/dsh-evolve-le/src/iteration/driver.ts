@@ -669,16 +669,28 @@ export class IterationDriver {
 
     let poolDoc = await this.readJson<FailurePoolDoc>(poolPath)
     while (poolDoc === null) {
-      const done = Object.values(controller.state.observations)
-        .filter((observation) => observation.candidateId === baselineId)
-        .map((observation) => observation.opaqueTaskId)
-      const failures = Object.values(controller.state.observations)
-        .filter(
-          (observation) =>
-            observation.candidateId === baselineId && observation.outcome !== 'success',
-        )
+      const baselineObservations = Object.values(controller.state.observations).filter(
+        (observation) => observation.candidateId === baselineId,
+      )
+      const done = baselineObservations.map((observation) => observation.opaqueTaskId)
+      const failures = baselineObservations
+        .filter((observation) => observation.outcome !== 'success')
         .map((observation) => observation.opaqueTaskId)
         .sort()
+      // A 'missing' discovery observation means the trial never produced a
+      // real outcome (infra death after the pre-registered retry, specs/04 §6).
+      // Freezing that handle into the pool would present an unknown baseline
+      // capability as a failure — attempt 7 did exactly that and its recorder
+      // failed closed. Fail closed HERE, before any further paid launch.
+      const infraDead = baselineObservations
+        .filter((observation) => observation.outcome === 'missing')
+        .map((observation) => observation.opaqueTaskId)
+        .sort()
+      if (infraDead.length > 0) {
+        throw new IterationDriverError(
+          `infra-dead discovery trial(s) [${infraDead.join(', ')}]: an agent that never ran is not a capability fact, so the pool cannot freeze — restart the pilot (ADR-028)`,
+        )
+      }
 
       if (done.length % batchSize === 0) {
         // Batch boundary: freeze on any real failure BEFORE paying for more.

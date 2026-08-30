@@ -19,7 +19,7 @@
  * baseline-failure pool (`STABLE_ITERATION_VERIFIED`), and a crash after a
  * committed external effect resuming to the same terminal state.
  */
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { access, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -425,6 +425,34 @@ describe('iteration driver: closed loop', () => {
       await readFile(join(fx.runRoot, 'search-state.json'), 'utf8'),
     ) as { expansionAttempts: number }
     expect(searchState.expansionAttempts).toBe(0)
+  })
+
+  it('fails closed when a discovery trial is infra-dead: no pool freeze, no further paid launch (ADR-028)', async () => {
+    // Attempt 7's live defect: the baseline's AgentSetupTimeoutError trial
+    // normalized to outcome 'missing' and its handle froze into the pool as a
+    // "baseline failure" — an agent that never ran is not a capability fact.
+    // The driver must throw before freezing (and before paying for the rest of
+    // the batch or any proposal), leaving the run root honestly unfrozen.
+    const fx = await newRun('dsh-drive-infra-dead-')
+    const provider = new FakeProvider({ outcome: 'success' })
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    const dead = ceremony.ceremony.observedHandles[0]!
+    provider.script(`eval-eval-${shortId(baselineId)}-${dead}`, { outcome: 'missing' })
+
+    const runner = fakeSandboxRunner()
+    await expect(makeDriver(fx, provider, fakeBridge(), runner).drive()).rejects.toThrow(
+      /infra-dead discovery trial\(s\) \[.*\]: an agent that never ran is not a capability fact/,
+    )
+    // Nothing froze and nothing beyond the discovery batch was paid for.
+    await expect(access(join(fx.runRoot, 'failure-pool.json'))).rejects.toThrow(/ENOENT/)
+    expect(runner.calls).toHaveLength(0)
   })
 
   it('stops as NO_ADMISSIBLE_CHILD after the frozen consecutive-failure cap', async () => {

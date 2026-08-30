@@ -507,8 +507,11 @@ async function main(): Promise<void> {
     exceptionType: string | null
   }> = []
   for (const trialPath of await trialDirs(jobsRoot)) {
-    const resultPath = join(trialPath, 'result.json')
-    const configPath = join(trialPath, 'config.json')
+    // trialDirs yields RELATIVE job/trial names (attempt 7 joined them against
+    // the recorder's CWD, so every trial read as a missing file and the whole
+    // tally collapsed to unknown=42 — masking the real participation facts).
+    const resultPath = join(jobsRoot, trialPath, 'result.json')
+    const configPath = join(jobsRoot, trialPath, 'config.json')
     if (!existsSync(resultPath) || !existsSync(configPath)) {
       partTally.unknown += 1
       continue
@@ -939,146 +942,155 @@ async function main(): Promise<void> {
   )
 
   // ---- evidence out (no secrets, no tls/, no capsule archives) -------------------
-  console.log('gate8 pilot: writing evidence…')
+  // PASS-only: a failed gate keeps its evidence in the retained run root and
+  // leaves the committed evidence directory untouched — a verify-only rerun over
+  // a failed root must never overwrite what a previous PASS recorded there.
+  console.log(
+    failures.length > 0
+      ? 'gate8 pilot: checks failed — evidence directory untouched (run root kept)'
+      : 'gate8 pilot: writing evidence…',
+  )
   const evidenceRunRoot = join(pilotDir, 'run')
   const jobsEvidenceRoot = join(pilotDir, 'jobs')
-  await rm(evidenceRunRoot, { recursive: true, force: true })
-  await rm(jobsEvidenceRoot, { recursive: true, force: true })
-  await mkdir(evidenceRunRoot, { recursive: true })
-  await mkdir(jobsEvidenceRoot, { recursive: true })
-  for (const name of [
-    'run.config.json',
-    'dataset-handles.json',
-    'split-ceremony.json',
-    'run-manifest.json',
-    'failure-pool.json',
-    'search-state.json',
-    'drive-report.json',
-    'archive-catalog.json',
-    'harbor-ledger.jsonl',
-  ]) {
-    await cp(join(runRoot, name), join(evidenceRunRoot, name)).catch(() => undefined)
-  }
-  await cp(join(runRoot, 'controller'), join(evidenceRunRoot, 'controller'), {
-    recursive: true,
-  }).catch(() => undefined)
-  for (const name of ['exports', 'objects', 'harbor-plans']) {
-    await cp(join(runRoot, name), join(evidenceRunRoot, name), { recursive: true }).catch(
-      () => undefined,
-    )
-  }
-  await mkdir(join(evidenceRunRoot, 'capsules'), { recursive: true })
-  for (const record of capsuleRecords) {
-    const name = `${record.candidateId}.json`
-    await cp(join(runRoot, 'capsules', name), join(evidenceRunRoot, 'capsules', name)).catch(
-      () => undefined,
-    )
-  }
-  for (const job of await readdir(jobsRoot, { withFileTypes: true }).catch(() => [])) {
-    if (!job.isDirectory() || job.name.startsWith('.')) continue
-    await cp(join(jobsRoot, job.name), join(jobsEvidenceRoot, job.name), { recursive: true })
-  }
+  if (failures.length === 0) {
+    await rm(evidenceRunRoot, { recursive: true, force: true })
+    await rm(jobsEvidenceRoot, { recursive: true, force: true })
+    await mkdir(evidenceRunRoot, { recursive: true })
+    await mkdir(jobsEvidenceRoot, { recursive: true })
+    for (const name of [
+      'run.config.json',
+      'dataset-handles.json',
+      'split-ceremony.json',
+      'run-manifest.json',
+      'failure-pool.json',
+      'search-state.json',
+      'drive-report.json',
+      'archive-catalog.json',
+      'harbor-ledger.jsonl',
+    ]) {
+      await cp(join(runRoot, name), join(evidenceRunRoot, name)).catch(() => undefined)
+    }
+    await cp(join(runRoot, 'controller'), join(evidenceRunRoot, 'controller'), {
+      recursive: true,
+    }).catch(() => undefined)
+    for (const name of ['exports', 'objects', 'harbor-plans']) {
+      await cp(join(runRoot, name), join(evidenceRunRoot, name), { recursive: true }).catch(
+        () => undefined,
+      )
+    }
+    await mkdir(join(evidenceRunRoot, 'capsules'), { recursive: true })
+    for (const record of capsuleRecords) {
+      const name = `${record.candidateId}.json`
+      await cp(join(runRoot, 'capsules', name), join(evidenceRunRoot, 'capsules', name)).catch(
+        () => undefined,
+      )
+    }
+    for (const job of await readdir(jobsRoot, { withFileTypes: true }).catch(() => [])) {
+      if (!job.isDirectory() || job.name.startsWith('.')) continue
+      await cp(join(jobsRoot, job.name), join(jobsEvidenceRoot, job.name), { recursive: true })
+    }
 
-  // Budget extrapolation actuals (specs/04 §12): what the pilot exists to measure.
-  const document = {
-    schemaVersion: 1,
-    protocol: 'dsh-evolve-le/gate8-pilot/v1',
-    generatedAt: new Date().toISOString(),
-    runId: RUN_ID,
-    masterSeed: MASTER_SEED,
-    configHash: initDoc?.configHash ?? null,
-    verificationMode: verifyOnly
-      ? 'verify-only (DSH_GATE8_PILOT_RUN_ROOT over the completed run root)'
-      : 'fresh run (init + doctor + run + verify)',
-    configProfile:
-      'stable-demo base + zen-compatible proposer route + Gate 8 pilot K=10 (admitted candidates; specs/03 §2, specs/07 §10)',
-    route: {
-      id: 'deepseek/zen-compatible',
-      baseUrl,
-      model: modelName,
-      temperature: 0,
-      routeHash,
-      credentialFile: credentialPath,
-    },
-    dataset: { tarball: 'terminal-bench-2-1-7131e43.tar.gz', handles: handles.length },
-    preRegistration: {
-      kTarget: K_TARGET,
-      discoveryBatch: DISCOVERY_BATCH,
-      discoveryCap: DISCOVERY_CAP,
-      maxSolverTrials: MAX_SOLVER_TRIALS,
-      sample: kSample,
-      selectionRule:
-        'specs/04 §4.1 protocol over the frozen ceremony order: first batch 6 observed handles, second batch 6 only if the first shows no failure, hard cap 12; specs/04 §4.2 requires this pilot to freeze its OWN baseline (stable-demo evidence may not be reused)',
-      seedCommitment: rederived.ceremony.seedCommitment,
-    },
-    agentParticipation: {
-      tally: partTally,
-      neverInitializedTrials,
-      preLaunchInfraDeaths,
-      agentProcessDeaths,
-      note: 'harbor agent_result.metadata.acp.initialize non-null ⇔ the agent spoke the protocol. Per ADR-025 a never-initialized trial is disclosed infra (FAIL-in-denominator) only when its exception is a pre-launch phase class (e.g. AgentSetupTimeoutError); an agent-process death (NonZeroAgentExitCodeError — the original Gate 8 defect) fails the gate, and the baseline freeze must be all-ran.',
-    },
-    baselineFreeze,
-    failurePool: poolDoc.handles,
-    report,
-    runSeconds,
-    proposals,
-    proposerCostUsdMicros: proposerCostMicros,
-    perTrialSeconds:
-      runSeconds !== null && report.trials > 0 ? Math.round(runSeconds / report.trials) : null,
-    lineage: { depthMax: report.lineageDepthMax, childDepths },
-    poolCoverage,
-    capsules: capsuleRecords,
-    harborTrialDirs: trials.length,
-    attributedTrials: attributed,
-    ledgerLines,
-    evidenceCitations: citing,
-    sealedCount: sealedHandles.length,
-    guardCount: guardHandles.length,
-    flags,
-    notes,
-    claimBoundary:
-      'pilot profile only: tuning stability and budget actuals for K=10 ADMITTED candidates ' +
-      "(specs/03 §2) on the pilot's own §4.2 baseline freeze; no sealed unblinding, no " +
-      'search/sealed/official profile, no performance claim',
-  }
-  await writeFile(join(pilotDir, 'pilot-run.json'), `${JSON.stringify(document, null, 2)}\n`)
-  const documentSha = createHash('sha256')
-    .update(await readFile(join(pilotDir, 'pilot-run.json')))
-    .digest('hex')
-  await writeFile(
-    join(pilotDir, 'STATUS.json'),
-    `${JSON.stringify(
-      {
-        schemaVersion: 1,
-        gate: 8,
-        profile: 'pilot',
-        status: failures.length === 0 ? 'PASS' : 'FAIL',
-        failedChecks: failures,
-        evidence: 'evidence/gate8/pilot/pilot-run.json',
-        evidenceSha256: documentSha,
-        recordedAt: document.generatedAt,
-        summary: {
-          route: `deepseek/zen-compatible → ${modelName}`,
-          driverStatus: report.status,
-          discoveryTrials: report.discoveryTrials,
-          expansions: report.expansionAttempts,
-          admittedChildren: report.admittedNonBaseline,
-          lineageDepthMax: report.lineageDepthMax,
-          trials: report.trials,
-          agentParticipation: `${String(partTally.ran)} ran / ${String(partTally.never)} never-initialized / ${String(partTally.unknown)} unknown`,
-          expansionAccounting: {
-            rebuildRejections: report.rebuildRejections ?? [],
-            abandonedIntents: report.abandonedIntents ?? [],
-          },
-          proposerCostUsdMicros: proposerCostMicros,
-          runSeconds,
-        },
+    // Budget extrapolation actuals (specs/04 §12): what the pilot exists to measure.
+    const document = {
+      schemaVersion: 1,
+      protocol: 'dsh-evolve-le/gate8-pilot/v1',
+      generatedAt: new Date().toISOString(),
+      runId: RUN_ID,
+      masterSeed: MASTER_SEED,
+      configHash: initDoc?.configHash ?? null,
+      verificationMode: verifyOnly
+        ? 'verify-only (DSH_GATE8_PILOT_RUN_ROOT over the completed run root)'
+        : 'fresh run (init + doctor + run + verify)',
+      configProfile:
+        'stable-demo base + zen-compatible proposer route + Gate 8 pilot K=10 (admitted candidates; specs/03 §2, specs/07 §10)',
+      route: {
+        id: 'deepseek/zen-compatible',
+        baseUrl,
+        model: modelName,
+        temperature: 0,
+        routeHash,
+        credentialFile: credentialPath,
       },
-      null,
-      2,
-    )}\n`,
-  )
+      dataset: { tarball: 'terminal-bench-2-1-7131e43.tar.gz', handles: handles.length },
+      preRegistration: {
+        kTarget: K_TARGET,
+        discoveryBatch: DISCOVERY_BATCH,
+        discoveryCap: DISCOVERY_CAP,
+        maxSolverTrials: MAX_SOLVER_TRIALS,
+        sample: kSample,
+        selectionRule:
+          'specs/04 §4.1 protocol over the frozen ceremony order: first batch 6 observed handles, second batch 6 only if the first shows no failure, hard cap 12; specs/04 §4.2 requires this pilot to freeze its OWN baseline (stable-demo evidence may not be reused)',
+        seedCommitment: rederived.ceremony.seedCommitment,
+      },
+      agentParticipation: {
+        tally: partTally,
+        neverInitializedTrials,
+        preLaunchInfraDeaths,
+        agentProcessDeaths,
+        note: 'harbor agent_result.metadata.acp.initialize non-null ⇔ the agent spoke the protocol. Per ADR-025 a never-initialized trial is disclosed infra (FAIL-in-denominator) only when its exception is a pre-launch phase class (e.g. AgentSetupTimeoutError); an agent-process death (NonZeroAgentExitCodeError — the original Gate 8 defect) fails the gate, and the baseline freeze must be all-ran.',
+      },
+      baselineFreeze,
+      failurePool: poolDoc.handles,
+      report,
+      runSeconds,
+      proposals,
+      proposerCostUsdMicros: proposerCostMicros,
+      perTrialSeconds:
+        runSeconds !== null && report.trials > 0 ? Math.round(runSeconds / report.trials) : null,
+      lineage: { depthMax: report.lineageDepthMax, childDepths },
+      poolCoverage,
+      capsules: capsuleRecords,
+      harborTrialDirs: trials.length,
+      attributedTrials: attributed,
+      ledgerLines,
+      evidenceCitations: citing,
+      sealedCount: sealedHandles.length,
+      guardCount: guardHandles.length,
+      flags,
+      notes,
+      claimBoundary:
+        'pilot profile only: tuning stability and budget actuals for K=10 ADMITTED candidates ' +
+        "(specs/03 §2) on the pilot's own §4.2 baseline freeze; no sealed unblinding, no " +
+        'search/sealed/official profile, no performance claim',
+    }
+    await writeFile(join(pilotDir, 'pilot-run.json'), `${JSON.stringify(document, null, 2)}\n`)
+    const documentSha = createHash('sha256')
+      .update(await readFile(join(pilotDir, 'pilot-run.json')))
+      .digest('hex')
+    await writeFile(
+      join(pilotDir, 'STATUS.json'),
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          gate: 8,
+          profile: 'pilot',
+          status: failures.length === 0 ? 'PASS' : 'FAIL',
+          failedChecks: failures,
+          evidence: 'evidence/gate8/pilot/pilot-run.json',
+          evidenceSha256: documentSha,
+          recordedAt: document.generatedAt,
+          summary: {
+            route: `deepseek/zen-compatible → ${modelName}`,
+            driverStatus: report.status,
+            discoveryTrials: report.discoveryTrials,
+            expansions: report.expansionAttempts,
+            admittedChildren: report.admittedNonBaseline,
+            lineageDepthMax: report.lineageDepthMax,
+            trials: report.trials,
+            agentParticipation: `${String(partTally.ran)} ran / ${String(partTally.never)} never-initialized / ${String(partTally.unknown)} unknown`,
+            expansionAccounting: {
+              rebuildRejections: report.rebuildRejections ?? [],
+              abandonedIntents: report.abandonedIntents ?? [],
+            },
+            proposerCostUsdMicros: proposerCostMicros,
+            runSeconds,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    )
+  }
   if (failures.length > 0) {
     console.error(`gate8 pilot FAILED: ${failures.join(' | ')}`)
     console.error(`run root kept for diagnosis: ${runRoot}`)

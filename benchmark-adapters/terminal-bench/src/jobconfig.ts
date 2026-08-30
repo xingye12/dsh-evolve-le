@@ -11,9 +11,27 @@
  */
 
 import { dump } from 'js-yaml'
+import { INFRA_RETRYABLE_EXCEPTIONS } from './normalize.js'
 import type { AcpRegistryEntry } from './registry.js'
 
 export const PROVIDER_PROTOCOL = 'dsh-evolve-le/tb-provider/v1'
+
+/**
+ * Pre-registered infrastructure retry (specs/04 §6, ADR-028): harbor retries a
+ * trial at most once, and ONLY for the reward-independent infra exception
+ * classes the normalizer already treats as INFRA_RETRYABLE — everything else
+ * (agent timeouts, verifier errors, refusals) stays excluded, matching
+ * harbor's own default exclusion list for reward-attributable outcomes.
+ */
+export const INFRA_MAX_RETRIES = 1
+
+/**
+ * The ACP agent bootstrap (apt + venv + `pip install agent-client-protocol`)
+ * runs before the agent process exists and is pure infrastructure. Harbor's
+ * 360 s default was exceeded on ~21% of Gate 8 attempt-7 trials under WSL2
+ * IO; 2.5× (900 s) is the pre-registered headroom (ADR-028).
+ */
+export const AGENT_SETUP_TIMEOUT_MULTIPLIER = 2.5
 
 export interface JobPlanInput {
   jobName: string
@@ -48,6 +66,14 @@ export function buildJobConfig(input: JobPlanInput): JobPlan {
     jobs_dir: input.jobsDir,
     n_attempts: input.attempts,
     n_concurrent_trials: input.concurrentTrials,
+    // Infra-only, single retry + setup-timeout headroom (ADR-028): the
+    // include-list is sourced from the normalizer's pre-registered set so the
+    // plan and the observation classification can never drift apart.
+    agent_setup_timeout_multiplier: AGENT_SETUP_TIMEOUT_MULTIPLIER,
+    retry: {
+      max_retries: INFRA_MAX_RETRIES,
+      include_exceptions: [...INFRA_RETRYABLE_EXCEPTIONS].sort(),
+    },
     environment: {
       type: 'docker',
       ...(input.mounts !== undefined && input.mounts.length > 0

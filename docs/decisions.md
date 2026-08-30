@@ -405,3 +405,33 @@ scratch root is kept as the defect's evidence; the recorded pilot runs on a fres
 **Disclosure:** authored immediately after the crash, before the replacement launch; the fix is covered by
 the `agent-clock-skew.json` normalizer fixture (negative deltas → null, classification unchanged) and a
 controller contract test (malformed payload throws, journal bytes unchanged, reopen folds cleanly).
+
+## ADR-028 — Pre-registered infra retry at the harbor layer; infra-dead discovery fails closed
+
+**Decision:** three coordinated fixes, all pre-registered before the next pilot launch. (1) Harbor job
+plans carry `retry: { max_retries: 1, include_exceptions: INFRA_RETRYABLE_EXCEPTIONS }` — one retry,
+restricted to the normalizer's own reward-independent infra classes, so the plan and the observation
+classification share one source; harbor's default exclusion list still blocks reward-attributable
+exceptions (agent/verifier timeouts, refusals). (2) Plans carry `agent_setup_timeout_multiplier: 2.5`
+(360 s → 900 s): the ACP bootstrap (apt + venv + pip install) is pre-launch infrastructure that exceeded
+harbor's default on 9/42 attempt-7 trials under WSL2 IO. (3) The driver fails closed the moment a
+discovery observation is `missing`: an agent that never ran is not a capability fact, so its handle can
+never freeze into the pool — no further paid launch, restart the pilot.
+
+**Why:** Gate 8 attempt 7 (2026-08-30, run root `dsh-gate8-pilot-Gyz9DL`) reached `K_REACHED`
+(42 trials, 11 admitted children, depth 3, all audit checks green) but its recorder failed closed twice
+over. First, a recorder-script bug joined relative trial paths against the process CWD, so every trial
+read as a missing file and the participation tally collapsed to `unknown=42` — masking the real facts
+(ran=33, never-initialized=9, all nine `AgentSetupTimeoutError`). Second, under correct classification
+the baseline's `adaptive-rejection-sampler` discovery trial was never-initialized, yet its handle froze
+into the pool as a "baseline failure" — exactly the masquerade class the pilot's
+`baselineFreezeTrialsAllRanAgents` check exists to catch. The run is therefore not admissible as pilot
+evidence; the root is kept as the defect's evidence.
+
+**Boundary:** child-evaluation trials that die infra after the retry still record outcome `missing` with
+reward 0 in the denominator (rule 7) — they only lose pool-freeze eligibility, which only discovery
+trials ever had.
+
+**Disclosure:** the include-list is imported from `normalize.ts`, not re-typed; the upstream-contract
+test validates the plan through harbor's own pydantic `JobConfig`; a driver contract test pins the
+fail-closed throw (no freeze, zero paid proposals).
