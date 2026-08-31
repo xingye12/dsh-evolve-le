@@ -43,6 +43,7 @@ evidence/gate8/*
 evidence/gate8/pilot/*
 !evidence/gate8/pilot/STATUS.json
 !evidence/gate8/pilot/pilot-run.json
+!evidence/gate8/pilot/EVIDENCE.md
 !evidence/gate8/pilot/jobs/
 !evidence/gate8/pilot/jobs/**
 !evidence/gate8/pilot/run/

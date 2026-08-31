@@ -105,9 +105,15 @@
   pinned runtime 重建比对）；audit 的 `capsule-archives` 检查在 live run root 上
   13/13 通过（PASS 当时），对子集直接重跑会报 archive missing，属子集语义非篡改。
 - **边界**：pilot 只证明 K=10 admitted 的 tuning 稳定性、infra 分类下 50/50 的
-  真实 agent 参与率、以及预算量级；failure pool 按协议选自 baseline 失败题
-  （选择偏差是设计），**不构成**该模型/harness 在 Terminal-Bench 上的任何性能
-  陈述；不含 sealed 揭盲与 search（K=80）/sealed/official profile；
+  真实 agent 参与率、以及预算量级；**solve 侧（baseline 与全部 12 个子代）用的都是
+  Gate 6 stable-demo 的 recorded-replay 胶囊**——LLM 表面对未录制 prompt 回一条
+  罐头消息（`[dsh-evolve-le replay] no recorded response for prompt sha256:…`）后
+  end_turn、零工具调用、零产物，live `deepseek-v4-flash` 只出现在 **propose 侧**
+  （4 次扩张）。因此 50 个 solve trial 的 reward 全为 0 是零能力 replay 的机械结果，
+  failure pool 6 题全 FAIL 同理（verifier 真实运行：adaptive-rejection-sampler
+  9/9 测试失败因 `/app/ars.R` 不存在等）；这不是 infra 伪装（participation ran=50），
+  也不构成该模型/harness 在 Terminal-Bench 上的任何性能陈述——第一个测量真实
+  solve 能力的是未运行的 search（K=80）/sealed profile；不含 sealed 揭盲；
   `NO_SEALED_RESULTS` 维持。
 
 ## 2026-08-30 Gate 8 remote proposer route + real-model smoke
