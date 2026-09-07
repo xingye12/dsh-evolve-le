@@ -328,10 +328,22 @@ check(
 const { captureCanonicalSource, candidateIdFromDigest } = await import(
   pathToFileURL(resolve(repoRoot, 'packages/dsh-evolve-le/lib/candidate/canonical.js')).href
 )
+const { stageDeclaredSource } = await import(
+  pathToFileURL(resolve(repoRoot, 'packages/dsh-evolve-le/lib/builder/staging.js')).href
+)
 const { generateSealedPlan, verifySealedPlanDraws, SEALED_PLAN_PROTOCOL } = await import(
   pathToFileURL(resolve(repoRoot, 'packages/dsh-evolve-le/lib/sealed/plan.js')).href
 )
-const baselineId = candidateIdFromDigest((await captureCanonicalSource(TREE_V2_BASELINE)).sha256)
+// The builder identity (pipeline.ts stage 1): candidateIdFromDigest over the
+// canonical capture of the DECLARED-entries staging — the working tree's
+// lib/ build output never stages and must not enter the identity here.
+const baselineStageRoot = join(scratch, 'baseline-stage')
+await rm(baselineStageRoot, { recursive: true, force: true })
+const stagedBaselineSource = join(baselineStageRoot, 'source')
+await stageDeclaredSource(TREE_V2_BASELINE, stagedBaselineSource)
+const baselineId = candidateIdFromDigest(
+  (await captureCanonicalSource(stagedBaselineSource)).sha256,
+)
 const sealedPlan = generateSealedPlan({
   runId: RUN_ID,
   masterSeed: MASTER_SEED,

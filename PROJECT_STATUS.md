@@ -180,6 +180,16 @@ record 脚本保留 scratch；单独付费冒烟不在本次预注册内，不�
 `TREE_V2_TRIAL_CONTAINER_PROXY=http://172.17.0.1:17897` + 持久 TMPDIR +
 setsid nohup + disown（k10 同款）；launch 前最终核对：预注册已提交、套件全绿、
 credential 0600、sealed store 路径未初始化（脚本首跑生成）。
+**首次启动尝试（2026-09-08 凌晨）诚实记录**：detached 启动后脚本在
+sealed-plan 预推导处失败（`canonical source rejected: build output directory
+lib`）——baseline id 直接从工作树捕获，但 `pnpm build` 后的 `lib/` 是
+canonical capture 的 FORBIDDEN_TOP_DIR；**死于任何付费 trial 之前**（init
+未发生、零模型调用、零 harbor job；scratch 中 sealed store 由确定性
+ceremony 生成，重跑字节一致）。修复：baseline id 改为与 builder 同一身份
+路径（`stageDeclaredSource` 声明条目 staging → canonical capture →
+candidateIdFromDigest），并用彩排 run root 的已准入 baseline id
+`c_wjkdctjplj4qemzjzpr6ifcyni` 端到端验证一致。修复提交后以同一预注册数字
+重启（RUN_ID/MASTER_SEED/profile/信封全部不变，规则 7/9 无任何放宽）。
 
 **Phase 4 已实现，门通过（2026-09-08 凌晨）**：schema taskCount 48→49；
 `--profile` CLI flag + `terminal-bench-formal`；k80 profile 改为正式形态
