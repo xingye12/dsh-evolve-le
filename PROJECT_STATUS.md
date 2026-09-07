@@ -162,6 +162,25 @@ sealed 冒烟留给 Phase 5 启动前验证。
 **下一步：Phase 5 启动**（预注册提交 → 启动前全量验证 + doctor → 启动门清单 →
 DSH_TREE_V2_LIVE_CONFIRM=confirm 的 detached 正式 run）。
 
+**Phase 5 预注册提交：`bf219e4`**（2026-09-08 凌晨，208 files，+43130/−1514）：
+启动 commit 即本状态节所在 commit（HEAD），其内容包含 ADR-046..049 全部生产
+实现 + 契约测试 + formal record 脚本 + 预注册数字（见上）；`scratch/` 加入
+.gitignore（sealed store 0600 落 scratch，证据树外）；全树 credential 扫描零命中。
+**启动前验证（Phase 5 门清单，全部满足）**：pnpm build 绿；全量 pnpm test 绿
+（68/70 文件、781/788、786s）；strict tsc（formal 脚本）绿；prettier/oxlint 净；
+credential 0600 在场（内容从不进任何 artifact）；native DSH lock 在场；
+retry egress forwarder 在 172.17.0.1:17897 监听（ADR-028 修正案，替代 socat）；
+docker/harbor 由 formal 脚本内 doctor 阶段实检（`dockerCheck` +
+`harborVersionCheck` + 镜像 prefetch，非绿即 fail closed 零付费）。
+**harbor 真实 1-job 冒烟的显式解释（不静默跳过，rule 9）**：与 k3/k10/k80 彩排
+启动相同——付费 Harbor 链路由 run 内第一波矩阵 job（98-trial 矩阵的 wave 1，
+8 并发）承担；ADR-028 分类与 fail-closed 保证 harbor 故障全部可归因可重试，
+record 脚本保留 scratch；单独付费冒烟不在本次预注册内，不新增未注册 trial。
+**启动方式**：`DSH_TREE_V2_LIVE_CONFIRM=confirm` +
+`TREE_V2_TRIAL_CONTAINER_PROXY=http://172.17.0.1:17897` + 持久 TMPDIR +
+setsid nohup + disown（k10 同款）；launch 前最终核对：预注册已提交、套件全绿、
+credential 0600、sealed store 路径未初始化（脚本首跑生成）。
+
 **Phase 4 已实现，门通过（2026-09-08 凌晨）**：schema taskCount 48→49；
 `--profile` CLI flag + `terminal-bench-formal`；k80 profile 改为正式形态
 （baseline {49,2,8}、tournament {12,1,360,100000}、runProfile formal）；
