@@ -14,6 +14,7 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { computeTreeDigest } from '@dsh-evolve-le/core'
 import { DATASET_PIN } from './dataset.js'
+import { parseTaskAgentTimeoutSec } from './task-timeout.js'
 
 export const INVENTORY_PROTOCOL = 'dsh-evolve-le/tb-inventory/v1'
 
@@ -36,6 +37,12 @@ export interface TaskInventory {
     tarballSha256: string
   }
   tasks: InventoryTask[]
+  /** Frozen eligibility policy and source population accounting. */
+  selection?: {
+    maxAgentTimeoutSec: number
+    sourceTaskCount: number
+    excludedHandles: string[]
+  }
   /** sha256 over the canonical inventory document (without this field). */
   inventorySha256: string
 }
@@ -46,11 +53,15 @@ export function parseTaskName(taskToml: string): string | undefined {
   return match?.[1]
 }
 
-function inventoryDigest(tasks: InventoryTask[]): string {
+function inventoryDigest(
+  tasks: InventoryTask[],
+  selection: TaskInventory['selection'] | undefined,
+): string {
   const hash = createHash('sha256')
   hash.update(
     `${INVENTORY_PROTOCOL}\n${DATASET_PIN.id}\n${DATASET_PIN.upstream}\n${DATASET_PIN.commit}\n${DATASET_PIN.tarballSha256}\n`,
   )
+  if (selection !== undefined) hash.update(`${JSON.stringify(selection)}\n`)
   for (const task of tasks) {
     hash.update(`${task.handle}\0${task.digest}\n`)
   }
@@ -63,9 +74,14 @@ function inventoryDigest(tasks: InventoryTask[]): string {
  * is an error, not a silent skip — a partially materialized set must never
  * plan a job (CLAUDE.md rule 7: fail closed).
  */
-export async function buildTaskInventory(tasksRoot: string): Promise<TaskInventory> {
+export async function buildTaskInventory(
+  tasksRoot: string,
+  options: { maxAgentTimeoutSec?: number } = {},
+): Promise<TaskInventory> {
   const entries = await readdir(tasksRoot, { withFileTypes: true })
   const tasks: InventoryTask[] = []
+  const excludedHandles: string[] = []
+  let sourceTaskCount = 0
   for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
     if (!entry.isDirectory()) continue
     const dir = join(tasksRoot, entry.name)
@@ -74,7 +90,28 @@ export async function buildTaskInventory(tasksRoot: string): Promise<TaskInvento
     if (tomlStat === undefined || !tomlStat.isFile()) {
       throw new Error(`inventory: ${dir} has no task.toml; refuse to plan over a partial set`)
     }
-    await readFile(tomlPath, 'utf8')
+    const toml = await readFile(tomlPath, 'utf8')
+    sourceTaskCount += 1
+    if (options.maxAgentTimeoutSec !== undefined) {
+      if (!Number.isFinite(options.maxAgentTimeoutSec) || options.maxAgentTimeoutSec <= 0) {
+        throw new Error('inventory: maxAgentTimeoutSec must be a finite number > 0')
+      }
+      let timeoutSec: number | undefined
+      try {
+        timeoutSec = parseTaskAgentTimeoutSec(toml)
+      } catch (error) {
+        // Synthetic contract fixtures predate Harbor's [agent] section. Keep
+        // them usable for offline tests; pinned Terminal-Bench tasks all carry
+        // the field and malformed declarations still fail closed.
+        if (!(error instanceof Error) || !error.message.includes('has no [agent].timeout_sec')) {
+          throw error
+        }
+      }
+      if (timeoutSec !== undefined && timeoutSec > options.maxAgentTimeoutSec) {
+        excludedHandles.push(entry.name)
+        continue
+      }
+    }
     const { digest, fileCount } = await computeTreeDigest(dir)
     tasks.push({ handle: entry.name, path: dir, digest, fileCount })
   }
@@ -90,9 +127,18 @@ export async function buildTaskInventory(tasksRoot: string): Promise<TaskInvento
       tarballSha256: DATASET_PIN.tarballSha256,
     },
     tasks,
+    ...(options.maxAgentTimeoutSec !== undefined
+      ? {
+          selection: {
+            maxAgentTimeoutSec: options.maxAgentTimeoutSec,
+            sourceTaskCount,
+            excludedHandles: excludedHandles.sort(),
+          },
+        }
+      : {}),
     inventorySha256: '',
   }
-  inventory.inventorySha256 = inventoryDigest(tasks)
+  inventory.inventorySha256 = inventoryDigest(tasks, inventory.selection)
   return inventory
 }
 

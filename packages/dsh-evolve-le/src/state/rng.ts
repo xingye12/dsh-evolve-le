@@ -22,10 +22,15 @@ export const RNG_ALGORITHM = 'dsh-evolve-le/counter-hmac-sha256/v1'
 export const RNG_STREAMS = [
   'split',
   'scheduler-thompson',
+  'tournament',
   'task-sampler',
   'wave-permutation',
   'bootstrap',
   'audit-sample',
+  // ADR-048: the sealed phase draws on its own streams so the sealed order,
+  // trial seeds, and CI never reuse the tournament's 'bootstrap' counters.
+  'sealed-plan',
+  'sealed-bootstrap',
 ] as const
 
 export type RngStreamName = (typeof RNG_STREAMS)[number]

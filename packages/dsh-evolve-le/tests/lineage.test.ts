@@ -111,8 +111,8 @@ describe('non-root candidates admit through the verified parent diff', () => {
     const childDir = await childSource(parentTreeDir, {
       manifest: (manifest) => asChildOf(parent.sourceDigest, manifest),
       indexSource: original.replace(
-        'in solve mode. The candidate changes no tools',
-        'in solve mode (child revision). The candidate changes no tools',
+        'in solve mode. Candidate-owned tools and skills provide bounded strategy',
+        'in solve mode (child revision). Candidate-owned tools and skills provide bounded strategy',
       ),
     })
     const child = await buildCandidate({

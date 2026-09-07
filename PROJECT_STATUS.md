@@ -1,7 +1,1237 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`NO_SEALED_RESULTS`**
-**更新时间：2026-08-31（Asia/Tokyo）**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
+**更新时间：2026-09-07（Asia/Shanghai）**
+
+## 2026-09-07 ADR-045 K=80 正式信封修正（alpha=0.8、30h 墙钟、400-trial 信封、49×2 矩阵预注册）
+
+ADR-042 校准预检持续拒绝 k80 profile（252-trial 信封）：冻结默认 alpha=0.6 下第 80 个
+child 需要 `N ≥ ceil(80^(5/3)) = 1486`（minimumTrials=1501），任何可行墙钟都不可负担。
+attempt 3 实测 live 节奏 1447s/trial-slot；并发 8 下 16h 只能容纳约 318 slot，而正式
+K=80 强制 trial 量（矩阵 98 + 冷启动 240 + tournament + sealed）需 25-45h。用户确认
+四项决策后按 ADR 显式修订（docs/decisions.md ADR-045；specs/00 §6.3、specs/03 §2、
+specs/04 §4.2 同步带修订注记）：
+
+- **alpha 预注册 0.8**（`ucbAirAlphaPerMille: 800`，profile 新字段）：finalGate=
+  ceil(80^1.25)=240、minimumTrials=255 ≤ 400；搜索节奏由 q0=3 冷启动驱动，评估深度由
+  延后的 tournament 覆盖。specs/03 §2 禁止临时改 alpha——预注册 ADR 修订是合规路径，
+  校准拒绝条款本身不变（0.6 形状仍 fail closed：1501 > 400）。
+- **墙钟 16h → 30h**（`wallClockMinutes: 1800`）显式修订 specs/00 §6.3（推翻 ADR-031
+  对 16h 的保持）；$500 目标不变。
+- **信封**：maxSolverTrials/taskTrials 252→400、solverTokens 504M→800M（保持
+  taskTrials × 2M 不变式）、proposalCalls 20→60（~50 次扩张 × attempt 3 实测
+  ~1.67 admitted/扩张）、proposerTokens 20M→60M、concurrentTrials 4→8（走专用
+  `--concurrent-trials` CLI flag，非 --set 键；CLI 1..8 上限内）。
+  kTarget/q0/shortlistSize/proposalWidth = 80/3/5/3 不变，maxDiscoveryTrials=12
+  休眠（同 k10）。
+- **矩阵**：live profile 携带过渡 observed-only 39×2×8；本 ADR 预注册正式 49×2
+  （39 observed + 10 guard = 冻结 ≤1800s 资格策略下全部合格 development 任务），
+  显式修订 specs/04 §4.2 原「60 tasks」并披露。
+- **k3/k10 冻结值不变**：四个新 profile 字段均为可选，缺省 = 冻结默认值，k3/k10
+  的 init args 保持字节级一致（契约测试固定）。
+
+校准算术（契约测试固定）：alpha=0.8 → 240/255 ≤ 400 ✓；矩阵界 39×2+80×3=318 ≤ 400 ✓；
+最佳供给 78+80×39=3198 ≥ 255 ✓；ceremony 检查 39 ≤ observed split 39（恰在界上）✓。
+成本披露（attempt 3 实测 ~$0.14/trial）：搜索 400×$0.14≈$56 + proposer≈$15 → ~$71；
+延后的 tournament（~300 trial ≈ $42）与 sealed（后续 ADR 预注册预算）合计仍远低于
+$500 ✓。预注册：maxSolverTrials === taskTrials 时搜索耗尽信封报 `TRIAL_CAP`（driver
+检查顺序在预算失败之前）。
+
+**延期清单（任一未落地前禁止付费 K=80 启动，fail-closed 由「无 launch 路径」保证）**：
+dev-guard 波次 + concealment（SAFETY_ABORTED）；tournament/champion + sealed
+k_sealed 预注册；schema `benchmarkBaseline.taskCount` 48→49；`record-tree-v2-k80-live.ts`
+（对称 k10，校验四个新字段）。实现：契约测试先行（calibration 0.8 金值 + 0.6 拒绝保留、
+preflight 72-handle 接受、profile 字段与 args carrier 固定），红→绿→文档→全量套件。
+
+## 2026-09-07 ADR-045 修订：K=80 过渡彩排（39×2）预注册与启动授权
+
+用户要求「先启动 k=80」。按 ADR-045 修订（docs/decisions.md，2026-09-07）：k80 record
+脚本落地（对称 k10，校验 alpha=0.8 / proposalCalls=60 / proposerTokens=60M /
+concurrentTrials=8 / 39×2×8 矩阵全部 verbatim 冻结入 config，ADR-043 拷贝集接入），
+**授权 observed-only 39×2 过渡彩排**——evidence 文档 `formal:false`，结果只作 development
+evidence、不可晋升（rule 6）；延期清单不变，正式 49×2 run 仍被阻断。
+
+**预注册**：
+
+- RUN_ID=`tree-v2-k80-live`、MASTER_SEED=`tree-v2-k80-live-master-seed-1`（全新，未复用）；
+  evidence 落盘 `evidence/tree-v2/k80-live/`；
+- envelope = `TREE_V2_LIVE_PROFILES.k80`（400/400/800M、alpha=0.8、proposalCalls=60、
+  proposerTokens=60M、concurrentTrials=8、wallClock 1800min=30h、矩阵 39×2×8）；
+- 预期终止态（全部已注册）：`K_REACHED`、`TRIAL_CAP`、`NO_ADMISSIBLE_CHILD`、
+  `NO_ADMISSIBLE_TASK`、`NO_REAL_FAILURE_SIGNAL`、`BUDGET_EXHAUSTED`；
+- 成本：现实 ≈ $71（attempt 3 实测 ~$0.14/trial × 400 + proposer ≈ $15），worst ≈ $353
+  （每 trial 打满 2M token ≈ $0.84），均 < $500 ✓；
+- 校准（预检放行依据）：finalGate=240、minimumTrials=255 ≤ 400、矩阵界 318 ≤ 400、
+  最佳供给 3198 ≥ 255、ceremony 39 ≤ observed 39；
+- 启动环境同 k10（官方端点 deepseek-v4-flash、TREE_V2_TRIAL_CONTAINER_PROXY
+  socat 转发 17897、TMPDIR 持久、setsid nohup + disown）。
+
+**本彩排观察点**（对应风险分析）：a) 新颖性墙——60 次 proposal call 内能否 admit 80 个
+不重复机制（attempt 2 在 10 个子代处撞墙）；b) 终点线——TRIAL_CAP 是否像 attempt 3
+一样在最后冷启动 pending 时触发（slack 82）；c) 供给——39×2 矩阵下 pool 大小（pool < 4
+即结构性饿死）；d) 成本——实测 $/trial 是否漂离 $0.14（长 agent trial 占比）；e) 墙钟——
+30h 在并发 8 下的实际消耗曲线。
+
+## 2026-09-07 彩排终止：用户转向直接实现正式 K=80 流程
+
+彩排启动后用户重新评估——彩排与正式共享同一信封与流程，彩排成功也不等于正式成功
+（rule 6），正式 run 反正要重跑搜索——判定 ~$71 保险不值 30h 重复，决定终止彩排、
+直接实现正式流程并以正式 K=80 run 运行。
+
+**终止时状态**（SIGTERM 优雅拆除，全进程树 + 容器清理干净）：已进入 live 搜索阶段，
+8 个 harbor job 记录在案，3 个 trial 在飞行中被拆；search-state
+`expansionAttempts=0`，无任何 trial verdict 入账；在飞行 token 消耗极小（未及
+$1 量级，无结果可归因）。run root `dsh-tree-v2-k80-live-Eyxq2j` 保留在
+`/root/vibe/dsh/scratch/`（ADR-029 模式留证）。彩排 evidence 维持 `formal:false`，
+不可晋升。
+
+**方向变更**：延期清单（dev-guard 波次 + concealment、tournament/champion、sealed
+k_sealed 预注册、schema 48→49、正式 record script + 49×2 预注册）逐个落地，然后
+直接预注册并启动正式 49×2 K=80 run。正式协议（49×2 矩阵、guard 通道、tournament、
+sealed 揭盲、+5pp 门）不动。
+
+## 2026-09-07 正式 K=80 流程：ADR-046..049 落定（计划已批准，实现完成）
+
+延期清单以四个 ADR 全部落定（docs/decisions.md append-only，2026-09-07）：
+
+- **ADR-046** dev-guard 波次 + concealment + 信息流监控：baseline 矩阵 39 observed
+  段 + 10 guard opaque 段（split `dev-guard`）；failure pool 保持 observed-only；
+  bounds 三处同步 observed+guard；`SAFETY_ABORTED` 首次获得发射者；HarborProvider
+  attempt>1 放宽（49×2 第二 attempt 的关键阻塞，原实现直接 throw）。
+- **ADR-047** tournament/champion：K_REACHED 后（仅 `terminal-bench-formal`）执行；
+  资格 ≥12；q10(Beta) 短名单 5（专用 `'tournament'` stream + hash tie-break）；
+  覆盖 6 节点 × 49 题 × 1 = 294 trials（guard 结果由此进入 selector）；90% LCB
+  cluster bootstrap；champion 三重 hash → `candidate.locked`（一次性）→
+  CANDIDATE_LOCKED；`NO_DEVELOPMENT_IMPROVEMENT` 新增 reducer 终止 phase。
+- **ADR-048** sealed 计划预注册：**sealed=23 显式披露**（pinned-89 名义 29 vs
+  ≤1800s 资格群体 23，rule 9 不静默缩小）、k_sealed=5、23×5×2=230 trials、
+  交错随机序、95% CI ≥100k 固定种子；sealed 评估 = 新 CLI 子命令
+  `sealed-evaluate`（driver sealedAccess 恒 false）；**分阶段墙钟（用户决策）**：
+  搜索 1800 + tournament 960（run config 2760）+ sealed 720（sealed-plan.json）
+  ≈ 50-55h 现实 / 65h 上限；specs/00 §6.3 二次显式修订。
+- **ADR-049** schema 48→49 + `terminal-bench-formal` profile + formal record
+  脚本 `record-tree-v2-k80-formal-live.ts` + 49×2 预注册 + 启动授权。
+
+**预注册（正式 run）**：RUN_ID `tree-v2-k80-formal`、MASTER_SEED
+`tree-v2-k80-formal-master-seed-1`、profile terminal-bench-formal、并发 8、
+K=80/q0=3/shortlist=5、alpha 0.8、400 trials、baseline 49×2×8=98、tournament
+294（max 360）、sealed 230；usd 500M µUSD、taskTrials 760、solverTokens 1 520M、
+wallClockMinutes 2760。诚实总数 ≈ 924-1026 trials、≈ $144-160 < $500、
+≈ 50-55h。终止态含 CHAMPION_LOCKED / NO_DEVELOPMENT_IMPROVEMENT /
+SAFETY_ABORTED + sealed 四态。实现门：契约测试先行 → 全量 pnpm test 绿 →
+预注册提交 → 启动（DSH_TREE_V2_LIVE_CONFIRM）。
+
+**实现进度（2026-09-07 晚）**：ADR-046 已实现（契约测试先行：guard 波次 +
+concealment + info-flow monitor + SAFETY_ABORTED + harbor attempt>1 放行）。
+**ADR-047 已实现，全量单测绿**：`dsh-evolve-le` 包 54 文件 / 632 用例全绿
+（52 passed + 2 skipped，含 driver 36/36、tournament+bootstrap 25/25、
+reducer+controller 39/39）、tsc --noEmit 干净、prettier 干净。生产语义：
+K_REACHED 后（仅 terminal-bench-formal）进入 tournament；资格 ≥12（baseline
+恒资格）、q10('tournament' stream) 短名单 5、降级路径（1..4 全进 / 0 合格
+top-up 到下限 / 预算不足 → NO_DEVELOPMENT_IMPROVEMENT 零 trial）；覆盖波
+`tournament-<nodeIdx>-<batch>-<wave>`（action `tourn-<short>-<nodeIdx>-<task>-aN`，
+attempt 延续 pre-tournament 计数——reducer 观察身份是 (candidate,task,split,
+attempt)，tournament 试次复用矩阵 attempt 号会硬崩）；guard 覆盖走 opaque
+dev-guard + canary；scoring = task-paired delta + 90% cluster-bootstrap LCB
+（'bootstrap' stream counter 恒 0，crash 重放逐字节一致，每行 receipt 全入
+journal）；champion = 最高 LCB（epsilonPerf 0.01 内 cost→duration→id）；
+baseline 胜或 delta ≤ 0 → NO_DEVELOPMENT_IMPROVEMENT（不接触 sealed）；
+champion 三重 hash（source||capsule||manifest）→ `candidate.locked`（one-shot）
+→ CANDIDATE_LOCKED。crash drill：pool resume 只校验 handle 集（tournament
+行不改冻结字节）、tournament 规划只依赖 pre-tournament 观察（resume 重推导
+同计划同 action id）、lock 重放恰好一次、relock re-drive 零新增 launch。
+**ADR-048 已实现，Phase 3 套件全绿（2026-09-07 深夜）**：sealed 计划生成
+23×5×2=230（`'sealed-plan'` stream，order 置换 counter 1、每 cell 独立 seed
+counter ≥231，canonical JSON 可字节级 hash）；裁决四门
+（completeness 100%（missing+timeout 都扣）、criticalFindings 0、
+delta ≥ 0.05、CI lower > 0；CI 跨 0 → PROMISING_NOT_CONFIRMED 停在
+SEALED_EVALUATED）；runner 只经 provider（从不走 controller saga），
+resume 逐 cell 校验、wall/usd/token 三预算每波前置、launched 必收集、行
+0600；完整性顺序 = replay 先 → Controller.open(controllerDir) →
+phase 检查第一（非 CANDIDATE_LOCKED 即 fail closed，不触碰 plan/store）→
+lock doc 校验（protocol/runId/tripleHash/championId?/sealedPlanHash）→
+verifySealedPlanDraws → PROTOCOL_INVALID（不 reveal、不 launch）；reveal
+由 `state.locks.sealedRevealed === null` 守护（第二次发射直接 throw，非
+幂等）；CLI `sealed-evaluate`（usage 错误码 2、未 lock 的 run root 码 1 且
+不产生任何副作用）。测试：sealed 15/15 + sealed-evaluate 12/12 +
+bootstrap/split 17/17 + cli 18 passed/1 skipped（两个新 CLI pin 绿，
+catalog `/tmp/dsh-native-materialize-current`）；pnpm build (tsc -b) 绿、
+prettier 全净。假 provider Loader E2E 由 sealed-evaluate 契约套件覆盖
+（真实 CHAMPION_LOCKED run root 重放合成 sealed 计划）；真实 Harbor 的
+sealed 冒烟留给 Phase 5 启动前验证。
+**下一步：Phase 5 启动**（预注册提交 → 启动前全量验证 + doctor → 启动门清单 →
+DSH_TREE_V2_LIVE_CONFIRM=confirm 的 detached 正式 run）。
+
+**Phase 4 已实现，门通过（2026-09-08 凌晨）**：schema taskCount 48→49；
+`--profile` CLI flag + `terminal-bench-formal`；k80 profile 改为正式形态
+（baseline {49,2,8}、tournament {12,1,360,100000}、runProfile formal）；
+envelope 检查器 per-phase 化（搜索 ≤400 / tournament ≤360 / 总 ≤760）；
+DriveReport 语义修正（ADR-049）：`trials`/`discoveryTrials` 只计 search-phase
+（tournament 行单独报 `tournamentTrials`，driver 测试 pin 45→17）；formal
+record 脚本 `scripts/record-tree-v2-k80-formal-live.ts` 完整落地（paid 门 +
+credential 0600 + 固定 scratch + 89→72 资格 + split 39/10/23 + sealed store
+0600 证据树外 + sealed plan 预注册在 init 之前（baseline id 预推导）+
+49 dev / 23 sealed 独立 verifier 镜像根 + init/doctor/run/resume（
+`--sealed-plan-file`）+ per-phase 信封 + 迁移/收据链/结算 + CHAMPION_LOCKED
+事实与 sealed-plan 绑定 + 信息流监控 + guard 试次证据消毒（真名→opaque id）+
+sealed-evaluate（仅 lock 后，PROTOCOL_INVALID 诚实形态，reveal 恰一次，
+聚合-only 披露）+ redaction 扫描（credential/逐 trial token/canary/guard
+名/sealed 名零命中）+ k80-formal-run.json/STATUS.json + 全绿才清理 scratch；
+可 resume（固定 scratch、drive-report.json 判定 run/resume、sealed 从 0600
+行续跑）。验证：pnpm build（tsc -b）绿；**全量 pnpm test 绿（68/70 文件、
+781/788 用例、786s）**；formal 脚本严格 tsc --noEmit 绿（8 处退化动态导入
+类型修复：导入结果显式 `as typeof import(...)` + 具名 interface 替代
+`typeof lockDoc`/值型索引）；prettier 净、oxlint 净。启动环境已就绪：
+retry forwarder 在 172.17.0.1:17897 监听（ADR-028 修正案替代 socat）、
+credential 0600、native DSH lock 在场、socat 已退役。
+
+## 2026-09-07 tree-v2 K=10 live attempt 2 结果（ADR-042 冻结机制生产验证，K=10 未达）
+
+attempt 2（run root `dsh-tree-v2-k10-live-PRl3Pd`，recorder 按 ADR-029 模式录完即删；两次
+中止 root 保留）结束：**STOPPED:NO_ADMISSIBLE_CHILD，trials=40（24 matrix + 8 冷启动 +
+8 ordinary）expansions=8，16440s，RUNNER 正常退出**。record failures=[]（evidence 05:53
+落盘 `evidence/tree-v2/k10-live/`）；$6.93（5 406 106 µUSD model receipts + 预算内杂项）、
+1274 requests、solver 37.7M / proposer 7.7M tokens。
+
+**冻结机制在生产中按契约工作（本次上线的核心验证）**：24×1 矩阵全量执行（discoveryTrials=24，
+`baseline-<attempt>-<batch>-<wave>` 波形完整）、零成功 pool 冻结 **11 题**
+（`chess-best-move, db-wal-recovery, dna-assembly, feal-linear-cryptanalysis,
+gcode-to-text, large-scale-text-editing, make-mips-interpreter, mcmc-sampling-stan,
+merge-diff-arc-agi-task, overfull-hbox, password-recovery`）；供给算术
+`24 + 10×11 = 134 ≥ minimumTrials 49` —— **attempt 1 的供给死锁没有重演**。baseline 失败率
+46%（11/24），高于预注册 40% 估计但仍在供给充裕区间。calibration 预检在 doctor 阶段放行
+K=10（minimumTrials=49 ≤ 60）。
+
+**K=10 未达（已注册终止态，不缩小协议）**：8 次扩张 admitted 8 个子代（depth 2），随后
+**连续 3 次扩张失败**触发冻结上限 → NO_ADMISSIBLE_CHILD。`rebuildRejections=[]`、
+`abandonedIntents=[]` → 最后 3 次失败模式为空 proposal 或全 duplicate（非 build 拒绝）。
+8/10 admitted，差 2 个。扩张失败不是供给问题（pool 11 题充足），是 proposer 产出质量/去重
+问题。
+
+**从 trial 层重建的事实（attempt 1 的 14 个 trial 文件与 attempt 2 同目录共存，按 started_at
+≥ 17:22 UTC 切分）**：matrix 24 题全为唯一任务（无重试，8 波 4 批 4+2 形状），13/24 solved
+→ pool 11 题（与 drive-report 完全一致）；search 阶段 16 trial（4 波）仅 **3/16 solved**——
+8 个 admitted 子代的冷启动与 ordinary 评估大面积失败，子代机制假设基本没在 pool 题上成立。
+proposer 8 次调用共耗 7.7M tokens（≈962K/次）→ 每次都是完整 proposal 输出（v2 envelope），
+结合 rebuildRejections=[]、abandonedIntents=[]，最后 3 次扩张最可能是全部 duplicate /
+无新机制被拒，而非空 proposal 或 build 失败。5 次成功扩张 admitted 8 个（proposalWidth=3 →
+最多 24 个 proposal），说明 proposal 阶段拒绝贯穿全程，最后 3 轮 100% 被拒触发上限。
+
+**诚实披露**：a) 首次启动（00:26）doctor 因本实现的 preflight 检查对 72-handle 人口用
+89-slot 默认 split 抛异常而中止，零付费 trial，修复+回归后重启（见预注册条目）；b) runner
+log 尾部缺 record 摘要行（终段被外部中断，evidence 与 failures=[] 已完整落盘）；c) 每扩张
+proposal receipts 不在 evidence 拷贝集内（k3 recorder 起就是此模式，scratch 已删）——最后
+3 次扩张被拒子代的具体 diff/hypothesis 不可复盘；**已于 ADR-043 修复**（见下节），attempt 3
+起 proposal saga 完整保留，attempt 2 的被拒 receipts 仍不可恢复。
+
+## 2026-09-07 ADR-043 proposal-saga receipts 进入 recorder 拷贝集（rule 7 证据完整性修复）
+
+attempt 2 复盘暴露：record 脚本的 evidence 拷贝集只有 per-trial artifacts +
+run-manifest + drive-report + migration + verifier-image-receipt + image-prefetch，
+**proposal saga 的 receipts 一条都没有**——validation summary（含逐子代 rejected 原因，
+是区分 duplicate / no-new-mechanism / build reject 的唯一凭据）、proposal bundle、
+transcript、gateway/remote receipts 都在 scratch run root 的 `objects/sha256/` 与
+`sandboxes/prop-*/work/` 里，而 ADR-029 成功即删 scratch。k3 recorder 起就是此模式
+（attempt 2 的 receipts 不可恢复）。
+
+**ADR-043 修复**（契约测试先行，`scripts/tests/evidence-copy-set.test.ts` 3/3 绿）：
+共享 helper `scripts/lib/evidence-copy-set.ts`，k3/k10 两个 record 脚本都接入，在 scratch
+删除前补拷：a) `objects/sha256/` 全部文件平铺为 `object-<sha256>`（顶层落盘，rule 8
+redaction scan 原样覆盖；实测 k3 root 60 个 object、共 1.4 MB，含 proposal validation
+summary / transcript / receipts / normalized trial / admission receipt）；b)
+`search-state.json` + `failure-pool.json`；c) 每扩张 `worker-result.json` →
+`<actionId>-worker-result.json`（boot/DAC 事实，store 不存的唯一沙箱事实）。TCB 无改动
+（object store 本就含这些 receipts）。安全验证：对幸存 k3 root 的 objects/ + sandbox
+work 目录用 credential 文件做 `grep -lFf` 精确匹配 = 0 命中（`sk-` 字样命中均为
+"sk-specific" 等普通文本）。attempt 3 起 proposal saga 完整进入 evidence。
+
+## 2026-09-07 ADR-044 prior-rejection 反馈进入 proposer 输入（扩张墙修复，TCB 变更）
+
+attempt 2 复盘 + 幸存 k3 root（attempt 12）实证：连续全拒扩张不是 duplicate，而是**畸形子代**
+（`package/missing`、`modeComponents` 投影违规）——proposer 每次扩张都是 fresh roll，从未见过
+validator 对自己输出的拒绝原因（ADR-038 只把父代失败测试喂回会话，proposal 拒绝原因没有
+任何反馈通道）。修复（先 ADR 后实现，docs/decisions.md ADR-044；契约测试先行）：
+
+1. **持久拒绝记录**：`searchState.proposalRejections`（可选字段，load/fresh 归一化 `[]`，
+   与 rebuildRejections 同模式），每扩张一条 `{actionId, rejected:[{childName,reason}],
+batchErrors}`，reason 截断 300 字符、保留最近 16 条、按 actionId 幂等合并，写入与扩张
+   计数器同一次 saveSearchState（crash 不会留半条追加）。
+2. **暂存输入**：driver 把历史随每次 proposal request 传入；supervisor 在 input/ 暂存
+   `prior-rejections.json`（协议 `dsh-evolve-le/prior-rejections/v1`，deterministic from
+   search-state，controller-owned 输入，与 archive-catalog.json 同级；dev-observed 的
+   proposer 自身输出裁决，无 sealed 数据，无 label 变更）。worker closure
+   （WORKER_RUNTIME_FILES）增补 `proposer/prompt-text.js`——prompt 文本迁出 bin 文件到
+   `src/proposer/prompt-text.ts`（bin 文件 import 即执行 main()，测试无法 import 它）。
+3. **prompt 绑定**：native instruction（live 路由）与 remote wire-protocol section 都把
+   prior-rejections.json 列为可读根，并指示把每条原因当作硬约束——重复被拒形状会再被拒。
+   recorded v1 policy 不动（deterministic，不读新输入）。
+
+验证：`tests/feedback.test.ts` 8/8（record/doc builders、幂等合并、cap、截断、两路由 prompt
+文本）；driver NO_ADMISSIBLE_CHILD 冻结测试扩展（search-state 落 2 条记录、第 2 次扩张
+request 携带第 1 条原因）；sandbox staging 测试（prior-rejections.json 落入 sealed input
+view）；**closure 缺文件正是被真实 uid+netns one-shot E2E 抓住并修复的**（standalone 跑旧
+lib 不暴露）；全量套件 62/62 文件通过（665 passed / 23 skipped）、`tsc -b` 干净、prettier
+干净。K=10 attempt 3 是首个消费者（见下节预注册）。
+
+## 2026-09-07 tree-v2 K=10 live attempt 3 预注册（ADR-043/044 上线后的重试）
+
+attempt 2 以 NO_ADMISSIBLE_CHILD 停在 8/10 admitted（8 次扩张、连续 3 次全拒、$6.93、
+16440s）。两个已知问题已修复并全量验证（ADR-043 receipts 拷贝集、ADR-044 prior-rejection
+反馈）。attempt 3 以**同一 RUN_ID / MASTER_SEED / 同一 k10 envelope** 启动（attempt 2
+同目录共存，按 trial started_at 切分，同前）：
+
+- profile `TREE_V2_LIVE_PROFILES.k10`：kTarget=10、coldStartTrials=1、shortlistSize=2、
+  maxSolverTrials=60、taskTrials=60、solverTokens=120M、benchmarkBaseline={24×1×6}
+  （batchSize 6 → 4 波）、proposalWidth=3、wallClockMinutes=960；proposer 默认预算
+  proposalCalls=20、proposerTokens=20M（与 attempt 2 相同）；
+- RUN_ID=`tree-v2-k10-live`、MASTER_SEED=`tree-v2-k10-live-master-seed-1`、evidence 落盘
+  `evidence/tree-v2/k10-live/`；
+- 预期终止态（全部已注册）：`K_REACHED`、`NO_ADMISSIBLE_CHILD`（扩张质量仍未改善时诚实
+  停止）、`NO_REAL_FAILURE_SIGNAL`、`NO_ADMISSIBLE_TASK`、`TRIAL_CAP`、
+  `BUDGET_EXHAUSTED`；
+- 成本界同 attempt 2（现实 ≈ $12–18，worst ≈ $23.60，远低于 $500 上限）。
+
+**本 attempt 观察点**：a) proposal saga receipts 完整进入 evidence（ADR-043）——若再停
+NO_ADMISSIBLE_CHILD，被拒子代的 validator 原因可直接复盘；b) 第 N+1 次扩张 request 携带
+第 N 次的拒绝原因（ADR-044）——若连续全拒仍发生，可区分「模型无视反馈」与「反馈未达」。
+
+## 2026-09-07 tree-v2 K=10 live attempt 3 结果（ADR-043/044 首次生产验证，K=10 admitted 达成）
+
+attempt 3（scratch `dsh-tree-v2-k10-live-mbg4Qv`，成功即删；证据落盘
+`evidence/tree-v2/k10-live/`，record failures=[]、allPassed=true）：**STOPPED:TRIAL_CAP，
+trials=60（24 matrix + 36 search）expansions=6，21698s，$8.41，1731 requests，58.7M
+tokens**。consecutiveExpansionFailures=0、rebuildRejections=[]、abandonedIntents=[]。
+
+**K=10 admitted 达成**：6 次扩张 admitted 10 个非 baseline 子代（prop-1:3、prop-4:3、
+prop-5:2、prop-6:2；11 张 admission receipts 含 migration baseline）。**终止态是
+TRIAL_CAP 而非 K_REACHED**：K_REACHED 要求 admitted≥10 且无待办冷启动，而 prop-6 的
+第 9、10 个子代在 60-trial 上限触顶时才 admitted，冷启动未能完成——差的是 trial 预算，
+不是扩张质量（attempt 2 的连续 3 次全拒死法没有重演）。matrix 7/24 solved → pool 17
+（attempt 2 为 11）；search 阶段 13/36 solved（36%，attempt 2 为 3/16=19%）。
+
+**ADR-044 反馈链路在真实模型上工作（预注册观察点 b 直接命中）**：prop-2 失败——
+`agent exited without proposal_finish (tool calls=78)`（batchErrors 完整落盘）；prop-3
+收到该反馈后正常提交，但 3 个子代死于新形状 `import/unresolved at src/strategy.ts:24`
+（逐子代原因完整落盘）；prop-3 的拒绝原因喂给 prop-4 → **prop-4 3/3 全过**。search-state
+的 proposalRejections 记录 2 条（prop-2 失败、prop-3 全拒），之后 3 次扩张零拒绝——
+feedback 不是「反馈未达」，模型确在按拒绝原因修正形状。
+
+**ADR-043 receipts 完整性**：evidence 531 个 artifact，含 185 个 object-*（全部
+validation summary / 提案 bundle / transcript / receipts / admission receipt /
+normalized trial）、search-state.json、failure-pool.json、prop-1…6 六个
+worker-result.json——本 attempt 的全部扩张裁决可直接复盘，无需再从 trial 层重建。
+
+**诚实披露**：a) mteb-retrieve 一个 trial 跑满 90 分钟 agent 上限被 harbor 杀掉（预注册
+envelope 内；ADR-040 gate 2 豁免，failures=[]，未丢弃）；b) 启动 wrapper 未回显
+RUNNER_EXIT 行（本 attempt 用内联 bash -c 启动，省略了 attempt 2 wrapper 脚本的
+`echo "RUNNER_EXIT=$?"`）——但脚本最后一条语句 stop= 摘要已打印、失败路径会打印 FAILED
+并 exit 1、STATUS.json allPassed:true、scratch 已按 ADR-029 删除、evidence 完整，判定为
+正常退出而非中断。
+
+**下一步**：K=10 差的是 60-trial 信封（UCB-Air 扩张门 `N^0.6 ≥ T` 需要 N≈39 才首次允许
+扩张，24 matrix + 冷启动把余量吃光，扩张只来得及跑 6 次）。K=80 的旧 252-trial 信封被
+ADR-042 校准预检拒绝（0.6 下需 1486 trials）；**ADR-045 已按预注册修订正式 K=80 信封**
+（alpha=0.8、30h 墙钟、400-trial、49×2 矩阵预注册，见顶部 ADR-045 节）——但付费 K=80
+启动仍被延期清单阻断（dev-guard 波次 / tournament / schema 48→49 / k80 record 脚本，
+任一未落地前无 launch 路径）。是否提高 k10 的 maxSolverTrials / coldStartTrials
+属于协议变更，需先 ADR。
+
+## 2026-09-06 tree-v2 K=10 live attempt 2 预注册（ADR-042 benchmark baseline 冻结机制上线）
+
+attempt 1 的供给缺口已量化（matrix 前的 supply 26 < minimumTrials 49）。ADR-042 冻结机制
+已实现并通过契约测试（calibration 11 例、driver freeze 5 例、preflight/run-config 63 例、
+profile/envelope 29 例、CLI carrier 1 例）。attempt 2 以同一 RUN_ID / MASTER_SEED 启动；
+ADR-042 使 proposal runtime 内容寻址变化 → 全新 run root，attempt 1 root 保留（rule 7）。
+
+**首次启动中止（2026-09-07 00:52，零付费 trial，run root `dsh-tree-v2-k10-live-o0jI3j`
+保留）**：doctor 在 search-calibration 检查处报 `✗ preflight-internal: split: population of
+72 unique handles cannot fill 89 slots`。根因是本实现的检查用默认 89-slot split 对 72-handle
+live population（89→72 ≤1800s 排除后的真实任务集）跑 ceremony 而抛错——不是环境问题，是
+预检检查自身崩溃。修复：检查按 `splitCountsForPopulation(handles.length)` 缩放 split
+（与 run 自身 ceremony 一致；72 → observed 39/guard 10/sealed 23），回归测试钉住
+"72-handle population 返回 finding 而非 throw" 与 "observed 上界随 population 缩放
+（40 > 39 拒绝）"。preflight 15/15 绿后已重启。
+
+**冻结机制（本次上线内容）**：
+
+1. **specs/03 §7 修正**：UCB-Air 的 `N` = 已完成 development trials 总数（baseline、cold
+   start、ordinary 的全部观测；literal ordinary-only 读法会让首个扩张门 `N ≥ 1` 死启动）。
+2. **search.benchmarkBaseline**（schema 新增，taskCount 1..48 / attemptsPerTask 1..6 /
+   batchSize 1..24，三者同现；CLI `--set` 三个 flat carrier 组合，部分出现 = config error
+   code 2）。
+3. **calibration 预检**（preflight 新增 search-calibration 检查）：`minimumTrials =
+ceil(K^(1/alpha)) + q0×shortlistSize`（FP 防抖 ceil）。K=10 → finalGate=47、
+   minimumTrials=49 ≤ maxSolverTrials=60 ✓；bestCaseSupply = 24 + 10×24 = 264 ≥ 49 ✓。
+   k80 profile 被预检拒绝（252 < 1486 / minimumTrials 1501）——specs/03 §2 fail closed；
+   K=80 的 60-task 矩阵 profile 修订是独立决策，不在本 attempt 范围。
+4. **driver 冻结语义**：baseline 波形确定性排程（`baseline-<attempt>-<batch>-<wave>`）、
+   pool = 全矩阵零成功任务、pool 空 → `NO_REAL_FAILURE_SIGNAL`（null，合法终止非失败）、
+   infra-dead 抛 fail-closed（ADR-028）、freeze 后 phase-guarded CALIBRATED。
+   crash-mid-matrix resume 按波形成员恢复；actionId `eval-...-a<attempt>`（attempt 后缀，
+   reserve 幂等不吞后续 attempt）。
+5. **envelope**：k10 profile 要求 `shape.discoveryTrials === 24`（matrix 精确替代 §4.1
+   discovery；24 接受 / 12、18 拒绝）。
+
+**attempt 2 预注册参数**：profile `TREE_V2_LIVE_PROFILES.k10`（kTarget=10、coldStartTrials=1、
+shortlistSize=2、maxSolverTrials=60、taskTrials=60、solverTokens=120M、
+benchmarkBaseline={24×1×6}，batchSize 6 → 4 波）。RUN_ID=`tree-v2-k10-live`、
+MASTER_SEED=`tree-v2-k10-live-master-seed-1`、evidence 落盘 `evidence/tree-v2/k10-live/`。
+baseline 任务集合 = 观测 split 前 24 个任务（ceremony deterministic），verifier 镜像预拉
+覆盖 24 题。
+
+**供给算术（预注册，不随结果修改）**：E[pool] ≈ 9.6（~40% 观测 baseline 失败率）；
+`minimumTrials 49 ≤ 24 + 10×P → P ≥ 3` 即可供给全部 K 个冷启动；UCB-Air 扩张门
+`N^0.6 ≥ T` 在 N ≥ 55 时允许 T=11（baseline + 10 子代）→ 60-trial 预算刚好可达 K_REACHED，
+余量紧（55/60）。**预期终止态（全部已注册）**：`K_REACHED`（最可能）、`NO_REAL_FAILURE_SIGNAL`
+（pool 空）、`NO_ADMISSIBLE_TASK`（供给不足）、`NO_ADMISSIBLE_CHILD`。
+成本界：24 baseline ≈ $3.90（$0.16/trial），全预算 60 trials ≈ $9.70；现实 ≈ $12–18（脚本
+预注册界，含 proposer；worst ≈ $23.60，远低于 $500 上限）。
+
+## 2026-09-06 tree-v2 K=3 live attempt 11 结果 + attempt 12 预注册（ADR-038 proposal_finish 边界测试反馈）
+
+attempt 11（scratch `dsh-tree-v2-k3-live-SHBwcZ`，保留）结束：**STOPPED:NO_ADMISSIBLE_CHILD，
+trials=6 expansions=3，4607s，RUNNER_EXIT=1**。
+
+**ADR-037 修复验证通过**：prop-1 一次调用 proposal_finish 成功提交（零 tool error、
+零 failure transcript），6 个子代全部通过 diffBoundary 的 modeComponents 投影契约——边界
+检查按设计把「契约违规」挡在会话内，本轮没有出现 attempt-10 的缺失文件拒绝。trial 层稳定：
+6 trials attempts=1，4/6 solved（failurePool 冻结 `adaptive-rejection-sampler`、
+`db-wal-recovery`，均为能力缺口，与 attempt 10 同池）。
+
+**6 个子代全部死于下一层新根因（typeLintUnit 统一失败，ADR-038 证据）**：`candidate tests
+failed: tests/candidate.spec.ts (5 tests | 5 failed)`。字节级复现：每个子代把新机制挂成
+src/index.ts 的**第二个顶层插件**（`ctx.plugin(strategyPlugin, config)` 后又
+`ctx.plugin(newMechanismPlugin, config)`）；父代 baseline spec 钉死挂载面——恰好 1 个
+strategy 插件、每 mode 恰好 1 个 section/tool/skill、恰好 3 个 effects——于是 5/5 baseline
+测试失败（子代自带的 mechanism 测试 3/3 通过，模型以为全绿）。结构性成因：proposal sandbox
+没有 exec 工具，模型盲写 TS + vitest spec；typeLintUnit 只在提交后由 controller 独立运行，
+会话内零反馈（rule 7 不可归因失败类）。该模式与前几轮一致：每修好一层契约，下一层未声明
+契约就整体死亡。
+
+**ADR-038 修复（先 ADR 后实现，docs/decisions.md；契约测试钉住；attempt 12 未启动）：**
+
+1. **proposal_finish 边界测试反馈（TCB）**：gateway 新增 `candidate-tests` 请求类型。worker
+   在 finalize 时对每个子代发送 `{childName, files: 父+子合并视图}`；gateway 先逐字节验证
+   每个父文件与暂存父视图一致（允许变更集 = 子代 runtime.modeComponents 路径并集 +
+   candidate.json），再用 controller 侧 runner 把合并视图暂存到一次性目录、**symlink 父
+   capsule 的 node_modules**（子代依赖闭包按契约等于父代），跑与 builder stage 6 完全相同的
+   oxlint + vitest（sandboxed 子进程），剥 ANSI、截断 2000 字符。失败作为 proposal_finish
+   的 tool error 回给模型 → 同一会话内可修复后重试。测试运行独立计数 test-N、不占模型
+   receipt 序号、预算 12 次/会话；recorded 路由无 runner 自动跳过（controller 的
+   typeLintUnit 仍是每路由的权威门）。
+2. **prompt 明确化**：新增机制必须经由现有 strategy 组件路由（在 src/strategy.ts 或其已
+   依赖的模块内 import 新模块），**绝不新增顶层插件**——父代 baseline spec 断言的是恰好
+   一个插件的挂载面；并预告 proposal_finish 会跑父 baseline + 子代新增测试、失败会作为
+   tool error 回传（有界检查，不要死循环）。
+3. **契约测试**：gateway 5+2 个用例（父字节篡改拒绝、缺父文件拒绝、无父视图 fail-closed、
+   不安全路径/名字、预算墙、receipt 序号隔离；无依赖根时默认 runner fail-closed、真实
+   suite 走 socket 全链路绿）、proposer 5 个用例（合并视图失败回传、绿过、runner 缺省跳过、
+   传输错误、预算 12 次）。
+4. **真实 attempt-11 视图冒烟**：`runCandidateTestSuite` 直接跑 attempt-11 实际子代树 →
+   复现 5 条 baseline 失败（边界检查精确预测 controller 门）；去掉第二个 ctx.plugin 的
+   表面保持变体 → oxlint clean + 测试全过。
+
+attempt 12 以同一 RUN_ID / MASTER_SEED / 任务集 / trial 预算启动（由我之后择时运行；
+ADR-038 改动使 proposal runtime 内容寻址变化 → 全新 run root，attempt 11 root 保留）。
+预期：若子代再犯挂载面违规，proposal_finish 在会话内给出可修复的 tool error 而非整轮
+无反馈死亡；ADR-037 的 modeComponents 边界继续钉住。
+
+## 2026-09-06 tree-v2 K=3 live attempt 12 结果 + attempt 13 预注册（ADR-039 边界镜像准入 + 内容敏感指纹）
+
+attempt 12（scratch `dsh-tree-v2-k3-live-xjXLQM`，保留）结束：**STOPPED:NO_ADMISSIBLE_CHILD，
+trials=6 expansions=3，~45 分钟，$1.73，RUNNER_EXIT=1**。
+
+**ADR-038 端到端验证通过**：prop-1 第一次 proposal_finish 把真实 vitest 输出作为 tool
+error 回传（其自写 mechanism 断言错误），模型会话内修复 spec 后重交全绿；每个 proposal 的
+父 baseline 5/5 exact-surface 测试全过。边界反馈机制按设计工作。但三个**新的** controller
+门各杀一个 expansion，会话内全部不可见：
+
+1. **prop-1（2/2 子代）**：`candidate manifest rejected the child:
+/runtime/modeComponents/propose: must NOT have fewer than 1 items`——空 propose 数组；
+   ADR-037 投影检查对空数组空洞通过，完整 manifest schema 只在 controller 侧跑。
+2. **prop-2（2/2 子代）**：`candidate scan rejected the child: package/missing; patch/missing`
+   ——子代树没有 package.json / cordis.patch.yml；边界测试跑过是因为合并视图的父侧补上了
+   字节，builder 扫描的是子代自己的树。
+3. **prop-3（2/2 子代）**：builder mockReplay `target mode solve Loader fingerprint did not
+change`——子代完全按 ADR-038 prompt 走（把 directive 折进现有 solve section 文本，无新
+   注册），自测全过，但 `treeV2RuntimeFingerprint` 只哈希 section **名字**和 registry
+   **名字**——内容演化永远无法满足 target-mode 契约。结构性冲突：父 baseline spec 钉死
+   挂载名字，名字不变指纹就不变，两扇门在 name-only 指纹下联合不可满足。
+
+**ADR-039 修复（docs/decisions.md；契约测试钉住；attempt 13 未启动）：**
+
+1. **固定文件边界检查（prop-2）**：`finalizeTreeV2Bundle` 要求每个子代树自带 package.json
+   和 cordis.patch.yml，且与父视图逐字节一致（"keep fixed" 文件，父字节在 ADR-037 手中）。
+   缺失/改动 fail，错误信息点名文件 + 修复动作。
+2. **schema 边界检查（prop-1）**：gateway 侧 candidate-tests runner 用与 `validate.ts`
+   完全相同的 `validateManifest('candidate')` 校验子代 candidate.json（v2 自动分派到
+   tree-v2 candidate-intent schema），schema 错误逐字回传。
+3. **内容敏感指纹（prop-3，契约层）**：probe 报告新增**可加**字段 `sectionSurfaces`
+   （`{name, order, text}[]`，candidate section 的挂载文本），`treeV2RuntimeFingerprint`
+   哈希这些对象 + registry 名字；name-only 老报告降级到旧列表。**实现期修订**：section
+   文本普遍嵌入 `config.candidateId`（SDK 文档模式），父/子挂载 id 不同 → 原始文本哈希会
+   把字节相同的 preserved-mode 判死（builder 套件首跑即复现）——指纹增加 `{candidateId}`
+   参数，哈希前把调用者自己的 id 替换为固定哨兵（身份是固定内容，不是可演化机制）。
+4. **边界挂载面对比（prop-3，反馈）**：candidate-tests runner 在 sandboxed 子进程里用
+   SDK testkit 挂载子代合并视图**和**父视图（父 baseline spec 的同一 harness 模式），按
+   子代 modeContract 逐 mode 对比挂载记录（section name/order/text + tool/skill 名）：
+   target mode 必须不同、preserved mode 必须相同；失败点名 mode + 缺失的 delta。
+5. **prompt 修订**：当前父代只有 src/index.ts + src/strategy.ts 两个生产文件且
+   src/index.ts 按契约必须修改 → byte-preserved mode 结构性不可能，子代必须双 mode
+   target 且两个挂载面都可观察地不同（把 per-mode directive 折进 solve **和** propose
+   的 section 文本）；固定文件必须写进每个子代树；折 directive 时保留父 spec 断言的文本
+   片段（结构不变、target-mode 文本变）；预告边界会跑 schema + 固定文件 + 挂载面对比 +
+   全套测试，失败作为 tool error 回传。
+
+**契约测试**：finalize 固定文件缺失/改动 +2；runner 套件 5（schema 逐字拒绝、unparseable、
+target 面未变、preserved 面变了、合规子代全链路绿）；gateway +2（注入 runner 收到
+parentFiles 钉住管线、真实 runner 下 prop-1 形态 schema 拒绝）；契约指纹 2（内容敏感 +
+身份掩码）；builder 真 Loader probe 钉住 `sectionSurfaces` 形状。定向套件全绿
+（candidate-test-runner 5/5、remote-gateway 16/16、finalize-bundle 21/21、tree-v2 11/11、
+proposer 18/18、sandbox 10/10、builder 15/15、tree-v2-live-profile 5/5）。全量 vitest
+套件隔离通过：62 个文件 59 绿 + 3 跳，623 个用例 601 绿 + 22 跳（~7.1 分钟，EXIT:0）。
+
+**真实 attempt-12 视图冒烟（两个方向）**：prop-3 子代（db-wal-recovery）原样 → 新边界
+拒绝 `tree-v2 target mode propose mounted surface did not change`（正是会话内会收到的
+反馈）；同一子代把 directive 折进 propose section 文本 → 全边界绿
+（`oxlint clean; candidate tests passed`）。
+
+## 2026-09-06 tree-v2 K=3 live attempt 13 结果 + attempt 14 预注册（ADR-040 收据锚定用量 + 协议形态 envelope）
+
+attempt 13（scratch `dsh-tree-v2-k3-live-sMVV0K`，保留）结束：**`K_REACHED` /
+`STABLE_ITERATION_VERIFIED` — trials=14 discovery=6 expansions=2，6945s（~116 分钟），
+$2.67，RUNNER_EXIT=1**。
+
+**算法目标首次达成，ADR-039 端到端验证通过**：2 次扩张各准入 2 个子代（共 4 个
+admitted non-baseline，均由真实 failure-pool 信号驱动），lineage depth 2，stable-demo
+停止条件按 specs/03 §11 触发。attempt-12 的三类拒绝（空 modeComponents schema、子代树
+缺固定文件、name-only 指纹）全部变成会话内 tool error——每个 proposal 都提交了
+schema-valid manifest + 固定文件 + 内容敏感 target-mode 指纹通过。failurePool 冻结
+`adaptive-rejection-sampler`（5 trials 后 1.0）与 `db-wal-recovery`（5 trials 全 0.0）。
+
+**但整体 FAILED——三个证据门，全部在用量/形态记账层**：
+
+1. `trialCountWithinThePreRegisteredEnvelope`：检查把 envelope 编码为
+   `trials === discovery + expansions×coldStart`——协议真实形态是
+   `discovery(6) + admitted(4)×q0(1) + ordinary UCB-Air 评估(4)`，该公式在 attempt 12
+   上也误报过（6 ≠ 6+3×1）。上限全在信封内（14 ≤ 15/15，6 ≤ 12）。
+2. `agentUsageReportedToHarbor`：db-wal-recovery 一个 trial 在 45 分钟时
+   AgentTimeoutError（预注册 `[agent].timeout_sec` 900 × 常量 3.0 倍率）——上游 Harbor 的
+   超时路径丢弃 capsule 报告（agent_result 全 null），而 gateway 实际记录了 25 requests /
+   262,250 tokens。`participationOf` 把「异常 + 无 initialize 记录」判为
+   never-initialized——链证明 agent 真实运行过。
+3. `receiptUsageMatchesSettlement`：receipts 16,831,542 vs settled 16,569,292——差额
+   正是该超时 trial 的 262,250。collect 端的 participation 优先零用量分支把一个真实
+   消费过的 trial 记成 0（账本拒绝零 settle，"从不静默免费"被打破）。
+4. 另发现：`stopReasonIsARegisteredTerminalState` 列表漏了 specs/03 §7 注册的
+   `NO_ADMISSIBLE_CHILD`（attempt 12 的合法终止被误记为一个门失败）。
+
+**ADR-040 修复（docs/decisions.md；契约测试钉住；attempt 14 未启动）：**
+
+1. **收据优先零分支（harbor-provider collect）**：verified chain `requests > 0` 一律给
+   出完整 figures，participation 启发式只把**缺失/损坏的链**在 never-booted 分类下降级为
+   honest zero；其余坏链保持 fail-closed throw。
+2. **envelope 公式镜像协议**：`trials = discovery + admittedNonBaseline×q0 + ordinary`
+   （ordinary ≥ 0）、`discovery === discoveryBatchSize`、`trials ≤ taskTrials/≤
+maxSolverTrials`、`discovery ≤ maxDiscoveryTrials`、`admitted ≤ kTarget +
+shortlistSize − 1`（wave-snapshot 过冲上界）、`proposalCalls === expansionAttempts`。
+   纯函数在 scripts/lib/tree-v2-live-profile.ts，契约测试钉住 attempt-12 与 attempt-13
+   真实形态。
+3. **用量门拆分**：`receiptChainCoversEveryLiveTrial`（每个 live trial 的链必须覆盖
+   requests>0，除非 never-booted + 链为空/缺失）+ `harborUsageReportedWhenCapsuleCompleted`
+   （capsule 完成报告时 Harbor 必须携带正用量；被 kill 的 trial 按构造豁免，kill 留在
+   exception_info 可见）。不回填 Harbor 的 result.json（避免网关自证 + 证据不可变）。
+4. **终止态列表**补 `NO_ADMISSIBLE_CHILD`。
+
+**契约测试**：provider killed-trial fixture（AgentTimeoutError + null metadata + 非空
+收据 → 完整 figures，而非启发式零）；never-booted honest zero 现在要求链**失败**（缺失
+文件）；envelope 接受 attempt-12/13 形态、拒绝 cap/过冲/discovery/proposal 违规；门分类
+（链覆盖优先于 never-initialized 启发式、capsule 完成但无用量 → 失败、
+`NO_ADMISSIBLE_CHILD` 注册）。定向套件全绿：adapter 69/69（含新增 3 例）、
+tree-v2-live-profile 全绿。全量 vitest 套件隔离通过：62 个文件 59 绿 + 3 跳，
+639 个用例 617 绿 + 22 跳（~7.3 分钟，EXIT:0）。
+
+## 2026-09-06 tree-v2 K=3 live attempt 14 结果（第一个全绿 live run）
+
+attempt 14（scratch `dsh-tree-v2-k3-live-hpN7T4`，保留）结束：**`K_REACHED` /
+`STOPPED:K_REACHED` — trials=14 discovery=6 expansions=1，6940s（~116 分钟），
+$2.04（550 requests、13,879,429 tokens），RUNNER_EXIT=0，record 文档
+`failures: []`**。预注册预期（"`K_REACHED` 一轮上全部证据门通过"）精确达成。
+
+**三个 ADR-040 门按设计工作**：envelope 公式接受协议真实形态（6 discovery +
+3 admitted×1 cold start + 5 ordinary）、settlement 与收据总和逐 token 相等
+（13,879,429 = receipts）、每 trial 归因由 TCB 链覆盖。本次 1 次扩张准入全部 3 个
+proposalWidth 子代（`admittedNonBaseline=3`，kTarget 精确达成；过冲上界 3+2−1=4 内），
+无超时 kill trial。rewards 7×1.0 / 7×0.0（6 任务：discovery 6 题 + 3 子代评估），
+failurePool 冻结按协议产生。evidence artifacts（14×3 trial 副本 + manifest +
+drive-report + migration 收据）落盘 `evidence/tree-v2/k3-live/`。
+
+**与 attempt 13 的形态差（诚实披露，不缩小协议）**：attempt 14 的 lineage depth=1
+（单扩张直接达标）——specs/03 §11 的 stable-demo 停止态 `STABLE_ITERATION_VERIFIED`
+要求 ≥2 层 lineage，本轮以注册的 `K_REACHED` 终止。两层 lineage +
+`STABLE_ITERATION_VERIFIED` 形态已在 attempt 13 演示（其失败仅因记账门，现已修复）；
+两份 run root 合起来覆盖完整协议，但**尚无单份全绿 run 同时具备 depth-2 形态**。
+是否再跑一轮以拿到 depth-2 全绿记录是下一步的择时决策（每次 ~$2-3）。
+
+**残余**：上游 Harbor 对被 kill trial 的 result.json 仍为 null（归因由 TCB 链承担，
+raw 记录保持可见）；ADR-040 改动未提交（repositoryHead 仍为 7fa9f28，run manifest
+已内容寻址冻结工作树）。
+
+## 2026-09-06 tree-v2 K=10 live attempt 1 结果（record 全绿，K=10 结构性未达，§4.2 供给缺口确认）
+
+attempt 1（第二次启动，scratch `dsh-tree-v2-k10-live-70Gosa` 已清理）结束：
+**`NO_ADMISSIBLE_TASK` / `STOPPED:NO_ADMISSIBLE_TASK` — trials=14 discovery=6
+expansions=4 admittedNonBaseline=4，5831s（~97 分钟），$2.27（574 requests、
+15,688,824 tokens），RUNNER_EXIT=0，record 文档 `failures: []`**。evidence
+artifacts 落盘 `evidence/tree-v2/k10-live/`。
+
+**ADR-041 三个改动全部按设计工作（首次真实触发）**：`NO_ADMISSIBLE_TASK` 正确注册
+记分（未重演 attempt-12 误判）；envelope 接受 14 = 6 discovery + 4×1 cold start +
+4 ordinary；settlement 与 receipts 逐 token 相等；proposal-calls=4=expansions。
+discovery 首批 6 题含 2 个真实 failure（adaptive-rejection-sampler、chess-best-move）
+→ pool 冻结为 2 题。
+
+**彩排的核心发现（量化，K=10 未达成）**：UCB-Air 扩张门为
+`N^0.6 ≥ T`（T = baseline + admitted 子代）。K=10 需要 T=11 → `N ≥ 11^(5/3) ≈ 54.4`；
+而 N 的供给上限 = discovery 6 + 每个子代最多试遍 pool 一次（pool=2 → 每子代 2 题）
+= 6 + 10×2 = **26 < 54.4 —— 结构性不可达**。实际运行精确停在该模型的边界：
+4 个子代耗尽 8 个 pool 题后 N=14（14^0.6=4.87 < T=5）→ 无法扩张也无法评估 →
+`NO_ADMISSIBLE_TASK`。即使 pool=4 也不够（6+40=46 < 54.4）；**pool ≥ 5 才可行**。
+specs/04 §4.1 的 stable-demo discovery（首批出现 failure 即冻结）供给不了 K=10，
+这正是 specs/04 §4.2 的预设："启动 K=10/K=80 benchmark profile 前另行冻结对应
+baseline"——该机制**尚未实现**。
+
+**结论与下一步**：K=10/K=80 的付费路径被 §4.2 benchmark baseline 供给机制阻塞，
+不是 pilot 重跑能解决的（rule 9：不得静默缩小协议，例如把 pool 补成 12 题失败集、
+或调低扩张门）。60-trial/16h 信封算术本身未能被本轮验证（只用了 14 trials/97min）。
+下一步是工程：设计并实现 specs/04 §4.2 的 benchmark baseline 冻结（ADR-042，含
+K=10/K=80 的 pool 供给 ≥5/≥19 的可行性条件、以及 specs/03 §2 的 B_eval-calibration
+预检——启动前拒绝结构性不可达的 run），契约测试先行；完成前不再启动付费 K=10/K=80。
+
+## 2026-09-06 tree-v2 K=10 live attempt 1 预注册（K=80 前的规模彩排，ADR-041）
+
+按用户批准的路线（K=3 全绿 → K=10 真实 solver 彩排 → K=80），启动第一个 K=10
+真实 solver live run。**目的**：在 1/4 规模上验证 60-trial 信封、wave 并行度、16h
+时间信封与 $500 预算内的时间/成本算术，为 K=80 预注册 ADR 提供实测数据。本 run
+**不是** K=80 搜索本身，也不接触 sealed（split ceremony 不变：observed 48 /
+guard 12 / sealed 29 保持不透明）。
+
+**首次启动 fail-closed（同一日）**：`init` 拒绝生成的 config——
+`/search/maxDiscoveryTrials: must be <= 12`（`schemas/run.config.schema.json`
+maximum 12，引用 specs/04 §4.1 硬上限）——profile 从 v1 时代 Gate 8 pilot 继承的
+48 在 tree-v2 schema 下不合法。RUNNER_EXIT=1、零花费、零 trial 启动，fail-closed
+按设计工作。修正：**profile 改为 spec 上限 `maxDiscoveryTrials=12`（两个 funded
+批次）**，schema 不动；K=10 彩排因此只演练已实现的 12-cap discovery + 60-trial
+搜索信封，specs/04 §4.2 的 K=10/K=80 正式 baseline 另行冻结仍留待 K=80 预注册。
+ADR-041 已记录该修正；契约测试重跑 26/26。
+
+**预注册内容（全部先于启动冻结）**：
+
+- profile：`TREE_V2_LIVE_PROFILES.k10`（kTarget=10、coldStartTrials=1、shortlistSize=2、
+  maxSolverTrials=60、maxDiscoveryTrials=12、discoveryBatchSize=6、proposalWidth=3、
+  taskTrials=60、wallClockMinutes=960、solverTokens=120M）。RUN_ID=`tree-v2-k10-live`、
+  MASTER_SEED=`tree-v2-k10-live-master-seed-1`、evidence 落盘 `evidence/tree-v2/k10-live/`。
+- **ADR-041（docs/decisions.md；契约测试先行）**：
+  (1) envelope 的 discovery 条件改为 funded batch multiple（>0、≤maxDiscoveryTrials、
+  %batchSize==0）——driver 只在含真实 failure 的批次边界冻结 pool，全 success 的第一批
+  合法资助第二批（k3 同理：6/12 合法，5/7/13 拒绝）；(2) `NO_ADMISSIBLE_TASK`（所有
+  admitted 节点都试遍 pool 题——60-trial 信封在小 pool 上可真实到达）加入
+  `REGISTERED_TERMINAL_STOP_REASONS`，避免重演 attempt-12 `NO_ADMISSIBLE_CHILD`
+  误判；(3) 启动时预构建**两个** discovery 批次（12 题的离线 verifier image）；
+  第三批被 specs/04 §4.1 硬上限禁止，12 题全过即 `NO_REAL_FAILURE_SIGNAL`（已注册）。
+- 预期终止态（全部已注册）：`K_REACHED`（最可能，K=10 + 每个 admitted 节点 q0=1
+  cold start 完成后停止）、`NO_ADMISSIBLE_TASK`（pool 穷尽）、`TRIAL_CAP`、
+  `BUDGET_EXHAUSTED`、`WALL_CLOCK_EXHAUSTED`、`NO_ADMISSIBLE_CHILD`、
+  `NO_REAL_FAILURE_SIGNAL`。
+- 预算估算（信封内）：solver 最坏 60×$0.30=$18.00，proposer 最坏 20M tokens≈$5.60，
+  合计最坏 ≈$23.60；现实 ≈$9–15（attempt 14 均值 ≈$0.146/trial）。远低于 $500 上限。
+- 时间估算：attempt 14 为 14 trials/6940s（并发 4）；60 trials 预计数小时量级，
+  960 分钟信封内。
+- **诚实披露**：本 run 不覆盖 k80 专属路径（coldStartTrials=3、shortlistSize=5、
+  specs/03 §11 formal tournament、60-task coverage plan、guard 12 selector、
+  cluster-bootstrap LCB）——这些仍留待 K=80 预注册 ADR；K=3 depth-2 全绿记录缺口
+  仍然存在（attempt 13 形态红 / attempt 14 全绿但 depth-1），不因本 run 关闭。
+
+## 2026-09-06 tree-v2 K=3 live attempt 10 结果 + attempt 11 预注册（ADR-037 modeComponents 边界契约）
+
+attempt 10（scratch `dsh-tree-v2-k3-live-iuNcLB`，保留）结束：**STOPPED:NO_ADMISSIBLE_CHILD，
+trials=6 expansions=3，3229s，RUNNER_EXIT=1**。
+
+**ADR-036 修复验证通过**：3 个 proposal 全部一次调用 proposal_finish 成功提交（无 failure
+transcript；worker-result ok:true、`"turns": 1`、proposal.json 完整）——深冻结提交墙已消除。
+trial 层继续稳定：6 trials attempts=1（forwarder 持续零 infra 重试）；build-pmars、
+break-filter-js-from-html、code-from-image solved；adaptive-rejection-sampler、
+cancel-async-tasks、db-wal-recovery reward=0（failure pool 冻结 3 handles，均为能力缺口）。
+
+**9 个子代全部死于下一层新根因（diffBoundary，ADR-037 证据）**：`tree-v2 contract rejected:
+parent target solve references missing file src/<子代新增模块>.ts`——模型把子代新增的模块
+（src/adaptive-rejection-sampler.ts、src/cancel-async-tasks.ts、src/db-wal-recovery.ts
+及变体）列进了 candidate.json 的 `runtime.modeComponents`。契约语义是 modeComponents 只列
+**父树已存在**、由子代改动字节的生产模块；新增模块由 added-file diff + tests.mechanism 确立。
+该语义在 schema（无 description）与 prompt（无此规则）中都不可见；transcript 证明模型确实
+读过 parent-files.json（父树完整文件清单在会话内），不是信息缺失而是语义缺口——父代的
+intent 列自己的文件，子代照抄形状是天然后果。且该拒绝发生在整个 proposal 返回 ok 之后：
+零 loop 内反馈，模型无法在会话内修复（rule 7 不可归因失败类）。
+
+**ADR-037 修复（先 ADR 后实现，契约测试钉住后启动）：**
+
+1. **提交边界契约检查（TCB）**：`finalizeTreeV2Bundle` 在 proposal_finish 边界对每个子代
+   强制投影契约——modeComponents 每个路径必须匹配生产模式、存在于父视图（parent-files.json
+   同名文件）、存在于子代树；target mode 必须有所列路径的生产字节变化、preserved mode 必须
+   无变化；每个子代必须修改 src/index.ts。失败抛 `TreeV2FinalizationError` 并给出精确
+   child/mode/path + 修复指引，作为 tool result 回给模型 → 同一会话内可改 intent 后重试
+   proposal_finish。wiring（proposer/tools.ts）读 TCB 暂存的 parent-files.json + 父文件
+   构建父视图；暂存缺失 → fail closed（绝不静默跳过）。controller 独立复验不变，仍是权威。
+2. **schema 描述**：modeComponents/componentPaths 增加父成员规则说明。
+3. **prompt 明确化**：点名 parent-files.json 为唯一合法路径来源 + 「新增模块绝不列入
+   modeComponents」+ 子代必须改 src/index.ts 并新增非根生产模块与 mechanism test。
+4. **契约测试**：7 个新边界用例（attempt-10 复现的父缺失路径、子代未写路径、非生产模式
+   路径、target 无字节变化、preserved 字节变化、未改组件根、无父视图 fail-closed）+
+   tools 层 fail-closed 用例；现有 ADR-034 fixture 补父视图。目标测试 34+85 全绿。
+
+attempt 11 以同一 RUN_ID / MASTER_SEED / 任务集 / trial 预算启动；ADR-037 改动使 proposal
+runtime 内容寻址变化 → 全新 run root；attempt 10 root 保留（rule 7）。预期：边界检查把
+下一未知契约规则变成会话内可修复的 tool error，而非整轮无反馈死亡。
+
+## 2026-09-06 tree-v2 K=3 live attempt 9 结果 + attempt 10 预注册（ADR-036 冻结参数修复）
+
+attempt 9（scratch `dsh-tree-v2-k3-live-eUb2m5`，保留）结束：**STOPPED:NO_ADMISSIBLE_CHILD，
+trials=6 expansions=3，4571s，RUNNER_EXIT=1**。
+
+trial 事实（真实数据，rule 7 不丢弃）：**6 trials 全部 attempts=1（零 infra 重试）**——
+retrying forwarder 在真实生产中验证：attempt 5-8 每轮 2-3 个 apt 死亡，本轮为零；
+build-pmars、break-filter-js-from-html、cancel-async-tasks、code-from-image、
+adaptive-rejection-sampler 全部 reward=1.0；**唯一真实能力缺口 db-wal-recovery
+reward=0**，failure pool 冻结为 `["db-wal-recovery"]`（frozenFromObservations=6）。
+forwarder 属主机侧环境设施（同地址 172.17.0.1:17897），job plan / 冻结配置 / run
+manifest 零改动。
+
+3 个 proposal 全部死于同一新根因（failure transcript 逐条钉住，ADR-036 证据）：
+
+- **DSH session 深冻结 tool-call 参数**：上游 session 对每条追加消息 deep-freeze，模型
+  经 proposal_finish 提交的 bundle 到达工具层时已冻结；ADR-034 的 TCB finalizer
+  （`finalizeTreeV2Bundle`）原地重建 receipt → `TypeError: Cannot assign to read only
+property 'analysisReceipt' of object '#<Object>'`。模型把错误反馈当 bug 反复重试
+  proposal_finish——prop-1 31 次（另命中 64/64 request 上限）、prop-2 10 次、prop-3
+  24 次——子代树全部写完（prop-3 97 tool calls、children 完整 staged）却死在提交边界，
+  最终纯文本放弃 → runner 只见「agent exited without proposal_finish」。
+- 契约测试无法先验捕获：测试传可变对象，生产传冻结对象。
+
+**ADR-036 修复（先 ADR 后实现，契约测试钉住后启动）：** `proposal_finish` 工具边界在
+TCB finalization 之前 `structuredClone(proposal)`——finalizer 在私有副本上重建 receipt，
+审计轨迹保留原始冻结事件；契约测试用 deepFreeze 的 raw bundle + 变异型 fake finalizer
+钉住「副本被写、冻结原件未被写」。full suite 567/566 全绿 + FULL_SUITE_EXIT=0
+（567 = 566 + 新增 ADR-036 契约测试）。
+
+attempt 10 以同一 RUN_ID / MASTER_SEED / 任务集 / trial 预算启动；ADR-036 改动使
+proposal runtime 内容寻址变化 → 全新 run root；attempt 9 root 保留（rule 7）。预期
+attempt 10 的 proposal_finish 首次成功提交，下一可见层为提交后的 controller 独立
+复验（ADR-034 的 receipt 逐层绑定复验）。
+
+## 2026-09-06 tree-v2 K=3 live attempt 8 结果 + attempt 9 预注册（ADR-035 提案预算墙修复）
+
+attempt 8（scratch `dsh-tree-v2-k3-live-IrLZvY`，保留）结束：**STOPPED:NO_ADMISSIBLE_CHILD，trials=6 expansions=3，4839s，RUNNER_EXIT=1**。
+
+trial 事实（真实数据，rule 7 不丢弃）：2 solved——adaptive-rejection-sampler reward=1.0
+（1.88M tokens）、cancel-async-tasks reward=1.0（1.14M tokens）；db-wal-recovery reward=0；
+3 个 apt 死亡（capability FAIL）——build-pmars、break-filter-js-from-html、
+code-from-image（drop-in 在位仍死，生产证伪与回滚见下节）。
+
+3 个 proposal 全部死于「agent exited without proposal_finish」（107/91/111 tool calls），
+receipt 逐条相关给出两类机制（ADR-035 证据）：
+
+- **prop-1（38 个已投递请求）/ prop-3（52 个）：网关 post-hoc 预算检查丢弃下一请求的
+  已付费响应**——`budget stop: 4164820 tokens / 606457 µUSD would exceed the cap`（prop-1）、
+  `4107189 tokens`（prop-3），对 4M token 上限。children 已全部 staged，被丢弃的多半是
+  最终写入或 proposal_finish 提交本身；错误静默终止上游 DSH loop（`kick()` 吞掉 turn
+  错误后 idle）→ runner 只见「未提交」。
+- **prop-2（45 个请求，3.69M 累计 token——未超上限）：最后响应已投递但无 tool call**
+  （纯文本收尾 → DSH loop 按 `completed` 退出）——模型以散文收场，没调用 proposal_finish。
+- 共同根因：tree-v2 协议要求模型经 `proposal_write_child` 内联内容逐文件写完整子代树，
+  DSH session 每请求重发全部工具历史 → 完整 2-3 子代提案落在 3.7-4.2M 累计 token，恰在
+  4M 上限上；loop 内没有任何提交压力（prompt 声称有 bounded budget，但无物强制）。
+
+**ADR-035 修复（先 ADR 后实现，契约测试钉住后启动）：**
+
+1. `REMOTE_PROPOSER_BUDGET.maxTotalTokens` 4M → **6M**（3×6M=18M ≤ 冻结的 run-level
+   `proposerTokens` 20M；成本上限 $4 不变，实测 ~$0.57/提案）；post-hoc 检查保持 hard——
+   一旦再触发仍丢弃已付费响应而非超限，是应急刹车而非常规终止路径。
+2. **工具调用预算（TCB 自有工具层）**：soft 72 次起每个 list/read/write 结果追加收尾
+   提示（N/96 已用，只写必要剩余并提交）；hard 96 次起三个 authoring 工具拒绝执行
+   （错误信息要求立即 proposal_finish）；`proposal_finish` 任何次数豁免。attempt 8 实测
+   91-111 次 → 提示落在写作中段、拒绝线在观测带上方；最坏 session（~110 请求 × ~250K
+   context）仍低于 6M 上限。
+3. **prompt 明确化**：纯文本收尾 = run 失败，只有 `proposal_finish` 工具调用能成功
+   （prop-2 修复）；并点名工具调用预算。
+4. **失败 transcript**：`runNativeProposal` 抛错前把完整 session 事件序 + audits + 错误
+   写入 `work/failure-transcript.jsonl` 并在错误信息中给出路径（attempt 8 只能靠 receipt
+   相关性反推模型最后行为；rule 7 要求失败可归因）。
+
+**重试 forwarder 已部署**（ADR-028 证伪增补，用户批准现场替换）：`fwd` 容器现为 retrying
+HTTP forwarder（同地址 `172.17.0.1:17897`、network=host、restart=unless-stopped；502/连接
+失败最多重试 3 次带退避 + 每次全新上游连接；CONNECT 透传不重试），curl 实测 plain HTTP
+200 通过、CONNECT 隧道直达 api.deepseek.com。job plan / 冻结配置 / route hash / run
+manifest 全部零改动（主机侧环境设施，不入 manifest）。
+
+attempt 9 以同一 RUN_ID / MASTER_SEED / 任务集 / trial 预算启动；ADR-035 改动使 capsule
+与 proposal runtime 内容寻址变化 → 全新 run root；attempt 8 root 保留（rule 7）。
+
+## 2026-09-06 tree-v2 K=3 live attempt 8 预注册（ADR-034 TCB 终结 + ADR-028 增补 apt 重试）
+
+attempt 7 的三类失败各自有根因与修复，全部先 ADR 后实现、契约测试钉住后再启动：
+
+**(a) 2 个 trial 自 attempt 5 以来持续死亡（apt 偶发 502）——根因与修复。** 根因不是
+forwarder 存活问题（attempt 6 曾全程无 502，attempt 7 又死 2 个），而是 apt 本身对单次
+fetch 失败零重试：trial 容器经 172.17.0.1:17897（socat）→ 127.0.0.1:7897（Windows 侧代理）
+访问 deb.debian.org，代理偶发 502（约 1/3 trial 命中一次）→ `E: Failed to fetch ...
+502 Bad Gateway [IP: 172.17.0.1 17897]` → apt 退出 100 → agent 从未 boot（无 trajectory /
+无 receipts / usage null）→ harbor 记 NonZeroAgentExitCodeError → capability FAIL（无
+trial 级重试，rule 7 不丢弃）。attempt 7 死者：break-filter-js-from-html、
+cancel-async-tasks（与 attempt 5 的 code-from-image、db-wal-recovery 不同任务，证明是
+按 trial 随机命中而非任务特定）。ADR-028 增补修复：CLI 内容寻址物化
+`Acquire::Retries "3";` drop-in（字节校验后以只读 bind mount 注入
+`/etc/apt/apt.conf.d/99-dsh-evolve-le-retries.conf`），真实 verifier-runtime 镜像内
+smoke 实测 `apt-config dump` 报出 `Acquire::Retries "3";`。该 drop-in 只进 harbor job
+plan、不进 run manifest（`freeze()` fail-closed 会拒绝已冻结 run root 的新键，破坏
+resume；与 CA bundle 同一条路径）。
+
+**(b) prop-1/3 receiptDigest 拒绝——模型伪造摘要。** wire 协议要求模型自己计算
+canonical-JSON sha256，真实模型伪造摘要样式字符串（复制父摘要、拼接 evidence 摘要、
+随机 hex），controller 验签必然拒绝。ADR-034：摘要全部改由 TCB 在 proposal_finish
+工具边界派生——`finalizeTreeV2Bundle` 用模型语义字段重建 analysis receipt /
+candidate-intent parent evidence / proposal receipt，逐层绑定后 controller 独立复验；
+结构不可能即 fail closed（与 controller 拒绝同结果，绝不静默修补）。
+
+**(c) prop-2 analysis schema 严格性 + 编造 donor。** 模型的 `$schema` 习惯与缺字段撞上
+`additionalProperties:false`；archive catalog 从未 staging 进 sandbox input，模型编造
+`@dsh-evolve-le/candidate-tree-v2-baseline`。ADR-034 同批修复：catalog 作为 trusted
+input 写入 proposal sandbox（treeV2Parent 存在而 catalog 缺失 → fail closed）；donor
+只允许出现在 catalog 中的 candidate id；named evidence 摘要必须精确引用
+export/manifest.json 内的对象（补齐 hollow-evidence 洞：模型引用的
+normalizedTrialDigest/trajectoryDigest 必须是 analysis evidenceDigests 已引用的真实
+导出对象）；prompt 明确禁止模型自算 receiptDigest、要求先读 manifest 与 catalog。
+
+attempt 8 以同一 RUN_ID / MASTER_SEED / 任务集 / trial 预算启动；ADR-034 改动使 capsule
+与 proposal runtime 内容寻址变化 → 全新 run root；attempt 7 root 保留（rule 7）。
+
+**2026-09-06 attempt 8 期间更正：apt `Acquire::Retries` drop-in 被生产现场证伪。**
+attempt 8（scratch `dsh-tree-v2-k3-live-IrLZvY`，进行中）首波 4 个 discovery trial 中 2 个
+死于同一 502 类——`break-filter-js-from-html`（libjs-sphinxdoc 单次 502）与 `build-pmars`
+（两个不同 URL 各 502）——而 drop-in mount 已证实挂载在位（sibling env 容器 docker inspect
+见 exact read-only mount；harbor plan YAML 记录在案）。容器实验（同 verifier-runtime 镜像
+apt 2.6.1）确认机制：`Acquire::Retries` 只重派 transient 连接级失败，HTTP 状态码失败不算；
+带 mount 与不带 mount 的尝试次数完全相同（无 body 的 502 = 1 次；带 body 的 502 = 7 次
+apt 2.6.1 内置 transient allowlist 重试，与 drop-in 无关）。drop-in 对全部已观测失败模式
+都是 no-op → 予以回滚（CLI 物化 / plan mount / 契约 pin 一并移除），不得留下假装重试的
+配置。**替代修复（attempt 9 预注册，ADR-028 增补见 docs/decisions.md）**：`fwd` socat
+中继替换为同地址（`172.17.0.1:17897`）的 HTTP 重试 forwarder——对 502/连接失败以退避 +
+全新上游连接重试最多 3 次，容器内 apt/curl/pip 不再看到 502；job plan、冻结配置、route
+hash、run manifest 全部零改动；实现入库为 `scripts/lib/trial-egress-forwarder.py`（loopback
+契约测试钉住策略），属主机侧环境设施（与所替换的 socat 同类，不入 run manifest）。
+capability-FAIL 分类、1800s setup 上限、trial 级 1× infra 重试均不变。**已于 attempt 9
+启动前现场部署**（见上节）。
+
+## 2026-09-05 tree-v2 K=3 live attempt 7 结果（首个真实模型端到端 proposal run，官方端点健康）
+
+attempt 7（scratch `dsh-tree-v2-k3-live-XNO5PX`，保留）：官方端点全程健康（0 次 ADR-033
+重试），3 个 expansion 全部走完真实模型 proposal 但死于候选拒绝（prop-1/3
+receiptDigest 验签失败、prop-2 analysis schema `additionalProperties:false` + 编造
+donor），STOPPED:NO_ADMISSIBLE_CHILD（trials=6 expansions=3，2807s，RUNNER_EXIT=1）。
+attempt-7 trial 事实（真实数据，计入开发反馈，rule 7 不丢弃）：
+adaptive-rejection-sampler reward=0；break-filter-js-from-html 与 cancel-async-tasks
+死于 apt 502（agent 从未 boot，capability FAIL）；db-wal-recovery reward=0；
+code-from-image reward=0；build-pmars reward=1。
+
+## 2026-09-05 tree-v2 K=3 live attempt 7 预注册（官方端点 + ADR-033 重试上线）
+
+attempt 6 的根因修复已实现并全绿（ADR-033 网关层重试：upstream 核心 / 双网关 /
+receipts / config / schema + 契约测试；remote receipt 2→3、solve receipt 3→4、attempts
+轨迹、route hash 冻结 retry）。上游端点按 ADR-033 增补条款切换：one-api 退役（多日
+`Database error` 500），attempt 7 使用官方 `https://api.deepseek.com/v1` + 同一
+`deepseek-v4-flash`，凭据为更新的 0600 文件（rule 8：不进任何 receipt/log/prompt）；
+route lock 其余不变（`maxOutputTokens: 131_072`），启动前已对官方端点实测通过（最小
+请求与 `max_tokens: 131072` 均 200 且上报 usage）。RUN_ID / MASTER_SEED / 任务集 / trial
+预算不变，新 baseUrl 内容寻址进入全新 run root 的 route hash 与 manifest。attempts
+4–6 的 run root 全部保留（rule 7）。
+
+## 2026-09-05 tree-v2 K=3 live attempt 6 失败（one-api 全量 500，外部故障）
+
+attempt 6（scratch `dsh-tree-v2-k3-live-2dsMQ8`，保留）验证 attempt-5 两处修复在生产
+成立：3 次 proposal sandbox boot 全部 quiescent 且 drift={}（PipeWrap 修复有效）；6 个
+discovery trial 全程无 apt 502（forwarder `--restart unless-stopped` 保持），其中
+db-wal-recovery reward=1。但扩张 3/3 死于上游：每个 proposal 首次模型调用即
+`upstream 500`（req-1），agent 0 次 tool call 退出，NO_ADMISSIBLE_CHILD（trials=6
+expansions=3，1297s）；code-from-image solve trial 同类死亡（req-1 500，0 tokens）。
+现场探测确认 one-api 此刻对任何请求（含最小化请求）返回 `Database error` 500——外部
+服务故障，非请求形状（同窗口 sibling trial 经同一网关成功调用 26–49 次）。
+
+项目缺陷：模型调用路径没有任何重试——一次瞬时上游 5xx 就杀死整个付费 proposal/solve
+trial。ADR-033 预注册修复（详见 docs/decisions.md）：重试类别固定（5xx + network
+failure；4xx/超时/空内容/畸形 tool call 一律 FAIL 不重试）、policy 冻结进 route hash
+与 manifest、每请求仍一条 receipt 且新增 attempts 轨迹、预算上界（proposer 最坏
+≈40min < 60min sandbox；solve gateway 650s < ACP client 660s）。契约测试钉住分类与
+预算收缩行为。
+
+attempt-6 trial 事实（真实数据，计入开发反馈，rule 7 不丢弃）：
+adaptive-rejection-sampler reward=0；break-filter-js-from-html reward=0；
+code-from-image reward=0（req-1 500 零用量）；build-pmars reward=1；
+db-wal-recovery reward=1；cancel-async-tasks reward=1。
+
+## 2026-09-04 tree-v2 K=3 live attempt 5 失败（PipeWrap 静默误报 + apt 偶发 502）
+
+attempt 5（scratch `dsh-tree-v2-k3-live-ChaXVB`，保留）暴露两处问题：
+(a) proposer-worker 的 PipeWrap lazy-stdio 在子进程 stdio 尚未就绪时把空句柄列表误判为
+"已 quiescent"，proposal 过早终结——3 个扩张全部 NativeProposalError（0 tool calls），
+NO_ADMISSIBLE_CHILD（trials=6 expansions=3，1988s）。修复：snapshot 前先
+`initializeProtocolStreams()`，并新增回归测试。
+(b) 容器内 apt 经 upstream-proxy 偶发 502 致 2 个 trial 的 ACP setup 死亡（agent 从未
+boot：code-from-image、db-wal-recovery 无 trajectory / 无 receipts / usage null），
+harbor 错误分类匹配不到 apt 文本故记为 NonZeroAgentExitCodeError——按 normalize 契约
+该类必须是 capability FAIL，harbor 只读：rule 7 两个失败 trial 留在分母不重试
+（ADR-028 增补 3）。修复：forwarder 重建为 `--restart unless-stopped` 并在 attempt 6
+前做端到端复验（attempt 6 全程无 502，修复成立）。
+
+## 2026-09-04 tree-v2 K=3 live attempt 4 用户中止（网络未恢复）
+
+attempt 4（scratch `dsh-tree-v2-k3-live-bv5f3o`，保留）在 WSL 网络切换后按 ADR-028
+补救路径以不变 profile 重启，`dsh-evolve run` 阶段用户主动中止（Terminated，
+RUNNER_EXIT=143，已启动 3 个 trial job，无结论性 trial 事实）。attempt 5 在用户
+调整网络（局域网连接 + DNS 覆写）后重启。
+
+## 2026-09-04 tree-v2 K=3 live attempt 3 中止（WSL 重启）与网络根因定位
+
+attempt 3（scratch `dsh-tree-v2-k3-live-oa98ch`，已清理）在 discovery 批次窗口内遭遇
+持续性 deb.debian.org 吞吐塌陷（容器内实测 ~18.8 KB/s，正常应为 MB/s 级）：6 个任务中
+3 个（break-filter-js-from-html、build-pmars、cancel-async-tasks——均为 debian 基底
+镜像）的 ACP setup 在 1800s 上限首次超时，预注册的 1 次 infra retry 正在进行时用户
+重启 WSL 切换网络，run 进程随之终止。已完成的付费 trial（rule 7 不丢弃）：
+adaptive-rejection-sampler reward=0（47 receipts）、db-wal-recovery reward=0
+（49 receipts）；settled 预算 usd 82,418 µUSD / task-trials 4 / solver-tokens 516,537。
+3 个 setup-timeout trial 若完成 retry 将走 ADR-028 infra-dead fail-closed，与 attempt 2
+同类。重启后实测宿主与容器内 apt 吞吐恢复正常（宿主 1.49 MB/s；ubuntu:24.04 容器内
+完整 ACP apt 阶段 84s，含 32.5 MB 索引 10s），确认根因为 WSL 网络栈瞬时恶化而非
+协议或镜像问题。attempt 4 以不变的预注册 profile 重启（ADR-028 补救路径）。
+
+## 2026-09-04 tree-v2 K=3 live attempt 2 失败（ADR-028 infra-dead fail-closed）
+
+修正后 profile 的第二次真实模型 run（scratch `dsh-tree-v2-k3-live-swFrCZ`，保留待查）
+完成了全部 6 个 discovery trial 的付费执行，随后按 ADR-028 预注册路径 fail closed：
+`code-from-image` 的 ACP setup 在 1800s 上限两次超时（首次 + 预注册的 1 次 infra
+retry 均超时），normalize 记 `infra_retryable` → outcome `missing`，driver 在
+`discoverFailures()` 抛出 infra-dead discovery 错误并终止 run——"agent 从未运行不是
+能力事实"，pool 不得冻结未知 baseline。协议按设计工作，非 TCB 缺陷。
+
+attempt-1 预算修正经端到端验证：6 个 discovery 动作各预留 2,000,000 solver-tokens，
+全部 settle 成功（budget ledger 47 条：18 reserve / 17 settle / 12 release；
+solver-tokens 实耗 1,693,037，receipt 链核验一致；usd 实耗 249,765 µUSD，其中 1 条
+unpriced settle 来自 code-from-image 的零用量 missing trial）。
+
+attempt-2 trial 事实（真实数据，计入开发反馈，rule 7 不丢弃）：adaptive-rejection-sampler
+reward=0（197,502+21,042 tokens，$0.0335）；break-filter-js-from-html reward=1
+（714,260+38,745 tokens，$0.1108）；build-pmars reward=0（$0.0376）；
+cancel-async-tasks reward=0（$0.0377）；db-wal-recovery reward=0（$0.0301）；
+code-from-image 零用量 missing（AgentSetupTimeoutError ×2）。同窗口其余 5 个 trial 的
+ACP setup 为 40s–5m41s，唯独 code-from-image（ubuntu:24.04 基底，ADR-028 已识别的高
+setup 成本任务类）两次打满 1800s——WSL2 共享主机网络/IO 瞬时恶化，超出 5× 余量。
+ADR-028 对该类的预注册补救即"restart the pilot"；split ceremony 确定性（固定 RUN_ID +
+MASTER_SEED），attempt 3 重跑同一 6 任务批次，offline verifier image allowlist 不变。
+`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-04 tree-v2 K=3 live attempt 1 失败与预算修正
+
+K=3 tree-v2 首次真实模型 run（`record-tree-v2-k3-live.ts`，scratch
+`dsh-tree-v2-k3-live-dgJ36H`）在 4 个 discovery trial 全部完成后于 solver-tokens
+settle 阶段 fail closed：`BudgetError: settle 419863 exceeds action reserved
+400000 (solver-tokens/eval-wjkdctjp-adaptive-rejection-sampler)`。根因是 k3 profile
+把 `solverTokens=6M` 而 `taskTrials=15`，controller 每次评估动作只预留
+`floor(6M/15)=400k` tokens，但 solve gateway 冻结的单 trial 上限是 2M；该 trial
+合法消耗 419,863 tokens 超出预留，ledger 按不变式拒绝。这是 profile 预注册缺陷，
+不是 TCB 缺陷——ledger 正确地 fail closed，4 个已付费 trial 的 Harbor job、receipts
+与 budget ledger 保留在 scratch 中，未丢弃（rule 7）。
+
+修正：三个 live profile 的 `solverTokens` 一律改为 `taskTrials × 2M`（k3=30M、
+k10=120M、k80=504M），使单 trial 预留恒等于 gateway 上限，solver-token 维度不可能
+先于 task-trials 触发；`packages/dsh-evolve-le/tests/tree-v2-live-profile.test.ts`
+新增契约测试钉住该不变式（`perTrial >= DEFAULT_SOLVE_TRIAL_BUDGET.maxTotalTokens`）。
+worst-case 成本上界不变（gateway 单 trial $0.30 上限 × 15 trial）。
+
+attempt-1 trial 事实（真实数据，计入开发反馈）：adaptive-rejection-sampler
+reward=0（48 ok + 1 budget-stop receipt，419,863 tokens，$0.0619）；
+break-filter-js-from-html reward=0（16 receipts，$0.0729）；cancel-async-tasks
+reward=1（49 receipts，$0.1897）；build-pmars reward=1 且带 1 个 AgentTimeoutError
+exception（43 receipts，54m58s）。`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-04 tree-v2 contract implementation
+
+完成 `dsh-self-evolving-candidate-tree-v2` 的可信协议实现：新增八类 strict
+Ajv schema、canonical receipt digest、multi-file tree validator、四项具名
+`requiredParentEvidence`、静态/Loader 双层 `modeContract` 校验，以及明确不继承旧结果的
+migration receipt。candidate SDK 现在可 effect-owned 注册 system-prompt、tools、skills、
+agent-events、session-events 和 workflow；probe/builder 会检查注册及 unload 后清理。
+六个 surface 按 solve/propose 分别声明和探测；capability catalog 必须等于两个 mode 声明的
+精确并集，不能多报、漏报或重复。
+
+proposal wire 现为显式 v1/v2 双协议：v2 child 必须携带 analysis/proposal receipts，不能用裸
+`evidenceRefs` 回退；controller 重新捕获 tree 后校验 candidate-intent、parent、mode 与 named
+evidence 交叉引用。trusted builder 在成功准入后写出 mechanism-outcome、capability-catalog、
+materialization 和 admission receipts；迭代 capsule record 保留下一代验证所需的父代 Loader
+fingerprints 与 mechanism/admission digest。规范化 trial 以 canonical JSON 的 `DEV_OBSERVED`
+对象和 raw trajectory 一起进入 label-filtered export，crash/snapshot replay 不改变 export identity。
+proposal 版本由 trusted parent record 决定：legacy lineage 保持 v1 replay；v2 parent 的 durable
+request/sandbox 默认并强制 v2，携带 parent candidate/mechanism digest。recorded proposer 已能从
+具名 normalized-trial/trajectory export 物化多文件 v2 child 与 analysis/proposal/candidate-intent
+receipts；remote/native 路径收到同一 v2 约束提示，不能由 proposer 自行降级。
+controller 将通过验证的前三张 receipt 分别发布为 content-addressed objects；iteration 将 builder
+生成的后四张 receipt 也写入 object store，并在 capsule record 保留可 scrub 的 refs。migration
+receipt 提供相同的 object-store persistence API，旧结果仍不能被迁入新 identity。
+
+验证：tree-v2 receipt chain、proposal v1/v2、migration、candidate SDK、manifest 与 iteration
+crash/replay 定向测试通过；新增真实 builder E2E 以 v1 父代 Loader fingerprints 验证 v2
+子代 target/preserved modes 并检查四张 builder receipts。`pnpm build`、typecheck、改动范围的
+lint/format 通过；排除既有 live-solve container 文件后的全量回归为 518 passed、22 skipped
+（55 files）。完整 suite 中该文件的两项用例仍因当前 capsule 未挂载 native composition 且未设置
+`DSH_COMPATIBILITY_LIVE=1` 失败，不属于 tree-v2 路径。现有 v1 candidate/proposer/manifest
+兼容测试保持通过。尚无新的 Terminal-Bench、sealed、
+promotion 或性能 artifact；`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-03 proposal worker identity capability gate
+
+proposal sandbox 不再把 `/usr/bin/setpriv` 的存在当成可降权的证明。supervisor 现在实际执行
+`setpriv --reuid=65534 --regid=65534 --clear-groups true` 探测；不可执行时，CLI 的 fake 与
+Terminal-Bench provider 路径都在 builder、sandbox、journal 或外部 effect 之前以
+`proposal-worker-identity` finding 退出。`runProposalSandbox()` 本身也执行同一门，因而调用方不能
+绕过 preflight 获得 netns-only root worker。
+
+针对某些受限挂载拒绝递归 `chown` 的情况，已为**已确认可降权**的 worker tree 增加最小的 mode
+handoff，并把 `chown`/`mode` 选择记录到 `supervisor.json`。这不改变 UID/network 隔离、DAC canary
+和 capsule post-run digest 的要求；无法实际降权时该分支不会启动 worker。当前宿主的 seccomp
+拒绝 `setresuid`，所以真实 proposal/full CLI 闭环在这里被明确 fail closed，而不是作为 root
+运行或误报成功。
+
+验证：`pnpm build` 通过；proposal sandbox/preflight 定向回归 17/17 通过；CLI 的 init/status、
+root-worker preflight、doctor 和配置定向回归通过。具备实际 UID drop 的宿主仍执行真实 sandbox
+proposal/replay/audit 闭环；当前宿主对此类测试标记 skip。没有新增 benchmark、pilot、sealed 或性能结论；
+`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-02 candidate strategy-surface contract expansion
+
+## 2026-09-02 native DSH composition seam (migration slice)
+
+新增 `packages/dsh-evolve-le/src/dsh/native-composition.ts` 与 `native-runner.ts`，把原生
+DSH 的调用边界固定为 `ctx.agents.create({ sessionId, meta, agentOptions, setup, signal })`：
+候选策略在 `setup(agentCtx)` 中挂载，turn 由 upstream agent-loop 驱动，assistant/tool 证据从
+DSH session events 提取，owner `dispose()` 在返回前必达。`mountNativeDshComposition()` 通过
+延迟导入 upstream `dsh-agent-spine-demo` 与 `dsh-agent-default-model` 进行真实组合；缺失构建
+产物时返回显式 capability miss（设置 `DSH_NATIVE_REQUIRED=1` 则 fail closed），不会静默把
+legacy directive loop 标记为 native。`NATIVE_DSH_PACKAGE_PINS` 和 capsule runtime manifest
+现在声明 `dsh-agent`、`dsh-agent-loop`、`dsh-session`、`dsh-tools`、`dsh-skill` 等固定
+`0.1.0-rc.5` 依赖。candidate baseline 在真实 DSH 上下文支持时暴露
+`candidateStrategySetup`，确保 tool/skill effect 进入 agent Fiber 而非 controller 全局。
+
+验证：`pnpm build` 通过；native composition/runner、candidate baseline、candidate SDK 定向
+测试共 21 项通过；`pnpm lint` 无 error（仅保留既有 warning）；`prettier` 已格式化本轮文件。
+这段迁移的 packed-capsule admission 已在下文完成；旧 `proposer/agent-loop.ts` 与 ACP
+replay/live 实现仍只作为兼容/回放路径保留。deterministic solve admission 已覆盖 ACP facade 的
+三项工具 dispatch，但完整 ACP stdio transport 与 cancellation 仍须有独立 Loader 级 E2E。`NO_SEALED_RESULTS`
+不变。
+
+## 2026-09-02 native DSH packed-capsule AgentLoop admission
+
+trusted builder 现在把 native DSH admission 设为有完整 upstream closure 时的强制门：capsule 内的
+`native-turn-probe.js` 通过真实 Cordis Loader 装载候选和 DSH spine，以确定性的无网络、无凭据
+LLM adapter 驱动 `ctx.agents.create()`。该 adapter 必须先看到 agent Fiber 中的
+`candidate_strategy_snapshot`，请求一次该候选工具，随后才返回固定的最终文本；因此这不是私有
+directive loop 或只验证服务存在的 stub。探针将 native session 的 `tool/call` / `tool/result` 数量、
+所有 Cordis inventory 和进程 handles 写入 `native-turn-solve.json`，并要求 Loader 卸载后回到
+pre-boot 基线。
+
+在 closure `sha256:49fc9cd46e2468f382a28eb47bd817d0384615a11c35399f8cf13c300b8ce533`
+（56 packages、2525 files）下，对 baseline 的一次新建 admission 得到 `admitted`：native turn
+产生 27 个 session events，恰有一对候选 tool call/result，耗时 36ms，且 quiescent。对应 capsule
+tar `sha256:de388d8ee7947f59c642862abcbc3bfe8d86411e66624ab6693336f45f109dbe`、archive
+`sha256:8897c3794d65b32275c529f889f93c85e694e4d3bf78e017cde4e6d413b9bf3c` 和 build receipt
+均在本次 isolated work root 中生成；builder 将同样的 probe 结果绑定到每次 native admission 的
+work-root artifact。
+
+该证据证明 baseline 的 Loader → upstream AgentLoop → candidate agent-scope tool → session evidence
+→ unload 链路真实成立。它不执行 `solve_exec`/`solve_read`/`solve_write`，没有 live gateway、
+cancellation、Terminal-Bench trial、性能或 sealed 结果；这些仍是下一个 P0 验收门。
+`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-03 native DSH packed-capsule proposal admission
+
+trusted builder 对带完整 native closure 的 candidate admission 现在还强制执行
+`native-proposal-probe.js`。探针从 capsule 内以真实 Cordis Loader 启动 propose overlay，并由确定性的
+无网络、无凭据 LLM adapter 驱动 `ctx.agents.create()`。adapter 依次调用 agent-scoped
+`proposal_list_files`、`proposal_write_child`、`proposal_finish`；后端只接受预定义 child 的单一
+`src/index.ts` 写入，因此该步骤验证的是 upstream AgentLoop 的 session/tool dispatch、受限 proposal
+backend 及 unload，而非自由模型生成或候选源码变更的可信性替代。
+
+在与 solve admission 相同的 closure
+`sha256:49fc9cd46e2468f382a28eb47bd817d0384615a11c35399f8cf13c300b8ce533`
+下，baseline 的一次新建 admission 得到 `admitted`：proposal turn 产生 42 个 session events，恰有
+3 对 native `tool/call` / `tool/result`，完成 1 次受限 backend write，耗时 59ms，Loader unload 后
+Cordis inventory 与 process handles 均恢复基线。报告写入该 admission work root 的
+`native-proposal.json`，builder 将 event、tool 和 write 数量作为 fail-closed receipt 条件。
+
+该证据只证明 packed capsule 中的 Loader -> upstream AgentLoop -> proposal tools -> bounded backend
+write -> session evidence -> unload 链路成立。它不验证真实 proposal policy、child materialization/
+post-finish admission、remote gateway、完整 ACP stdio transport 或 cancellation，也没有 Terminal-Bench
+或 sealed 性能结论。`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-03 native DSH packed-capsule solve-tool admission
+
+trusted builder 对带完整 native closure 的 candidate admission 还会执行 `native-solve-probe.js`。该探针
+从 capsule 内以真实 Cordis Loader 启动 baseline，构造 `createNativeSolveAgent()`，以确定性的无网络、
+无凭据 LLM adapter 驱动 upstream `AgentLoop`。其 `AgentSideConnection` 是进程内 ACP facade：按顺序记录
+`solve_exec`、`solve_read`、`solve_write` 对 terminal/read/write 方法的调用，并收集 assistant chunk；它不是
+ACP stdio transport，也没有伪造模型或工具执行成功。
+
+在 closure `sha256:49fc9cd46e2468f382a28eb47bd817d0384615a11c35399f8cf13c300b8ce533` 下，baseline 的
+一次新建 admission 得到 `admitted`：native solve turn 产生 47 个 session events，恰有 3 对 native
+`tool/call` / `tool/result`，完成 4 次 LLM completion，并各执行一次受控 terminal `printf native-solve`、
+`/workspace/input.txt` 读取和 `/workspace/output.txt` 写入，随后收到固定 final assistant chunk。solve 耗时
+35ms；Loader 卸载后 Cordis inventory 与 process handles 均恢复基线。报告写入 admission work root 的
+`native-solve.json`，builder 将 completion、event、tool 与 ACP effect 数量作为 fail-closed receipt 条件。
+
+该证据证明 Loader -> native solve agent -> agent-scoped DSH `solve_*` tools -> ACP facade -> session evidence
+-> unload 链路真实成立。它不覆盖完整 ACP stdio request/cancel transport、取消时机、live model gateway、
+Terminal-Bench trial 或 sealed 性能，不能据此宣称 live runtime 已完成验收。`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-02 native DSH proposal/solve runtime wiring (migration slice)
+
+本轮把实际运行路径继续向参照项目收敛。proposal sandbox worker 在 native composition 可用时通过
+`ctx.agents.create()` 启动候选 proposal agent，使用 candidate-owned `proposal_*` tools、原生
+session/tool 事件和结构化 Unix proxy 消息；proposal request/response 的 prompt、response、tool-call
+审计哈希会写入既有 transcript/receipt。Terminal-Bench ACP 在同一条件下通过
+`createNativeSolveAgent()` 进入原生 DSH agent loop，并将 `solve_exec`、`solve_read`、`solve_write`
+绑定到 agent Fiber；ACP 终端生命周期由原生工具层管理，solve gateway 现在接收完整 DSH message history
+和 tool schema，并回传结构化 tool calls 及 prompt/response 哈希。
+`solve_exec` 对 agent `AbortSignal` 做 fail-closed 取消：只允许一次 kill、等待退出、释放句柄；读写工具
+在已取消时不会触碰 ACP。
+
+native ACP 的启动边界已 fail closed：CLI 将冻结的 live Terminal-Bench solve route 的
+provider/model/max-tokens 逐 job 写入 capsule 环境，故所有 live route 都要求完整 native DSH
+composition 与 live solve gateway；任一缺失均在 ACP 启动前失败，绝不降级到项目私有 directive
+loop。仅未声明 live native route 的离线 replay/旧 profile 仍保留兼容实现，且不会被误报为 native。
+
+验证：`pnpm build` 通过；native composition、proposal、LLM adapter、solve gateway、live solve 定向回归
+共 6 个测试文件、60 项通过；全量回归 48 个测试文件、495 项通过；`pnpm lint` 无 error（仅既有 warning）。
+`pnpm provenance:check --silent` 的 upstream snapshot、package pins、reference/content、lock/schema 检查通过，
+但本环境中其子进程读取 `pnpm --version` 时返回空 stdout，故 toolchain/versions 项无法确认（交互式
+`pnpm --version` 为 11.9.0）；`git diff --check` 通过。完整 native package/依赖闭包现已由 builder
+预构建并以内容哈希锁定；baseline packed capsule 的 Loader → `ctx.agents.create()` → candidate
+tool dispatch → session events → unload admission probe 已通过。仍未执行的是 native proposal 的真实
+policy/materialization/post-finish admission E2E、完整 ACP stdio transport/cancellation、live benchmark 和
+sealed 评测；上述取消语义目前仅有 native tool 单元契约，不替代这些 Loader 级证据。
+此时任何缺少完整 native route 的 live job 会按上述契约 fail closed。
+`NO_SEALED_RESULTS` 不变。
+
+为消除 candidate 只能演化 system prompt 的既有实现约束，candidate SDK 现在支持候选-owned
+DSH-shaped `tools` 与 `skills` 注册（命名、数量、内容和 effect ownership 均 fail closed）。golden
+baseline 同时声明并注册一个 candidate tool 和一个 candidate skill；candidate manifest 新增
+`runtime.newSkillNames` 与 optional `proposal.strategySurfaces`。真实 Loader probe 在 boot/unload
+前后记录三类 inventory，trusted builder 校验声明与实际注册一致，并将遗留 tool/skill 视为 unload
+invariant 失败。recorded proposer 对此 baseline 的前两名 child 实际变更候选 tool 的策略描述或 skill 的指导内容，
+同时保留稳定 capability 名称并同步 manifest，避免“策略面仅存在于 hypothesis”的不一致。
+
+验证：`pnpm build` 与 candidate SDK/baseline/proposer/builder/manifest/Loader 的定向回归全绿（38 tests）；
+CLI 真实闭环 15 tests、solve-gateway 容器 3 tests 也已通过。
+完整比较和后续迁移边界见 `docs/dsh-self-evolving-comparison.md`。
+
+**剩余迁移限制：** legacy loader inventory 的 tool/skill 查询仍使用 TCB probe stub；native admission
+turn 已在 upstream DSH registry/dispatcher 中实际完成候选工具调用。legacy directive/replay loop
+仍作为离线兼容回退保留。完整 live gateway 现要求 native DSH composition 与
+冻结 provider/model；旧 directive live loop 仅能由历史/测试 profile 显式设置
+`DSH_COMPATIBILITY_LIVE=1` 启动，Harbor/CLI 不会注入。native proposal/solve 线路已经接入
+`ctx.agents.create()` 和 native tool/skill/session composition；solve composition、candidate tool dispatch、
+agent-scoped `solve_exec`/`solve_read`/`solve_write` 的 deterministic ACP facade dispatch，以及 proposal 的
+bounded list/write/finish tool loop 已在完整 packed capsule 中通过真实 Loader 和上游依赖闭包验收；完整
+ACP stdio transport/cancellation 与真实 proposal policy/materialization 仍未验收。因此不能声称 baseline 已完成全原生 DSH agent runtime
+迁移，也不构成 benchmark 性能结论；`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-02 active Terminal-Bench eligibility subset
+
+K=10、K=80、sealed 和最终评测现在由同一个冻结策略驱动：仅允许
+`[agent].timeout_sec <= 1800` 的题目。固定 89-task tarball 中实际纳入 **72** 题，排除 **17** 题；
+72 题按确定性的最大余数法生成 `39 observed / 10 guard / 23 sealed` split。CLI init 将完整来源集、
+排除句柄、阈值和 split counts 写入 `dataset-handles.json`，inventory、Harbor provider、image prefetch
+和审计重放均使用同一策略。超过 1800 秒的题目不会进入任何运行题库；因此后续结果是
+“Terminal-Bench 2.1 eligibility subset”结果，不宣称官方 89-task leaderboard 结果。
+
+本策略已通过 `pnpm build`、inventory/split/provider/CLI 相关检查。新的真实 solver K=10 已启动，
+run id 为 `gate8-live-pilot-t1800-c8-v3`；其 frozen `dataset-handles.json` 记录 89→72、
+17 个排除句柄和 `39/10/23` split，Harbor plans 固定 `n_concurrent_trials: 8`，
+`image-prefetch.json` 记录符合资格题目的本地镜像缓存，solver gateway 已产生
+`deepseek/zen-compatible` route 的真实 receipts。最后可核对快照（2026-09-02 08:37）显示
+14 个控制器 trial 已结算（5 success / 9 failure），7 个 admitted（含 baseline，6 个非 baseline），
+另有 search-2 wave 的 7 个 Harbor 结果已结束、1 个仍在运行。随后宿主 WSL 于 09:01 重启，
+run 进程和 scratch run root 消失；由于最终 evidence 未写入，不能将该 run 宣称为完成，亦不能
+把未 collect 的 Harbor 结果并入控制器正式计数。结果仍只能解释为 eligibility subset，不得外推为
+官方 89-task leaderboard。
+
+## 2026-09-02 live-solver task-aware deadline and 131k output cap
+
+真实 solver 的 capsule 不再使用统一的 1,740,000ms 内部 wall-clock。可信
+Terminal-Bench adapter 在每个付费 launch 前读取该题 `[agent].timeout_sec`，应用 Harbor 已冻结的
+`agent_timeout_multiplier=3`，并把得到的毫秒数写入该 job 的非秘密环境变量
+`DSH_SOLVE_AGENT_TIMEOUT_MS`。capsule 缺少、损坏或不合法的该值时 fail closed；否则内部 deadline
+为 `3 * agent.timeout_sec - 300s`，将最后五分钟固定留给 ACP reply、Harbor 结果写入和 teardown。
+模型请求和 terminal command 均以该 deadline 的剩余时间为上限，因而长题不再被短题的固定时钟截断，
+短题也不会获得不属于其任务的无限运行时间。`[verifier].timeout_sec` 不驱动 solver deadline，因其是
+后续 verifier 阶段的独立限制。
+
+真实 zen-compatible route 的 `maxOutputTokens` 默认值已改为 **131,072**，并作为 route plan/config
+hash 的一部分冻结；K=10 live-pilot 脚本会显式断言该值。builder/capsule identity 已升至
+`dsh-evolve-le-builder-0.0.4`，旧 live run 不可 resume 到此策略。固定 TB 2.1 tarball 的 89 个 task
+已逐题解析成功，存在 600、750、900、1200、1800、2400、3600、7200、12000 秒九档 agent 时限。
+这是工程配置与离线验证，不是新的付费 K=10/K=80 结果；`NO_SEALED_RESULTS` 不变。
+
+## 2026-09-01 K=10 live-pilot attempt 3 stopped — verifier bootstrap boundary repaired
+
+用户请求已停止 run root `gate8-live-pilot`：controller、Harbor runners 和 task containers
+均已收到终止信号并退出。该 run 的 4 个已完成 trial 保留为诊断证据，不得 resume 或改写为
+绿色结果。
+
+失败分析确认：`image-prefetch.json` 只冻结了 89 个 Harbor task image 的本地 image ID；它
+不包含 task 容器启动后由 `tests/test.sh` 执行的 `curl https://astral.sh/.../uv`、`uvx` 或
+`pip install`。因此三项 verifier 在测试入口前就因 GitHub egress 失败，另一个 trial 的
+`pyknotid` 未安装。此次修复新增 `verifier-image` 准备层（ADR-031）：对首个 discovery wave
+的运行副本构建派生 image，预装 Python 3.13、精确 verifier requirements 和 verifier 所需的
+literal system packages，改写副本 verifier 仅调用本地 `python -m pytest`，并用
+`verifier-image-receipt.json` 绑定 base/derived image ID、依赖、固定 verifier fixture 和脚本
+哈希。固定的 verifier-side git fixture 也在准备阶段冻结，trial 只从派生 image 复制；live
+solver 在缺少该 receipt 时于付费 launch 前 fail closed。
+
+工程验证：离线 verifier/image-cache targeted tests 7/7、`tsc -b`、oxlint、Prettier 和
+`git diff --check` 均通过；真实 `build-pmars` 派生 image
+`sha256:d7f28f1aac0ac57bb9470a215bbcfd644466f0e8d7f230411cd917a574b8586a` 已在
+`docker run --network none` 下加载本地 pytest/CTRF plugin。首个 discovery wave 的六个
+verifier 运行副本静态扫描未残留 `uvx`、PyPI/apt bootstrap 或 verifier-side `git clone`。
+
+这只是修复验证基础设施边界；尚无修复后的付费 K=10/K=80 结果，也不改变
+`NO_SEALED_RESULTS`。
+
+## 2026-09-01 live-solver concurrency and image-cache boundary
+
+为 K=10/K=80 的真实 solver 流程补上 wave-synchronous 调度：每个 wave 先按
+reservation 顺序持久化全部 action，再并发 launch/等待 Harbor job，最后按 reservation
+顺序 collect/commit；crash resume 对同一 wave 也并发补齐。真实 solver 的默认配置冻结
+`harbor.concurrentTrials=4`，CLI 与 K=10 rehearsal 显式传入并校验该值。
+
+真实 solver 在首个 Harbor launch 前扫描冻结 task set 的 `[environment].docker_image`，对
+本机已有镜像只做 inspect，对缺失镜像只 pull 一次，并写入 run-scoped
+`image-prefetch.json`（protocol、image ID、repo digest、动作）。resume 只校验 receipt 和
+本机 image ID；镜像缺失或 tag 漂移 fail closed，不重复拉取或静默替换。真实 provider
+还会把 receipt 的内容哈希冻结到 `run-manifest.json`，`audit` 会复算该绑定。该 receipt/并发
+实现已有 unit、controller wave、driver、Loader service、CLI、TypeScript build 验证；尚未据此运行新的付费
+K=10/K=80 或产生新的 benchmark 结果，`NO_SEALED_RESULTS` 不变。
+
+**Gate 8 live-solver repair boundary:** 2026-09-01 的 K=10 live-pilot attempt 2 因模型单次
+completion 模拟整段多轮 transcript、runner 解析/历史处理放大该行为而作废。首对象严格解析、成功
+历史净化与失败原回复截断回灌已通过 unit + 真实 Loader/TLS 回归；`BUILDER_VERSION` 已升至
+`dsh-evolve-le-builder-0.0.3`。这只是工程修复，尚无修复后付费 smoke/K=10 evidence；旧 run 不得
+resume，下一次验证必须使用 fresh lineage。`NO_SEALED_RESULTS` 不变。
 
 ## Claim boundaries
 
@@ -50,6 +1280,27 @@
   benchmark profile：`specs/07` §10 的 pilot（K=10）profile 已于 2026-08-31 重新记录
   （首记录因 infra 伪装作废，见当日节）；search（K=80）/sealed/official 三个 profile
   未运行。前代项目的通过记录不是本仓库的完成证据（见 2026-08-28 节）。
+
+## 2026-09-01 Gate 8 live-pilot attempt 2 voided — chatty completion parser/history repair
+
+- **故障事实边界**：隔离失败产物的 operator analysis（未进入 accepted `evidence/gate8/`）报告 8 条
+  已完成 trajectory 全部在 1,740,000ms wall-clock backstop 结束，零 final directive、任务交付物缺失；
+  代表 trial `bn-fit-modify__ZVG8Gw2` 的文本含 204 个 JSON-looking directive、157 个伪
+  `[exec exitCode=0]`，但 ACP events 只有 6 次真实 `create_terminal`。多条 receipt 的 completion
+  恰为 32,768 tokens，符合当时模型在一次 completion 内生成“指令 → 幻觉 tool result → 后续指令 →
+  伪 role prompt”的整场模拟。
+- **根因**：旧 parser 用首 `{` 到末 `}` 的整段做 `JSON.parse`，多对象回复必然失败；失败分支又只
+  回灌错误句、不回灌原回复，stateless gateway 的下一轮看不到上一轮输出，形成重复的大 completion
+  循环。成功解析若继续保留整段 raw reply，也会把幻觉 suffix 再次带入下一轮。
+- **工程修复**：只验证第一个 string/escape-aware 平衡对象，首对象无效即 recoverable fail，不扫描后续
+  对象；raw completion 仍完整进入 trajectory，但成功历史只加入规范化的已接受 directive + 真实 ACP
+  tool result；失败历史加入最多 2,000 字符原回复和截断标记。builder/runner identity 升至 `0.0.3`。
+- **验证**：新增契约先在旧实现上得到 3 个预期失败，再在修复后转绿；live-solve 定向文件 20/20 通过，
+  其中现场形状经真实 Cordis Loader 子进程 + 本地 HTTPS solve gateway 验证；production capsule 双构建
+  契约确认 `solve-protocol.js`/`solve-client.js`/`live-solve-agent.js` 均存在且进入 `SHA256SUMS`。
+- **未完成/不得声称**：未运行修复后的真实模型 smoke、K=10 或 sealed；attempt 2 不可 resume，不得作为
+  baseline、能力或成本结论。下一次付费验证必须新 run root、新 capsule hash，并保留完整 failure/success
+  lineage。详见 ADR-030 的 2026-09-01 amendment。
 
 ## 2026-08-31 Gate 8 pilot recorded — voided first recording, five-defect repair chain, 50/50 real-agent trials
 
@@ -651,7 +1902,7 @@ provenance + evidence，任一断言失败 exit 1）。
   规则）、UCB-Air expand/evaluate 决策（`admitted < K+1 ∧ trials^α ≥ admitted`）。
 - **版本化 run config**（`src/config/run-config.ts` + `schemas/run.config.schema.json`）：
   stable-demo 默认（K=3、≤15 solver trial、sealedAccess=false、$500/16h 预算、兼容
-  Zen/high/1M/32k 可选路由）；加载即 JSON-Schema + 语义校验（discovery ≤ solver ≤
+  Zen/high/1M/131k 可选路由）；加载即 JSON-Schema + 语义校验（discovery ≤ solver ≤
   taskTrials、discovery+K·q0 ≤ solver、sealedAccess 必须为 false、zen 路由必须挂凭据
   文件）；configHash 进 run manifest。
 - **Harbor `BenchmarkProvider` 适配**（`benchmark-adapters/terminal-bench/src/harbor-provider.ts`）：

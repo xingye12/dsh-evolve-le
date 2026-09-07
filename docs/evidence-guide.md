@@ -19,6 +19,8 @@ benchmark improvement.
 | `drive-report.json`                                    | last tick's stopReason, trials, lineage depth, budget totals, citation digests                         | that the run was "good" — only that it reconciles |
 | `harbor-ledger.jsonl` + `controller/candidates/<id>/…` | each trial's job id, sandbox, and artifacts are attributable                                           | solver intent                                     |
 | `controller/objects/sha256/…`                          | every referenced blob is content-addressed; exports are self-contained                                 | blob provenance beyond the hash                   |
+| `solve-gateway/receipts/<job>.jsonl`                   | per-trial chain of every gateway reply (hash-bound to the frozen route, gapless requestIds, µUSD/token figures) | that the model reasoned well — only that the wire happened and is priced |
+| `solve-gateway/tokens/<job>.token`                     | (state, **not evidence**) the 0600 per-trial bearer token; root-only, excluded from every evidence copy | —                                                 |
 
 ## Gate evidence (`evidence/gate*/`)
 
@@ -51,3 +53,8 @@ and the drive-report state hash from the journal — the same reconciliation the
 - Failed trials and their logs are kept (rule 7).
 - Credentials never appear in any artifact; only their file paths (and never their contents) are
   recorded.
+- **Solver-token boundary (ADR-030):** `solve-gateway/tokens/` is per-trial state, never evidence —
+  the same exclusion class as credential files and the ADR-029 tarballs. Every evidence copy skips
+  it; `solve-gateway/receipts/` **is** evidence and must be copied (it is the settle authority for
+  `budget.solver-tokens`). Gate recorders assert the exclusion: no credential and no trial token
+  may appear in any artifact they write.

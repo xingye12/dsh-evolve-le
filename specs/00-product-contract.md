@@ -55,8 +55,8 @@ agent/session/tool seams。RSI 控制面和候选都应使用这些原语，而�
 | Archive admission    | 候选通过结构/安全检查并进入谱系                               | 分数提升或晋升        |
 | Development score    | 在预注册 sampled development panel 上的搜索反馈               | held-out 泛化结果     |
 | Development champion | 按预注册规则从 Archive 锁定的单一候选                         | 最终成功              |
-| Sealed promotion     | 单一锁定候选通过 29 个 sealed task 的门                       | 官方 leaderboard 分数 |
-| Full-set evaluation  | 89 任务、每任务至少 5 次的固定候选评测                        | 搜索证据或在线自适应  |
+| Sealed promotion     | 单一锁定候选通过当前 eligibility subset 的 sealed task 门     | 官方 leaderboard 分数 |
+| Full-set evaluation  | 当前 eligibility subset、每任务至少 5 次的固定候选评测        | 搜索证据或在线自适应  |
 | SOTA                 | 同时匹配数据、模型、harness、预算和官方验证口径的当前最好结果 | 一个静态百分比        |
 
 任何报告 MUST 同时给出候选哈希、模型 route、task digest、attempt 数、预算和证据路径。
@@ -121,7 +121,9 @@ K=3 闭环从 failure evidence 生成、构建、Loader 启动并 Harbor 评测�
 crash/resume 后 external effects、score 与 cost exactly-once；fresh profile 可安装复现。它不要求候选
 提分，也不要求访问 sealed tasks。
 
-K=10/K=80、sealed promotion、full-set 和 SOTA 是发布后可选 benchmark profiles。以下 6.1–6.4 仅在
+K=10/K=80、sealed promotion、full-set 和 SOTA 是发布后可选 benchmark profiles。所有 profile
+首先应用 Terminal-Bench 题目资格策略：仅纳入 `[agent].timeout_sec <= 1800` 的题目；其余题目不得进入
+评测、进化或最终结果。以下 6.1–6.4 仅在
 对应 profile 显式启动时生效，不能反向阻塞 v0.1 工程发布。
 
 ### 6.1 Search completion
@@ -155,7 +157,14 @@ protocol completeness = 100%
 性能是首要目标；成本和时延是约束与 Pareto 维度，而不是用任意权重抵消正确率：
 
 - evolution-through-sealed-promotion 的目标模型 API 成本 ≤ USD 500；
-- 目标 wall-clock ≤ 16 小时；
+- 目标 wall-clock ≤ 16 小时（ADR-045 显式修订：正式 K=80 运行 ≤ 30 小时，依据 attempt-3 实测
+  1447s/trial-slot、并发 8 下强制 trial 量（矩阵 98 + 冷启动 240 + tournament + sealed）需 25-45h；
+  $500 目标不变）；
+
+> ADR-048 二次显式修订（2026-09-07，用户决策分阶段预算）：30h 是搜索阶段信封，装不下
+> tournament 与 sealed。正式 K=80 按分阶段预注册：搜索 1800min + tournament 960min +
+> sealed 720min，总现实 ≈ 50-55h、上限 ≈ 65h（三个进程，各阶段独立预算与披露）；
+> $500 与 +5pp 门不变。两次修订均为显式 ADR，未静默缩小协议（rule 9）。
 - 正式 public leaderboard 运行若由维护方单独执行，成本 MUST 单列，不能隐藏在目标外。
 
 Gate 5 baseline calibration 若证明保留最终评测预算后不可能达到约束，run MUST 在付费搜索前
@@ -220,17 +229,17 @@ DRAFT -> PREFLIGHT -> CALIBRATED -> SEARCHING -> CANDIDATE_LOCKED
 
 对外状态 MUST 使用以下之一：
 
-| 状态                      | 最低证据                                |
-| ------------------------- | --------------------------------------- |
-| `SPECIFICATION_ONLY`      | 只有文档                                |
-| `ENGINEERING_VALIDATED`   | unit + Loader E2E + crash replay        |
-| `ADAPTER_VALIDATED`       | 真实 Harbor smoke + 原始 trial artifact |
-| `BASELINE_ESTABLISHED`    | 固定 manifest 下的完整 baseline         |
-| `SEARCH_COMPLETE`         | 80 admitted candidates + 完整预算/谱系  |
-| `PROMISING_NOT_CONFIRMED` | sealed 点估计达标但统计门未过           |
-| `SEALED_PROMOTED`         | 6.2 全部门通过                          |
-| `FULL_SET_VERIFIED`       | 固定 candidate 的 89×≥5 完整评测        |
-| `LEADERBOARD_VERIFIED`    | 官方维护方接受/展示的行                 |
+| 状态                      | 最低证据                                         |
+| ------------------------- | ------------------------------------------------ |
+| `SPECIFICATION_ONLY`      | 只有文档                                         |
+| `ENGINEERING_VALIDATED`   | unit + Loader E2E + crash replay                 |
+| `ADAPTER_VALIDATED`       | 真实 Harbor smoke + 原始 trial artifact          |
+| `BASELINE_ESTABLISHED`    | 固定 manifest 下的完整 baseline                  |
+| `SEARCH_COMPLETE`         | 80 admitted candidates + 完整预算/谱系           |
+| `PROMISING_NOT_CONFIRMED` | sealed 点估计达标但统计门未过                    |
+| `SEALED_PROMOTED`         | 6.2 全部门通过                                   |
+| `FULL_SET_VERIFIED`       | 固定 candidate 的 eligibility-subset×≥5 完整评测 |
+| `LEADERBOARD_VERIFIED`    | 官方维护方接受/展示的行                          |
 
 “零 reward hacking”只能写为“在预注册控制和审计中未检测到 reward hacking”，见安全规范。
 

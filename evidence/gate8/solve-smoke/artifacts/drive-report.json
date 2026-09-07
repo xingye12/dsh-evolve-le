@@ -1,0 +1,40 @@
+{
+  "runId": "gate8-solve-smoke",
+  "phase": "SEARCHING",
+  "stopReason": "K_REACHED",
+  "status": "STOPPED:K_REACHED",
+  "trials": 2,
+  "discoveryTrials": 1,
+  "admittedNonBaseline": 1,
+  "lineageDepthMax": 1,
+  "expansionAttempts": 1,
+  "consecutiveExpansionFailures": 0,
+  "rebuildRejections": [],
+  "abandonedIntents": [],
+  "failurePool": [
+    "adaptive-rejection-sampler"
+  ],
+  "stateHash": "27d95f8f1d701d7046e86bcf477f281ae45c410b310c5138a3436cbde42757ae",
+  "budget": {
+    "usd": {
+      "spent": 162592,
+      "reserved": 0
+    },
+    "task-trials": {
+      "spent": 2,
+      "reserved": 0
+    },
+    "solver-tokens": {
+      "spent": 483783,
+      "reserved": 0
+    },
+    "proposer-tokens": {
+      "spent": 13502,
+      "reserved": 0
+    },
+    "proposal-calls": {
+      "spent": 1,
+      "reserved": 0
+    }
+  }
+}

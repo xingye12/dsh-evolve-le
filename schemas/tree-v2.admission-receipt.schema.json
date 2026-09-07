@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schema/tree-v2/admission-receipt/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "protocol",
+    "kind",
+    "candidateDigest",
+    "buildDigest",
+    "materializationDigest",
+    "capabilityCatalogDigest",
+    "modeFingerprints",
+    "admitted",
+    "receiptDigest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "protocol": { "const": "dsh-self-evolving-candidate-tree-v2" },
+    "kind": { "const": "admission-receipt" },
+    "candidateDigest": { "$ref": "#/$defs/digest" },
+    "buildDigest": { "$ref": "#/$defs/digest" },
+    "materializationDigest": { "$ref": "#/$defs/digest" },
+    "capabilityCatalogDigest": { "$ref": "#/$defs/digest" },
+    "modeFingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["solve", "propose"],
+      "properties": {
+        "solve": { "$ref": "#/$defs/digest" },
+        "propose": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "admitted": { "const": true },
+    "receiptDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": { "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" } }
+}

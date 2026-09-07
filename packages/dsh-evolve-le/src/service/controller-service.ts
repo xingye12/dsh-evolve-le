@@ -69,6 +69,8 @@ export interface DshEvolveControllerService {
     members: string[],
   ): Promise<void>
   runEvaluation(input: EvaluationInput): Promise<RunStatus>
+  runEvaluationWave(inputs: EvaluationInput[]): Promise<RunStatus>
+  resumeEvaluationWave(actionIds: string[]): Promise<RunStatus>
   commitWave(waveId: string): Promise<RunStatus>
 }
 
@@ -112,6 +114,14 @@ export function apply(ctx: Context, config: Config): void {
     },
     async runEvaluation(input) {
       await (await ready).runEvaluation(input)
+      return (await ready).status()
+    },
+    async runEvaluationWave(inputs) {
+      await (await ready).runEvaluationWave(inputs)
+      return (await ready).status()
+    },
+    async resumeEvaluationWave(actionIds) {
+      await (await ready).resumeEvaluationWave(actionIds)
       return (await ready).status()
     },
     async commitWave(waveId) {

@@ -8,6 +8,24 @@ ID; `init` refuses to overwrite.
 
 `--set key=value` (repeatable) overrides the numeric search/budget defaults at init time only.
 
+## Native DSH runtime lock
+
+The built-in admission pipeline requires a prebuilt DeepSeek Harness catalog. Materialize the pinned
+upstream with `pnpm setup:source`, copy it to an external build directory so the pinned checkout
+remains read-only, then inspect the built copy from this repository:
+
+```bash
+NATIVE_DSH_CATALOG="$(mktemp -d)"
+cp -a deepseek-harness/. "$NATIVE_DSH_CATALOG"/
+(cd "$NATIVE_DSH_CATALOG" && pnpm install --frozen-lockfile && pnpm build)
+pnpm native-dsh:inspect --catalog-root "$NATIVE_DSH_CATALOG" --output native-dsh.lock.json
+```
+
+Pass the resulting absolute catalog path and `dependencyClosureSha256` to `dsh-evolve init` using
+`--native-dsh-catalog-root` and `--native-dsh-closure-sha256`. The hash is re-derived before each
+candidate admission; a missing, mutable, or mismatched closure fails closed before a worker or paid
+trial is launched.
+
 ## Frozen document (schema `stable-demo`, schemaVersion 1)
 
 | Field          | Default                | Meaning                                                                         |
@@ -54,17 +72,28 @@ Two route shapes exist, both with explicit pricing used by the budget ledger:
 
 Route fields: `contextWindowTokens`, `maxOutputTokens`, `inputUsdMicrosPerMTok`,
 `outputUsdMicrosPerMTok`. Prices are part of the frozen identity: repricing means a new run.
+The live `deepseek/zen-compatible` route defaults to a 1,000,000-token context and
+`maxOutputTokens: 131072`; this value is frozen into the route plan and solver receipts.
 
 ### `benchmark` (terminal-bench-2.1)
 
-| Field                           | From                    | Meaning                                                         |
-| ------------------------------- | ----------------------- | --------------------------------------------------------------- |
-| `tasksRoot`                     | `--tasks-root`          | Terminal-Bench 2.1 task set directory (89 tasks)                |
-| `baselineSourceDir`             | `--baseline-source`     | seed candidate package (normally `packages/candidate-baseline`) |
-| `harbor.bin` / `harbor.version` | `--harbor-bin` / pinned | Harbor binary path and pinned version (`0.21.0`)                |
-| `harbor.jobsRoot`               | `--jobs-root`           | Harbor job directories (kept as audit artifacts)                |
-| `harbor.concurrentTrials`       | fixed                   | parallel trial limit                                            |
-| `artifactEndpoint`              | detected/pinned         | host/port for task artifacts                                    |
+| Field                           | From                    | Meaning                                                                                                                                          |
+| ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tasksRoot`                     | `--tasks-root`          | Terminal-Bench 2.1 task set directory (89 tasks)                                                                                                 |
+| `baselineSourceDir`             | `--baseline-source`     | seed candidate package (normally `packages/candidate-baseline`)                                                                                  |
+| `harbor.bin` / `harbor.version` | `--harbor-bin` / pinned | Harbor binary path and pinned version (`0.21.0`)                                                                                                 |
+| `harbor.jobsRoot`               | `--jobs-root`           | Harbor job directories (kept as audit artifacts)                                                                                                 |
+| `harbor.concurrentTrials`       | `--concurrent-trials`   | concurrent wave/job limit (live solver defaults to `4`)                                                                                          |
+| `harbor.prefetchImages`         | live solver default     | warm task Docker images; receipt is `image-prefetch.json`, hash-bound in the run manifest                                                        |
+| verifier image repair           | live-pilot default      | build run-scoped derived images with pinned verifier dependencies and no test-time `uv`/PyPI bootstrap; receipt is `verifier-image-receipt.json` |
+| `artifactEndpoint`              | detected/pinned         | host/port for task artifacts                                                                                                                     |
+
+For a live solver job, the trusted adapter reads that task's `[agent].timeout_sec`. Harbor's
+uniform `agent_timeout_multiplier=3` supplies the hard agent-phase ceiling. The capsule receives
+that effective ceiling in `DSH_SOLVE_AGENT_TIMEOUT_MS` and uses `effective ceiling - 300 seconds`
+as its own wall clock, preserving a fixed teardown reserve. `[verifier].timeout_sec` controls the
+separate verifier phase and does not change the solver deadline. A missing or malformed task
+timeout fails the launch before a paid reservation.
 
 ## Environment variables
 

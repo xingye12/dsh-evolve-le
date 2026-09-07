@@ -25,21 +25,157 @@ import {
   type ProcessHandleInventory,
 } from '../cordis/inventory.js'
 
+/** One mounted candidate section with its observable content (ADR-039). */
+interface SectionSurface {
+  name: string
+  order: number
+  text: string
+}
+
 interface ProbeReport {
   config: string
   sections: { afterBoot: string[]; afterUnload: string[] }
+  /**
+   * ADR-039: additive content view of the candidate sections the Loader
+   * mounted — the runtime fingerprint must see mounted TEXT, not just names,
+   * or content-only evolution can never satisfy the target-mode contract.
+   * The legacy name lists above stay for the boot receipts that pin them.
+   */
+  sectionSurfaces: { afterBoot: SectionSurface[]; afterUnload: SectionSurface[] }
+  strategy: {
+    toolsAfterBoot: string[]
+    toolsAfterUnload: string[]
+    skillsAfterBoot: string[]
+    skillsAfterUnload: string[]
+    agentEventsAfterBoot: string[]
+    agentEventsAfterUnload: string[]
+    sessionEventsAfterBoot: string[]
+    sessionEventsAfterUnload: string[]
+    workflowsAfterBoot: string[]
+    workflowsAfterUnload: string[]
+  }
   phases: { before: CordisInventory; afterBoot: CordisInventory; afterUnload: CordisInventory }
-  handles: { before: ProcessHandleInventory; afterUnload: ProcessHandleInventory }
+  handles: {
+    before: ProcessHandleInventory
+    afterBoot?: ProcessHandleInventory
+    afterStrategyInventory?: ProcessHandleInventory
+    afterUnload: ProcessHandleInventory
+  }
   timings: { bootMs: number; unloadMs: number }
   quiescent: boolean
   error?: string
 }
 
-function sectionNames(ctx: Context): string[] {
-  const service = (ctx as unknown as { systemPrompt?: { snapshot?: () => { name: string }[] } })
-    .systemPrompt
-  if (service === null || service === undefined || typeof service.snapshot !== 'function') return []
-  return service.snapshot().map((section) => section.name)
+function serviceOf<T>(ctx: Context, name: string): T | undefined {
+  const get = (ctx as unknown as { get?: (serviceName: string) => unknown }).get
+  const provided = typeof get === 'function' ? (get.call(ctx, name) as T | undefined) : undefined
+  if (provided !== undefined) return provided
+  return (ctx as unknown as Record<string, unknown>)[name] as T | undefined
+}
+
+type SectionSnapshot = { name?: string; order?: number; text?: string }
+
+async function candidateSections(
+  ctx: Context,
+): Promise<{ names: string[]; surfaces: SectionSurface[] }> {
+  const service = serviceOf<{
+    snapshot?: () => SectionSnapshot[]
+    assemble?: () => Promise<{ sections: SectionSnapshot[] }>
+  }>(ctx, 'systemPrompt')
+  if (service === null || service === undefined) return { names: [], surfaces: [] }
+  const records: SectionSnapshot[] =
+    typeof service.snapshot === 'function'
+      ? service.snapshot()
+      : typeof service.assemble === 'function'
+        ? (await service.assemble()).sections
+        : []
+  const candidateRecords = records.filter(
+    (section) => typeof section.name === 'string' && section.name.startsWith('candidate:'),
+  )
+  return {
+    names: candidateRecords.map((section) => section.name as string),
+    // ADR-039: content view for the runtime fingerprint. Sections without a
+    // text (a service that only exposes names) degrade to names — the Loader
+    // probe still reports what the mounted surface exposes.
+    surfaces: candidateRecords.map((section) => ({
+      name: section.name as string,
+      order: typeof section.order === 'number' ? section.order : -1,
+      text: typeof section.text === 'string' ? section.text : '',
+    })),
+  }
+}
+
+async function sectionNames(ctx: Context): Promise<string[]> {
+  return (await candidateSections(ctx)).names
+}
+
+async function registeredNames(
+  ctx: Context,
+  serviceName: 'tools' | 'skills' | 'candidateWorkflows',
+): Promise<string[]> {
+  if (serviceName === 'tools') {
+    const service = serviceOf<{
+      snapshot?: () => { name: string }[]
+      schemas?: () => { name: string }[]
+    }>(ctx, 'tools')
+    if (service === undefined) return []
+    if (typeof service.schemas === 'function') {
+      return service
+        .schemas()
+        .map((entry) => entry.name)
+        .filter((name) => name.startsWith('candidate_'))
+    }
+    if (typeof service.snapshot === 'function')
+      return service
+        .snapshot()
+        .map((entry) => entry.name)
+        .filter((name) => name.startsWith('candidate_'))
+    return []
+  }
+  if (serviceName === 'candidateWorkflows') {
+    const service = serviceOf<{ snapshot?: () => { name: string }[] }>(ctx, 'candidateWorkflows')
+    return (
+      service
+        ?.snapshot?.()
+        .map((entry) => entry.name)
+        .filter((name) => name.startsWith('candidate-workflow:')) ?? []
+    )
+  }
+  const service = serviceOf<{
+    snapshot?: () =>
+      | { skills: { name: string }[] }
+      | { name: string }[]
+      | Promise<{ skills: { name: string }[] } | { name: string }[]>
+    list?: () => Promise<{ name: string }[]>
+  }>(ctx, 'skills')
+  if (service === undefined) return []
+  if (typeof service.snapshot === 'function') {
+    // Native dsh-skill discovers providers asynchronously. The compatibility
+    // probe stub returns synchronously, so normalize both public contracts.
+    const snapshot = await service.snapshot()
+    const entries = Array.isArray(snapshot) ? snapshot : snapshot.skills
+    return entries.map((entry) => entry.name).filter((name) => name.startsWith('candidate-'))
+  }
+  if (typeof service.list === 'function') {
+    return (await service.list())
+      .map((entry) => entry.name)
+      .filter((name) => name.startsWith('candidate-'))
+  }
+  return []
+}
+
+function registeredEvents(inventory: CordisInventory, surface: 'agent' | 'session'): string[] {
+  return inventory.listeners
+    .map((listener) => listener.event)
+    .filter((name) => name.startsWith(`candidate:${surface}/`))
+    .sort()
+}
+
+function initializeProtocolStreams(): void {
+  // Node creates stdio PipeWraps lazily. The runner owns its JSON/error
+  // protocol, so establish those fixed handles before taking the baseline.
+  void process.stdout
+  void process.stderr
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -50,6 +186,7 @@ async function main(argv: string[]): Promise<number> {
   }
   const absolute = isAbsolute(configPath) ? configPath : resolve(process.cwd(), configPath)
 
+  initializeProtocolStreams()
   const ctx = new Context()
   const before = snapshotCordisInventory(ctx)
   const handlesBefore = snapshotProcessHandles()
@@ -62,6 +199,19 @@ async function main(argv: string[]): Promise<number> {
     const report: ProbeReport = {
       config: absolute,
       sections: { afterBoot: [], afterUnload: [] },
+      sectionSurfaces: { afterBoot: [], afterUnload: [] },
+      strategy: {
+        toolsAfterBoot: [],
+        toolsAfterUnload: [],
+        skillsAfterBoot: [],
+        skillsAfterUnload: [],
+        agentEventsAfterBoot: [],
+        agentEventsAfterUnload: [],
+        sessionEventsAfterBoot: [],
+        sessionEventsAfterUnload: [],
+        workflowsAfterBoot: [],
+        workflowsAfterUnload: [],
+      },
       phases: { before, afterBoot: before, afterUnload: before },
       handles: { before: handlesBefore, afterUnload: handlesBefore },
       timings: { bootMs: performance.now() - bootStart, unloadMs: 0 },
@@ -73,7 +223,12 @@ async function main(argv: string[]): Promise<number> {
   }
   const bootMs = performance.now() - bootStart
   const afterBoot = snapshotCordisInventory(ctx)
-  const sectionsAfterBoot = sectionNames(ctx)
+  const handlesAfterBoot = snapshotProcessHandles()
+  const sectionsAfterBoot = await candidateSections(ctx)
+  const toolsAfterBoot = await registeredNames(ctx, 'tools')
+  const skillsAfterBoot = await registeredNames(ctx, 'skills')
+  const workflowsAfterBoot = await registeredNames(ctx, 'candidateWorkflows')
+  const handlesAfterStrategyInventory = snapshotProcessHandles()
 
   const unloadStart = performance.now()
   await booted.loaderFiber.dispose()
@@ -89,9 +244,30 @@ async function main(argv: string[]): Promise<number> {
   const handlesAfter = snapshotProcessHandles()
   const report: ProbeReport = {
     config: absolute,
-    sections: { afterBoot: sectionsAfterBoot, afterUnload: sectionNames(ctx) },
+    sections: { afterBoot: sectionsAfterBoot.names, afterUnload: await sectionNames(ctx) },
+    sectionSurfaces: {
+      afterBoot: sectionsAfterBoot.surfaces,
+      afterUnload: (await candidateSections(ctx)).surfaces,
+    },
+    strategy: {
+      toolsAfterBoot,
+      toolsAfterUnload: await registeredNames(ctx, 'tools'),
+      skillsAfterBoot,
+      skillsAfterUnload: await registeredNames(ctx, 'skills'),
+      agentEventsAfterBoot: registeredEvents(afterBoot, 'agent'),
+      agentEventsAfterUnload: registeredEvents(afterUnload, 'agent'),
+      sessionEventsAfterBoot: registeredEvents(afterBoot, 'session'),
+      sessionEventsAfterUnload: registeredEvents(afterUnload, 'session'),
+      workflowsAfterBoot,
+      workflowsAfterUnload: await registeredNames(ctx, 'candidateWorkflows'),
+    },
     phases: { before, afterBoot, afterUnload },
-    handles: { before: handlesBefore, afterUnload: handlesAfter },
+    handles: {
+      before: handlesBefore,
+      afterBoot: handlesAfterBoot,
+      afterStrategyInventory: handlesAfterStrategyInventory,
+      afterUnload: handlesAfter,
+    },
     timings: { bootMs, unloadMs },
     quiescent:
       JSON.stringify(afterUnload) === JSON.stringify(before) &&

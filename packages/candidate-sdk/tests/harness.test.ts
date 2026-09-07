@@ -125,6 +125,198 @@ describe('defineCandidate boundaries', () => {
     expect(candidate.describe({ mode: 'propose', candidateId: 'c_test' }).section).toBeUndefined()
   })
 
+  it('registers candidate-owned DSH tools and skills with effect ownership', () => {
+    const candidate = defineCandidate<TestConfig>({
+      solve: {
+        tools: () => [
+          {
+            name: 'candidate_probe',
+            description: 'Probe the current strategy.',
+            parameters: { type: 'object' },
+            output: {
+              schema: { type: 'string' },
+              render: () => [],
+            },
+            execute: async () => 'ok',
+          },
+        ],
+        skills: () => [
+          {
+            name: 'candidate-review',
+            description: 'Review the strategy.',
+            content: 'Review the strategy before acting.',
+            invocation: { modelInvocable: true, userInvocable: false },
+          },
+        ],
+      },
+      propose: {},
+    })
+    const harness = createHarness()
+    candidate.register(harness.ctx, { mode: 'solve', candidateId: 'c_test' })
+    expect(harness.tools().map((tool) => tool.name)).toEqual(['candidate_probe'])
+    expect(harness.skills().map((skill) => skill.name)).toEqual(['candidate-review'])
+    expect(harness.effects()).toHaveLength(2)
+    harness.dispose()
+    expect(harness.tools()).toEqual([])
+    expect(harness.skills()).toEqual([])
+  })
+
+  it('registers agent/session events and workflows with effect ownership', () => {
+    const candidate = defineCandidate<TestConfig>({
+      solve: {
+        agentEvents: () => [{ name: 'candidate:agent/before-step', handler: () => undefined }],
+        sessionEvents: () => [{ name: 'candidate:session/observed', handler: () => undefined }],
+        workflows: () => [
+          {
+            name: 'candidate-workflow:recover',
+            description: 'Recover a bounded session.',
+            run: async () => 'ok',
+          },
+        ],
+      },
+      propose: {},
+    })
+    const harness = createHarness()
+    candidate.register(harness.ctx, { mode: 'solve', candidateId: 'c_test' })
+    expect(harness.events().map((event) => event.name)).toEqual([
+      'candidate:agent/before-step',
+      'candidate:session/observed',
+    ])
+    expect(harness.workflows().map((workflow) => workflow.name)).toEqual([
+      'candidate-workflow:recover',
+    ])
+    harness.dispose()
+    expect(harness.events()).toEqual([])
+    expect(harness.workflows()).toEqual([])
+  })
+
+  it('fails closed when event or workflow registrations are malformed', () => {
+    const badEvent = defineCandidate({
+      solve: { agentEvents: () => [{ name: 'agent/update', handler: () => undefined }] },
+      propose: {},
+    })
+    expect(() => badEvent.describe({ mode: 'solve' })).toThrow(/event name/)
+    const badWorkflow = defineCandidate({
+      solve: {
+        workflows: () => [{ name: 'workflow', description: 'x', run: async () => undefined }],
+      },
+      propose: {},
+    })
+    expect(() => badWorkflow.describe({ mode: 'solve' })).toThrow(/workflow name/)
+  })
+
+  it('resolves injected services through Cordis get() in a native agent scope', () => {
+    const sections: string[] = []
+    const tools: string[] = []
+    const skills: string[] = []
+    const ctx = {
+      get(name: string) {
+        if (name === 'systemPrompt') {
+          return {
+            section: (input: { name: string }) => {
+              sections.push(input.name)
+              return () => undefined
+            },
+          }
+        }
+        if (name === 'tools') {
+          return {
+            register: (definition: { name: string }) => {
+              tools.push(definition.name)
+              return () => undefined
+            },
+          }
+        }
+        if (name === 'skills') {
+          return {
+            register: (skill: { name: string }) => {
+              skills.push(skill.name)
+              return () => undefined
+            },
+          }
+        }
+        return undefined
+      },
+      effect(factory: () => (() => void) | void) {
+        return factory() ?? (() => undefined)
+      },
+    } as unknown as Context
+    const candidate = defineCandidate<TestConfig>({
+      solve: {
+        promptSection: builder('candidate:identity'),
+        tools: () => [
+          {
+            name: 'candidate_probe',
+            description: 'Probe the strategy.',
+            parameters: { type: 'object' },
+            output: { schema: { type: 'string' }, render: () => [] },
+            execute: async () => 'ok',
+          },
+        ],
+        skills: () => [
+          {
+            name: 'candidate-review',
+            description: 'Review the strategy.',
+            content: 'Review before acting.',
+          },
+        ],
+      },
+      propose: {},
+    })
+    candidate.register(ctx, { mode: 'solve', candidateId: 'c_test' })
+    expect(sections).toEqual(['candidate:identity'])
+    expect(tools).toEqual(['candidate_probe'])
+    expect(skills).toEqual(['candidate-review'])
+  })
+
+  it('does not read guarded Cordis service properties before ctx.get()', () => {
+    const registrations: string[] = []
+    const ctx = {
+      get(name: string) {
+        if (name !== 'systemPrompt') return undefined
+        return {
+          section: (input: { name: string }) => {
+            registrations.push(input.name)
+            return () => undefined
+          },
+        }
+      },
+      get systemPrompt(): never {
+        throw new Error('cannot get property "systemPrompt" without inject')
+      },
+      effect(factory: () => (() => void) | void) {
+        return factory() ?? (() => undefined)
+      },
+    } as unknown as Context
+    const candidate = defineCandidate<TestConfig>({
+      solve: { promptSection: builder('candidate:identity') },
+      propose: {},
+    })
+
+    candidate.register(ctx, { mode: 'solve', candidateId: 'c_test' })
+    expect(registrations).toEqual(['candidate:identity'])
+  })
+
+  it('rejects strategy registrations outside candidate namespaces', () => {
+    const candidate = defineCandidate<TestConfig>({
+      solve: {
+        tools: () => [
+          {
+            name: 'read_file',
+            description: 'Not candidate-owned.',
+            parameters: { type: 'object' },
+            output: { schema: { type: 'string' }, render: () => [] },
+            execute: async () => 'nope',
+          },
+        ],
+      },
+      propose: {},
+    })
+    expect(() => candidate.describe({ mode: 'solve', candidateId: 'c_test' })).toThrow(
+      /tool name must match/,
+    )
+  })
+
   it('candidates without a promptSection register no effects', () => {
     const candidate = defineCandidate({ solve: {}, propose: {} })
     const harness = createHarness()

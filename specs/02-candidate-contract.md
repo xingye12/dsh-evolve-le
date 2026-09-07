@@ -43,6 +43,29 @@ MAY 增加 `src/components/**`、fixtures 和 `README.md`，但第一版限制�
 canonical source、5,000 changed lines 相对 canonical parent。该上限是安全/成本边界，不是“越小越好”
 的评分规则；超过需在新 run manifest 预注册，不能由 proposer 自行豁免。
 
+### 2.1 tree-v2 component contract
+
+`schemaVersion: 2` candidates use protocol
+`dsh-self-evolving-candidate-tree-v2` and MUST be a multi-file Cordis component.
+The canonical allowlist is `src/**/*.ts`, `tests/**/*.spec.ts`,
+`fixtures/**/*.json`, `README.md`, `candidate.json`, `package.json`,
+`cordis.patch.yml`, and `tsconfig.json`. The tree MUST contain `src/index.ts`, a
+second production module, and a candidate-owned test; `src/index.ts` MUST call
+`ctx.plugin(...)`. The trusted builder rejects a v2 child that only changes a
+manifest, comments, or tests.
+
+The v2 manifest names `runtime.modeComponents.solve` and `.propose`, declares a
+disjoint `modeContract.targetModes`/`preservedModes` partition, and declares all
+six surfaces independently under `runtime.modeSurfaces.solve` and `.propose`.
+`runtime.capabilities` MUST equal the exact union of those mode declarations. The
+manifest also binds exactly `analysisDigest`, `mechanismOutcomeDigest`,
+`normalizedTrialDigest`, and `trajectoryDigest` under `requiredParentEvidence`.
+The builder checks preserved production bytes and target production change against
+the canonical parent, then checks each mode's declared surfaces and corresponding
+real-Loader runtime fingerprints. See
+`docs/tree-v2-implementation-spec.md` for the complete schema and migration
+boundary.
+
 ## 3. DSH bundle shape
 
 `package.json` MUST 声明 DSH bundle，而不是 profile：

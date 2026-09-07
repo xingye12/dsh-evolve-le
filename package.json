@@ -17,6 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "setup:source": "node --import tsx/esm scripts/setup-source.ts",
+    "native-dsh:inspect": "node --import tsx/esm scripts/inspect-native-dsh-runtime.ts",
+    "prebuild:terminal-bench-runtime": "node --import tsx/esm scripts/prebuild-terminal-bench-runtime.ts",
     "provenance:check": "node --import tsx/esm scripts/check-provenance.ts",
     "upstream:check": "node --import tsx/esm scripts/check-provenance.ts --upstreams-only",
     "evidence:gate0": "node --import tsx/esm scripts/record-gate0-evidence.ts",
@@ -38,6 +40,8 @@
     "evidence:gate7": "node --import tsx/esm scripts/record-gate7-evidence.ts",
     "evidence:gate8-smoke": "node --import tsx/esm scripts/record-gate8-smoke.ts",
     "evidence:gate8-pilot": "node --import tsx/esm scripts/record-gate8-pilot.ts",
+    "evidence:gate8-solve-smoke": "node --import tsx/esm scripts/record-gate8-solve-smoke.ts",
+    "evidence:gate8-live-pilot": "node --import tsx/esm scripts/record-gate8-live-pilot.ts",
     "gate7": "pnpm build && pnpm test && pnpm lint && pnpm format:check && pnpm provenance:check && pnpm upstream:check && pnpm evidence:gate7"
   },
   "devDependencies": {

@@ -8,7 +8,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { runSplitCeremony, SPLIT_COUNTS, SPLIT_PROTOCOL } from '../src/split/ceremony.js'
+import {
+  runSplitCeremony,
+  SPLIT_COUNTS,
+  SPLIT_PROTOCOL,
+  splitCountsForPopulation,
+} from '../src/split/ceremony.js'
 
 const HANDLES = Array.from(
   { length: 89 },
@@ -19,6 +24,20 @@ describe('split ceremony (specs/04 §3)', () => {
   it('default counts are 48/12/29 over the pinned 89-task set', () => {
     expect(SPLIT_COUNTS).toEqual({ observed: 48, guard: 12, sealed: 29 })
     expect(HANDLES).toHaveLength(89)
+  })
+
+  it('derives a deterministic non-empty allocation for the 72-task timeout subset', () => {
+    expect(splitCountsForPopulation(72)).toEqual({ observed: 39, guard: 10, sealed: 23 })
+    const handles = HANDLES.slice(0, 72)
+    const { ceremony, sealedStore } = runSplitCeremony({
+      runId: 'split-timeout-subset',
+      masterSeed: 'seed-1',
+      handles,
+      counts: splitCountsForPopulation(handles.length),
+    })
+    expect(ceremony.observedHandles).toHaveLength(39)
+    expect(sealedStore.guardHandles).toHaveLength(10)
+    expect(sealedStore.sealedHandles).toHaveLength(23)
   })
 
   it('assigns every handle exactly once across the three splits', () => {

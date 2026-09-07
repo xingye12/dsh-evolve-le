@@ -3,13 +3,21 @@
 **Status:** normative draft  
 **Benchmark:** Terminal-Bench 2.1 through Harbor
 
+**Active eligibility policy (frozen):** every K=10, K=80, sealed, and final
+evaluation run uses only tasks whose Harbor `[agent].timeout_sec` is `<= 1800`.
+For the pinned 89-task snapshot this yields 72 eligible tasks and excludes 17
+tasks. The 89-task inventory remains provenance material only; it is never a
+runtime evaluation population under this policy. Split counts are derived from
+the pinned 48:12:29 proportions by deterministic largest-remainder rounding,
+therefore the active 72-task profile is 39 observed / 10 guard / 23 sealed.
+
 ## 1. What this protocol must establish
 
 评测要回答三个不同问题：
 
 1. **Search utility**：哪个 candidate 值得继续评测或繁衍？
 2. **Generalization**：固定 development champion 是否在未反馈任务上优于 baseline？
-3. **Benchmark performance**：固定发布 artifact 在官方 89-task、≥5 attempts 协议下的分数是多少？
+3. **Benchmark performance**：固定发布 artifact 在 active eligibility subset、≥5 attempts 协议下的分数是多少？
 
 三者必须使用不同 label 和 gate。Development 数据可以驱动 1；一次性 sealed 数据只回答 2；完整
 官方运行只回答 3。不得用其中一个结果替代另一个。
@@ -43,6 +51,8 @@ Run manifest MUST 固定：
 - `SEALED`: 29 — candidate lock 前，identity、assignment、outcome、trace 和 aggregate 全部不可见。
 
 60 development task 用于适应性搜索，因此不能称 held-out。29 sealed task 只揭盲一次。
+（此处 60 = 48 observed + 12 guard 的拆分总数；§4.2 的正式 K=80 baseline 矩阵按 ADR-045 为
+49 = 39 observed + 10 guard，与本句的拆分总数不是同一口径。）
 
 ### 3.2 Stratification
 
@@ -106,8 +116,14 @@ Baseline 不是零散 smoke score。`c0000` 必须与候选使用同一 stable r
 
 ### 4.2 Optional benchmark baseline
 
-启动 K=10/K=80 benchmark profile 前另行冻结对应 baseline。正式 K=80 仍要求 60 development tasks、
-每 task 至少 2 attempts；stable-demo evidence 不可冒充或直接补齐这一矩阵。
+启动 K=10/K=80 benchmark profile 前另行冻结对应 baseline。正式 K=80 要求 49 development tasks
+（39 observed + 10 guard，= 冻结 ≤1800s 资格策略下全部合格 development 任务；ADR-045 对原
+「60 tasks」的显式修订并披露）、每 task 至少 2 attempts；stable-demo evidence 不可冒充或直接补齐
+这一矩阵。dev-guard 波次落地前只允许 observed-only 过渡矩阵（39），并在 ADR 中披露该过渡。
+
+> ADR-046 注记（2026-09-07）：dev-guard 波次机制已落地（baseline 矩阵 39 observed 段 + 10
+> guard opaque 段，split `dev-guard`），49×2 矩阵自此可运行；observed-only 过渡矩阵
+> 39×2 彩排已按用户决策终止，其 evidence 维持 `formal:false`（rule 6）。
 
 ### 4.3 Sealed baseline
 
@@ -117,7 +133,7 @@ task/attempt 随机交错；scheduler 不读取中间 reward。
 
 ### 4.4 Full-set baseline
 
-正式 fixed-artifact comparison 使用所有 89 task，每 task至少 5 attempts。若已有同一 manifest 的
+正式 fixed-artifact comparison 使用 active eligibility subset，每 task至少 5 attempts。若已有同一 manifest 的
 不可变 baseline 结果可复用，必须验证每个 identity field；任一差异都要重跑。
 
 ## 5. Trial semantics
@@ -180,6 +196,12 @@ wall-clock，provider 若不收费可不计 model cost，但须明确。
 - proposer prompt/result、tool trace 中若出现 guard/sealed token，information-flow monitor 立即
   `SAFETY_ABORTED`。
 
+> ADR-046 实现注记（2026-09-07）：failure pool 保持 observed-only——guard 零成功题不入 pool。
+> 依据：pool 兼作 proposer 证据供给，guard handle 若进 pool 会触发 export 标签检查硬崩（非泄漏）。
+> guard 结果仅经 tournament 覆盖计划的 selector 通道进入选择（specs/05 §10 `selector.read`）。
+> information-flow monitor 实现于 `src/iteration/info-flow-monitor.ts`，三处检查面（export 创建、
+> proposal result 验证、终止前 journal sweep），命中即 SAFETY_ABORTED + lineage invalidated。
+
 Search score 是 task-weighted mean，不按已有 trial 数简单拼接难度不同的样本；posterior 和 paired
 tournament 细节见算法规范。
 
@@ -198,6 +220,12 @@ tournament 细节见算法规范。
 
 `k_sealed` 默认 5，与正式稳定性口径一致。若 Gate 5 预算只允许更少 attempts，必须在 search 前
 预注册且报告低 power；不得在看见结果后增加 attempts。
+
+> ADR-048 预注册（2026-09-07）：正式 K=80 的 sealed 计划为 **23 tasks × k_sealed=5 × 双侧 =
+> 230 trials**。23 是冻结 ≤1800s 资格策略（本章开头）下 72 题群体中的 sealed 数量；上文「29
+> tasks」为 pinned-89 名义口径。按 rule 9 显式披露（不静默缩小）：`Delta = (1/23) Σ d_i`。
+> sealed 评估由独立 CLI 子命令 `sealed-evaluate` 执行，driver 保持 `sealedAccess:false`；
+> sealed store 0600 root-only 存于 evidence 树外，仅一次 reveal 事件进 journal。
 
 ## 9. Primary sealed estimand
 
@@ -230,6 +258,9 @@ and critical safety findings == 0
 
 29 tasks 导致 +5pp 门槛可能统计 power 较弱；这是目标与数据规模的事实。点估计达标但 CI 跨 0 时
 状态为 `PROMISING_NOT_CONFIRMED`，不能换统计检验直到显著。
+
+> ADR-048 注记：正式 K=80 实际 sealed=23（见 §8 注记），power 弱于 29-task 名义口径；
+> 这是 ≤1800s 资格策略与数据规模的事实，已显式披露，不改变统计检验。
 
 ## 10. Regression and guardrail analysis
 

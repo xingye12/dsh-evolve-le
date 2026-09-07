@@ -10,7 +10,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { Writable, Readable } from 'node:stream'
+import { Transform, Writable, Readable } from 'node:stream'
 import {
   ClientSideConnection,
   ndJsonStream,
@@ -37,6 +37,17 @@ export interface AcpSessionResult {
 }
 
 const REPORT_PREFIX = 'dsh-evolve-le-runner-report:'
+const LOG_PREFIX = 'dsh-evolve-le-runner-log:'
+
+/** A PTY merges stderr into stdout, so pass only actual JSON-RPC to ACP. */
+function isJsonRpcLine(line: string): boolean {
+  try {
+    const value = JSON.parse(line) as { jsonrpc?: unknown } | null
+    return value !== null && typeof value === 'object' && value.jsonrpc === '2.0'
+  } catch {
+    return false
+  }
+}
 
 /**
  * Run one ACP round against a runner command. `argv[0]` is the executable
@@ -60,6 +71,43 @@ export async function runAcpSession(
     stderrChunks.push(chunk.toString('utf8'))
   })
 
+  // `sandboxedCommand()` may run the capsule under a PTY. The runner's final
+  // report is deliberately not ACP JSON and therefore must be removed from
+  // the protocol stream before the SDK parser sees it, while still retained
+  // for the admission receipt.
+  const reportLines: string[] = []
+  const ptyLogLines: string[] = []
+  const protocolNoiseLines: string[] = []
+  let protocolRemainder = ''
+  const protocolFilter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      protocolRemainder += chunk.toString('utf8')
+      const lines = protocolRemainder.split('\n')
+      protocolRemainder = lines.pop() ?? ''
+      for (const line of lines) {
+        const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
+        if (normalized.startsWith(REPORT_PREFIX)) reportLines.push(normalized)
+        else if (normalized.startsWith(LOG_PREFIX)) ptyLogLines.push(normalized)
+        else if (isJsonRpcLine(normalized)) this.push(`${normalized}\n`)
+        else if (normalized.length > 0) protocolNoiseLines.push(normalized)
+      }
+      callback()
+    },
+    flush(callback) {
+      const normalized = protocolRemainder.endsWith('\r')
+        ? protocolRemainder.slice(0, -1)
+        : protocolRemainder
+      if (normalized.length > 0) {
+        if (normalized.startsWith(REPORT_PREFIX)) reportLines.push(normalized)
+        else if (normalized.startsWith(LOG_PREFIX)) ptyLogLines.push(normalized)
+        else if (isJsonRpcLine(normalized)) this.push(normalized)
+        else protocolNoiseLines.push(normalized)
+      }
+      callback()
+    },
+  })
+  child.stdout.pipe(protocolFilter)
+
   const updates: AcpSessionResult['updates'] = []
   const client: Client = {
     async requestPermission() {
@@ -71,7 +119,7 @@ export async function runAcpSession(
   }
   const connection = new ClientSideConnection(
     () => client,
-    ndJsonStream(Writable.toWeb(child.stdin!), Readable.toWeb(child.stdout!)),
+    ndJsonStream(Writable.toWeb(child.stdin!), Readable.toWeb(protocolFilter)),
   )
 
   let timedOut = false
@@ -118,9 +166,10 @@ export async function runAcpSession(
   const closeInfo = await closed
   clearTimeout(timer)
 
-  const stderr = stderrChunks.join('')
-  const reportLine = stderr
-    .split('\n')
+  const stderr = [stderrChunks.join(''), ...ptyLogLines, ...protocolNoiseLines]
+    .filter(Boolean)
+    .join('\n')
+  const reportLine = [...stderr.split('\n'), ...reportLines]
     .filter((line) => line.startsWith(REPORT_PREFIX))
     .at(-1)
   const report =

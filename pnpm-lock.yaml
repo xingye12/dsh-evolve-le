@@ -68,6 +68,19 @@ importers:
         specifier: 4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
 
+  packages/candidate-tree-v2-baseline:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: 3.18.1
+        version: 3.18.1
+      '@dsh-evolve-le/candidate-sdk':
+        specifier: 0.0.1
+        version: link:../candidate-sdk
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.1
+        version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+
   packages/cli:
     dependencies:
       '@dsh-evolve-le/core':

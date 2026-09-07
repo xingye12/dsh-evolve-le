@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schema/tree-v2/proposal/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "protocol",
+    "kind",
+    "proposalId",
+    "parentCandidateDigest",
+    "analysisDigest",
+    "candidateIntentDigest",
+    "modeContract",
+    "requiredParentEvidence",
+    "receiptDigest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "protocol": { "const": "dsh-self-evolving-candidate-tree-v2" },
+    "kind": { "const": "proposal" },
+    "proposalId": { "type": "string", "minLength": 1 },
+    "parentCandidateDigest": { "$ref": "#/$defs/digest" },
+    "analysisDigest": { "$ref": "#/$defs/digest" },
+    "candidateIntentDigest": { "$ref": "#/$defs/digest" },
+    "modeContract": { "$ref": "#/$defs/modeContract" },
+    "requiredParentEvidence": { "$ref": "#/$defs/parentEvidence" },
+    "receiptDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "modeContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetModes", "preservedModes"],
+      "properties": {
+        "targetModes": {
+          "type": "array",
+          "items": { "enum": ["solve", "propose"] },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "preservedModes": {
+          "type": "array",
+          "items": { "enum": ["solve", "propose"] },
+          "uniqueItems": true
+        }
+      }
+    },
+    "parentEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analysisDigest",
+        "mechanismOutcomeDigest",
+        "normalizedTrialDigest",
+        "trajectoryDigest"
+      ],
+      "properties": {
+        "analysisDigest": { "$ref": "#/$defs/digest" },
+        "mechanismOutcomeDigest": { "$ref": "#/$defs/digest" },
+        "normalizedTrialDigest": { "$ref": "#/$defs/digest" },
+        "trajectoryDigest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

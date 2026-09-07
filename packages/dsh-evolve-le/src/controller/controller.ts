@@ -60,11 +60,13 @@ import {
   validateProposalBundle,
   type ChildVerdict,
 } from '../proposer/validate.js'
+import type { ProposalRejectionRecord } from '../proposer/feedback.js'
 import { existsSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { acquireWriterLock } from './lock.js'
 import type { BenchmarkProvider } from './provider.js'
+import { persistTreeV2ReceiptDocument } from '../tree-v2/receipts.js'
 
 export type BoundaryPoint =
   | 'intent-durable'
@@ -109,6 +111,12 @@ export interface EvaluationRequest {
   opaqueTaskId: string
   attempt: number
   split: 'dev-observed' | 'dev-guard'
+  /**
+   * Guard-trial embedding (ADR-046): the guard task's own canary, carried by
+   * dev-guard baseline trials into the durable request and observation. The
+   * information-flow monitor tolerates the token in exactly these records.
+   */
+  infoFlowGuardCanary?: string
 }
 
 export interface EvaluationInput extends EvaluationRequest {
@@ -137,6 +145,11 @@ export interface ProposalRequest {
   /** The label-filtered export id the sandbox read. */
   exportId: string
   width: number
+  /** Present iff this expansion must use the tree-v2 proposal protocol. */
+  treeV2Parent?: {
+    candidateDigest: string
+    mechanismOutcomeDigest: string
+  }
 }
 
 export interface ProposalInput {
@@ -152,6 +165,9 @@ export interface ProposalInput {
   catalog: ArchiveCatalog
   /** Canary tokens no proposal field or child source may carry. */
   canaryTokens: readonly string[]
+  /** This run's prior rejected children + reasons (ADR-044); staged into the
+   * sandbox input as prior-rejections.json. */
+  priorRejections: readonly ProposalRejectionRecord[]
   maxTurns?: number
   timeoutMs?: number
 }
@@ -420,6 +436,25 @@ export class Controller {
     })
   }
 
+  /**
+   * Settle only what the action actually consumed. A priced zero — an
+   * all-error live trial (every receipt `ok:false`, harbor records
+   * costUsdMicros 0), a zero-token gateway reply — is a fact of the
+   * observation/usage document, not of the ledger: a zero-amount settle with
+   * no unpriced usage carries no accounting information and the ledger
+   * rejects it. Skipping the mirror entry is accounting-neutral for the
+   * release path: releaseRemainder returns the reservation either way.
+   */
+  private async settleIfAccountable(input: {
+    dimension: BudgetDimension
+    actionId: string | null
+    amount: number
+    unpricedUnits?: number
+  }): Promise<void> {
+    if (input.amount === 0 && (input.unpricedUnits ?? 0) === 0) return
+    await this.mirrorBudget({ kind: 'settle', ...input })
+  }
+
   /** The request recorded at reservation time — the journal is the truth source. */
   private requestOf(actionId: string): EvaluationRequest {
     this.action(actionId)
@@ -487,6 +522,25 @@ export class Controller {
   }
 
   /**
+   * One-shot champion lock (ADR-047, specs/03 §11): emits `candidate.locked`
+   * with the triple hash. The reducer rejects a second lock fail-closed, so
+   * re-driving after CANDIDATE_LOCKED re-verifies instead of re-locking.
+   */
+  async lockCandidate(input: { candidateId: string; lockHash: string }): Promise<void> {
+    await this.emit('candidate.locked', input)
+  }
+
+  /**
+   * One-shot sealed reveal (ADR-048, specs/04 §10): emits `sealed.revealed`
+   * with the verdict receipt hash. The reducer throws on a second emission —
+   * not idempotent by design — so callers must guard with
+   * `state.locks.sealedRevealed === null` (the sealed runner does).
+   */
+  async revealSealed(input: { candidateId: string; revealReceiptHash: string }): Promise<void> {
+    await this.emit('sealed.revealed', input)
+  }
+
+  /**
    * Full evaluation saga, resumable at every boundary. Each step first checks
    * the folded state, so calling this twice — or after a crash — completes
    * the remaining steps without duplicating any external effect.
@@ -495,10 +549,60 @@ export class Controller {
     if (this.current.actions[input.actionId]?.status === 'COMMITTED') {
       return this.observationOf(input.actionId)
     }
-    await this.reserve(input)
-    await this.launch(input.actionId)
-    await this.awaitTerminal(input.actionId)
-    return this.collectAndCommit(input.actionId)
+    const [observation] = await this.runEvaluationWave([input])
+    if (observation === undefined)
+      throw new ControllerError('evaluation wave returned no observation')
+    return observation
+  }
+
+  /**
+   * Wave-synchronous evaluation (specs/03 §8, specs/06 §12): persist every
+   * reservation first, then launch and await external jobs concurrently. The
+   * final collect/commit pass is deliberately ordered by the input
+   * reservation sequence, so completion timing cannot influence selection.
+   */
+  async runEvaluationWave(inputs: readonly EvaluationInput[]): Promise<Observation[]> {
+    if (inputs.length === 0) throw new ControllerError('evaluation wave must not be empty')
+    const actionIds = new Set<string>()
+    for (const input of inputs) {
+      if (actionIds.has(input.actionId)) {
+        throw new ControllerError(`evaluation wave repeats action ${input.actionId}`)
+      }
+      actionIds.add(input.actionId)
+    }
+
+    // The intent prefix is serial and durable before any paid provider call.
+    for (const input of inputs) await this.reserve(input)
+
+    const launches = await Promise.allSettled(inputs.map((input) => this.launch(input.actionId)))
+    const launchFailure = launches.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    )
+    // Fault-injection hooks model a process crash at an exact boundary. Do
+    // not drain a job in this process after that signal; recovery must observe
+    // the durable prefix exactly as a restarted controller would.
+    if (launchFailure !== undefined && this.config.onBoundary !== undefined) {
+      throw launchFailure.reason
+    }
+    const launchedIds = inputs.filter(
+      (input) => this.current.externalJobs[input.actionId] !== undefined,
+    )
+    // Even when one launch failed, drain jobs that did launch so they are not
+    // left running when the caller receives the error and resumes the run.
+    const terminalResults = await Promise.allSettled(
+      launchedIds.map((input) => this.awaitTerminal(input.actionId)),
+    )
+    if (launchFailure !== undefined) throw launchFailure.reason
+    const terminalFailure = terminalResults.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    )
+    if (terminalFailure !== undefined) throw terminalFailure.reason
+
+    // Collecting in reservation order is the observable commit order even if
+    // Harbor jobs finished in a different order.
+    const observations: Observation[] = []
+    for (const input of inputs) observations.push(await this.collectAndCommit(input.actionId))
+    return observations
   }
 
   /**
@@ -520,6 +624,34 @@ export class Controller {
     await this.launch(actionId)
     await this.awaitTerminal(actionId)
     return this.collectAndCommit(actionId)
+  }
+
+  /** Resume all unfinished members of one already-planned wave concurrently. */
+  async resumeEvaluationWave(actionIds: readonly string[]): Promise<Observation[]> {
+    if (actionIds.length === 0) return []
+    const actions = actionIds.map((actionId) => this.action(actionId))
+    if (actions.some((action) => action.kind !== 'evaluation')) {
+      throw new ControllerError('resumeEvaluationWave accepts evaluation actions only')
+    }
+    const pending = actions.filter((action) => !TERMINAL_ACTIONS.has(action.status))
+    const launches = await Promise.allSettled(pending.map((action) => this.launch(action.actionId)))
+    const launched = pending.filter(
+      (action) => this.current.externalJobs[action.actionId] !== undefined,
+    )
+    const terminals = await Promise.allSettled(
+      launched.map((action) => this.awaitTerminal(action.actionId)),
+    )
+    const launchFailure = launches.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    )
+    if (launchFailure !== undefined) throw launchFailure.reason
+    const terminalFailure = terminals.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    )
+    if (terminalFailure !== undefined) throw terminalFailure.reason
+    const observations: Observation[] = []
+    for (const action of actions) observations.push(await this.collectAndCommit(action.actionId))
+    return observations
   }
 
   // ---------------------------------------------------------------------
@@ -576,6 +708,11 @@ export class Controller {
         parentTreeDir: input.parentTreeDir,
         parentSourceHash: input.request.parentSourceHash,
         width: input.request.width,
+        ...(input.request.treeV2Parent === undefined
+          ? {}
+          : { treeV2Parent: input.request.treeV2Parent }),
+        catalog: input.catalog,
+        priorRejections: input.priorRejections,
         ...(input.maxTurns !== undefined ? { maxTurns: input.maxTurns } : {}),
         ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
       })
@@ -644,7 +781,10 @@ export class Controller {
             ? 'DAC boundary did not hold against the controller/sealed canaries'
             : !capsuleVerified
               ? 'capsule tree drifted during the run'
-              : null
+              : JSON.stringify(supervisor.treeV2Parent ?? null) !==
+                  JSON.stringify(input.request.treeV2Parent ?? null)
+                ? 'sandbox tree-v2 parent evidence differs from the durable request'
+                : null
     if (hardFailure !== null) {
       return this.failProposal(input.actionId, hardFailure)
     }
@@ -691,6 +831,13 @@ export class Controller {
         worker.proposal ??
         (JSON.parse(await readFile(join(sandboxRoot, 'work', 'proposal.json'), 'utf8')) as never)
       parseProposalOutput(proposal)
+      if ((proposal.schemaVersion === 2) !== (input.request.treeV2Parent !== undefined)) {
+        return this.failProposal(
+          input.actionId,
+          'proposal protocol does not match the durable parent protocol selection',
+          usage,
+        )
+      }
 
       // Controller-side integrity verification. Recorded routes: rebuild the
       // transcript/proposal/children from the frozen sandbox inputs with the
@@ -753,6 +900,9 @@ export class Controller {
         catalog: input.catalog,
         canaryTokens: input.canaryTokens,
       })
+      if (validation.batchErrors.length === 0) {
+        await this.putTreeV2ProposalReceipts(input.actionId, proposal, validation)
+      }
       if (validation.batchErrors.length > 0) {
         return this.failProposal(
           input.actionId,
@@ -820,6 +970,47 @@ export class Controller {
     return { ...this.proposalResultOfSync(input.actionId), summary: summary! }
   }
 
+  /** Persist each validated proposer-owned receipt as an independent object. */
+  private async putTreeV2ProposalReceipts(
+    actionId: string,
+    proposal: ProposalOutput,
+    validation: Awaited<ReturnType<typeof validateProposalBundle>>,
+  ): Promise<void> {
+    if (proposal.schemaVersion !== 2) return
+    const receipts: Array<{
+      kind: 'analysis' | 'proposal' | 'candidate-intent'
+      value: Record<string, unknown>
+    }> = []
+    for (const child of proposal.children) {
+      receipts.push(
+        { kind: 'analysis', value: child.analysisReceipt as unknown as Record<string, unknown> },
+        { kind: 'proposal', value: child.proposalReceipt as unknown as Record<string, unknown> },
+      )
+      if (validation.admitted.some((verdict) => verdict.childName === child.childName)) {
+        const source = validation.sources.get(child.childName)
+        const manifest = source?.files.find((file) => file.path === 'candidate.json')
+        if (manifest === undefined) {
+          throw new Error(`admitted tree-v2 child ${child.childName} has no candidate intent`)
+        }
+        receipts.push({
+          kind: 'candidate-intent',
+          value: JSON.parse(manifest.content.toString('utf8')) as Record<string, unknown>,
+        })
+      }
+    }
+    for (const receipt of receipts) {
+      const ref = await persistTreeV2ReceiptDocument(this.store, receipt.kind, receipt.value)
+      const existing = this.action(actionId).artifacts.find(
+        (artifact) => artifact.digest === ref.digest && artifact.mediaType === ref.mediaType,
+      )
+      if (existing === undefined) {
+        await this.emit('artifact.collected', { actionId, artifact: ref })
+      } else {
+        await this.store.verify(existing)
+      }
+    }
+  }
+
   /** Store the validation summary artifact (idempotent by digest). */
   private async putProposalSummary(actionId: string, summary: ProposalSummaryDoc): Promise<void> {
     const existing = this.action(actionId).artifacts.find(
@@ -845,22 +1036,19 @@ export class Controller {
     const reserved = this.current.budgetByAction[actionId] ?? {}
     const bounded = (dimension: BudgetDimension, amount: number): number =>
       Math.min(amount, reserved[dimension]?.reserved ?? 0)
-    await this.mirrorBudget({
-      kind: 'settle',
+    await this.settleIfAccountable({
       dimension: 'proposal-calls',
       actionId,
       amount: bounded('proposal-calls', 1),
     })
-    await this.mirrorBudget({
-      kind: 'settle',
+    await this.settleIfAccountable({
       dimension: 'proposer-tokens',
       actionId,
       amount: bounded('proposer-tokens', usage?.totalTokens ?? 0),
       unpricedUnits: usage === null ? 1 : 0,
     })
     const cost = usage?.costUsdMicros
-    await this.mirrorBudget({
-      kind: 'settle',
+    await this.settleIfAccountable({
       dimension: 'usd',
       actionId,
       amount: bounded('usd', cost ?? 0),
@@ -931,6 +1119,9 @@ export class Controller {
       opaqueTaskId: input.opaqueTaskId,
       attempt: input.attempt,
       split: input.split,
+      ...(input.infoFlowGuardCanary !== undefined
+        ? { infoFlowGuardCanary: input.infoFlowGuardCanary }
+        : {}),
     }
     await this.emit('action.reserved', {
       actionId: input.actionId,
@@ -1034,6 +1225,7 @@ export class Controller {
         terminal.outcome,
         terminal.costUsdMicros,
         terminal.durationMs,
+        terminal.solverTokens ?? null,
       )
     } else {
       // Crash between collect and commit (§13 row 6): collect is idempotent
@@ -1064,6 +1256,7 @@ export class Controller {
         terminal.outcome,
         terminal.costUsdMicros,
         terminal.durationMs,
+        terminal.solverTokens ?? null,
       )
     }
     return this.observationOf(actionId)
@@ -1075,6 +1268,7 @@ export class Controller {
     outcome: ObservationOutcome,
     costUsdMicros: number | null,
     durationMs: number | null,
+    solverTokens: number | null,
   ): Promise<void> {
     if (TERMINAL_ACTIONS.has(this.action(actionId).status)) {
       return // committed exactly once
@@ -1089,20 +1283,38 @@ export class Controller {
       reward: outcome === 'success' ? 1 : 0,
       costUsdMicros,
       durationMs,
+      ...(request.infoFlowGuardCanary !== undefined
+        ? { infoFlowGuardCanary: request.infoFlowGuardCanary }
+        : {}),
     }
     await this.emit('action.committed', { actionId, observation })
     // Cost receipt present → settle priced; absent → settle zero and record
-    // the usage as unpriced (never silently free).
+    // the usage as unpriced (never silently free). A priced zero (all-error
+    // receipts) settles nothing — the observation carries the fact.
     const priced = costUsdMicros ?? 0
     const unpriced = costUsdMicros === null ? 1 : 0
-    await this.mirrorBudget({
-      kind: 'settle',
+    await this.settleIfAccountable({
       dimension: 'usd',
       actionId,
       amount: priced,
       unpricedUnits: unpriced,
     })
-    await this.mirrorBudget({ kind: 'settle', dimension: 'task-trials', actionId, amount: 1 })
+    await this.settleIfAccountable({ dimension: 'task-trials', actionId, amount: 1 })
+    // Live-solver settlement (ADR-030, D2): only when the run carries the
+    // dimension. A solver-token settle therefore never appears in replay-run
+    // journals. In a solver run every trial carries a receipt-verified figure;
+    // a null there means the provider lost the solve wiring — fail closed
+    // rather than settling an invented zero. A genuine zero-token live trial
+    // settles nothing (a zero settle is not an accounting fact; the ledger
+    // rejects it) — releaseRemainder returns its reservation.
+    if (this.config.budgetLimits['solver-tokens'] !== undefined) {
+      if (solverTokens === null) {
+        throw new ControllerError(
+          `action ${actionId} settled without a solver-token figure in a solver-token-budgeted run`,
+        )
+      }
+      await this.settleIfAccountable({ dimension: 'solver-tokens', actionId, amount: solverTokens })
+    }
     // The worst-case remainder is no longer at risk once the trial committed:
     // release it back to available (specs/06 §8). Idempotent — the mirrored
     // per-action balance drives the amount, so a second pass releases zero.
@@ -1144,19 +1356,29 @@ export class Controller {
       durationMs: null,
     }
     await this.emit('action.committed', { actionId: action.actionId, observation })
-    await this.mirrorBudget({
-      kind: 'settle',
+    await this.settleIfAccountable({
       dimension: 'usd',
       actionId: action.actionId,
       amount: 0,
       unpricedUnits: 1,
     })
-    await this.mirrorBudget({
-      kind: 'settle',
+    await this.settleIfAccountable({
       dimension: 'task-trials',
       actionId: action.actionId,
       amount: 1,
     })
+    // A lost solver trial may have spent tokens upstream with no receipt to
+    // attribute them: settle zero and mark the usage unpriced (never silently
+    // free), mirroring the usd row above. Replay runs carry no dimension and
+    // therefore no entry.
+    if (this.config.budgetLimits['solver-tokens'] !== undefined) {
+      await this.settleIfAccountable({
+        dimension: 'solver-tokens',
+        actionId: action.actionId,
+        amount: 0,
+        unpricedUnits: 1,
+      })
+    }
     await this.releaseRemainder(action.actionId)
     await this.boundary('action-committed', action.actionId)
   }

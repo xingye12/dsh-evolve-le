@@ -369,3 +369,30 @@ journal/action replay、official/local verification 和 release receipts 必须�
 - export label/canary noninterference；
 - candidate-lock/sealed one-shot irreversible transition；
 - 10M-token synthetic evidence tree 的 bounded prompt/index performance。
+
+## 17. tree-v2 receipt chain
+
+tree-v2 candidates use protocol `dsh-self-evolving-candidate-tree-v2` and
+`schemaVersion: 2`. The trusted schema registry validates eight independently
+content-addressed receipt kinds: `proposal`, `analysis`, `candidate-intent`,
+`mechanism-outcome`, `capability-catalog`, `materialization-receipt`,
+`admission-receipt`, and `migration-receipt`. Each receipt carries a
+`receiptDigest` equal to the SHA-256 of its canonical JSON with that field
+removed. A valid digest does not replace semantic verification of the receipt.
+
+The candidate intent binds a disjoint target/preserved mode contract and exactly
+four named parent evidence digests: `analysisDigest`, `mechanismOutcomeDigest`,
+`normalizedTrialDigest`, and `trajectoryDigest`. The builder and Loader verify
+both static source projections and runtime fingerprints. A migration receipt
+sets `resultsInherited: false` and requires a fresh rebuild, readmission and
+reevaluation; v1 observations remain audit-only.
+
+The v2 proposal envelope carries the analysis/proposal receipts into controller
+validation and the controller stores each validated analysis, proposal and admitted
+candidate-intent as an independent object. A successful trusted build emits
+mechanism-outcome, capability-catalog, materialization and admission receipts under
+its work root; iteration persistence copies their canonical bytes into the object
+store and retains their refs, downstream digests and both mode fingerprints in the
+capsule record. Those records are derived state and remain reproducible from the receipts.
+Normalized trial evidence is stored with canonical JSON bytes so snapshot replay
+cannot change an export or descendant identity through object key order.

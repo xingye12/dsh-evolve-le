@@ -30,12 +30,22 @@ import {
 } from '@agentclientprotocol/sdk'
 import { BUILDER_VERSION } from '../version.js'
 import { promptSha256, replayResponseFor } from './recorded-replay.js'
-import type { StubSystemPromptService } from '../probe/system-prompt-stub.js'
+
+export interface ReplayPromptSection {
+  readonly name: string
+  readonly order: number
+  readonly text: string
+}
+
+interface SystemPromptService {
+  snapshot?: () => readonly ReplayPromptSection[] | Promise<readonly ReplayPromptSection[]>
+  assemble?: () => Promise<{ sections: readonly { name: string; text: string }[] }>
+}
 
 /** One session: captured prompt identity and the task workspace path. */
 export interface ReplaySession {
   sessionId: string
-  sections: readonly { name: string; order: number; text: string }[]
+  sections: readonly ReplayPromptSection[]
   cwd: string
 }
 
@@ -54,9 +64,25 @@ export function promptText(prompt: PromptRequest): string {
     .join('\n')
 }
 
-function systemPromptService(ctx: Context): StubSystemPromptService | undefined {
-  const service = (ctx as unknown as { systemPrompt?: StubSystemPromptService }).systemPrompt
-  return typeof service?.snapshot === 'function' ? service : undefined
+function systemPromptService(ctx: Context): SystemPromptService | undefined {
+  const direct = (ctx as unknown as { systemPrompt?: SystemPromptService }).systemPrompt
+  if (direct !== undefined) return direct
+  const get = (ctx as unknown as { get?: (name: string) => unknown }).get
+  return typeof get === 'function' ? (get.call(ctx, 'systemPrompt') as SystemPromptService | undefined) : undefined
+}
+
+/**
+ * Read the composed prompt only through public service APIs. The compatibility
+ * runner exposes a synchronous snapshot; upstream DSH exposes asynchronous
+ * SystemPrompt.assemble(), whose section order is already canonical.
+ */
+export async function replayPromptSections(ctx: Context): Promise<readonly ReplayPromptSection[]> {
+  const service = systemPromptService(ctx)
+  if (service === undefined) return []
+  if (typeof service.snapshot === 'function') return await service.snapshot()
+  if (typeof service.assemble !== 'function') return []
+  const assembly = await service.assemble()
+  return assembly.sections.map((section, order) => ({ ...section, order }))
 }
 
 /**
@@ -84,7 +110,7 @@ export function createReplayAgent(
       }
     },
     async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
-      const sections = systemPromptService(ctx)?.snapshot() ?? []
+      const sections = await replayPromptSections(ctx)
       const sessionId = randomUUID()
       sessions.set(sessionId, { sessionId, sections, cwd: params.cwd })
       return { sessionId }

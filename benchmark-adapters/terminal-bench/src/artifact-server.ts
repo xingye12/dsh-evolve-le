@@ -16,6 +16,7 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createServer, type Server, type ServerOptions } from 'node:https'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -119,12 +120,18 @@ export interface ArtifactServer {
  * Start the HTTPS endpoint. Every file in `artifactsDir` named
  * `<64-hex>.tar.gz` is verified (sha256 == name) and served at
  * `https://<host>:<port>/<sha256>.tar.gz`. Port 0 picks an ephemeral port.
+ *
+ * `handler` (ADR-030) optionally takes over every path that is NOT a capsule
+ * artifact — the solve gateway's authenticated `POST /gateway/complete` rides
+ * the same listener, CA and firewall opening. It is undefined by default and
+ * the artifact path behavior never changes.
  */
 export async function startArtifactServer(options: {
   host: string
   port: number
   artifactsDir: string
   tls: { certPath: string; keyPath: string }
+  handler?: (req: IncomingMessage, res: ServerResponse) => void
 }): Promise<ArtifactServer> {
   const urls = new Map<string, string>()
   for (const name of await readdir(options.artifactsDir)) {
@@ -144,6 +151,10 @@ export async function startArtifactServer(options: {
   const server: Server = createServer(tls, (req, res) => {
     const match = /^\/([0-9a-f]{64})\.tar\.gz$/.exec(req.url ?? '')
     if (req.method !== 'GET' || match === null) {
+      if (options.handler !== undefined) {
+        options.handler(req, res)
+        return
+      }
       res.writeHead(404, { 'content-type': 'text/plain' })
       res.end('not found\n')
       return

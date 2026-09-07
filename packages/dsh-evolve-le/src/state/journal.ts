@@ -536,6 +536,8 @@ export class Journal {
   private activeEvents: JournalEvent[]
   private activeHandle: FileHandle | null = null
   private readonly scannedResidue: ResidueReport
+  /** Serialize appends while allowing external effects to run concurrently. */
+  private appendChain: Promise<void> = Promise.resolve()
 
   private constructor(config: JournalConfig, layout: JournalLayout, residueFound: ResidueReport) {
     this.config = config
@@ -581,6 +583,15 @@ export class Journal {
   }
 
   async append(draft: EventDraft): Promise<JournalEvent> {
+    const operation = this.appendChain.then(() => this.appendExclusive(draft))
+    this.appendChain = operation.then(
+      () => undefined,
+      () => undefined,
+    )
+    return operation
+  }
+
+  private async appendExclusive(draft: EventDraft): Promise<JournalEvent> {
     validateDraft(draft)
     const envelope: Omit<JournalEvent, 'eventHash'> = {
       schemaVersion: JOURNAL_SCHEMA_VERSION,

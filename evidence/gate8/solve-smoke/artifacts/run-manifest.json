@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "protocol": "dsh-evolve-le/iteration/v1",
+  "runId": "gate8-solve-smoke",
+  "profile": "stable-demo",
+  "configHash": "sha256:bd05c90127271d590a9adbc856ef0182f7d5e484ac4a997482c0abe4b3684263",
+  "datasetHandlesHash": "sha256:733562cbea1dd6f0af4b13e6c1c54702ec3f822037f05b978e56f63a1c6a1a36",
+  "sealedRoot": "0ebbf330bb39d47b31e80eeb8c125c226a2618c9f70aa2dcd18f2274fb46c08d",
+  "sealedCount": 29,
+  "solverTrack": "assisted",
+  "solverRouteHash": "c6d3f226d75744780ee36ee3793e4d8844e8b9f237abccf0b07f180ae7587720",
+  "config": {
+    "$schema": "https://dsh-evolve-le.local/schemas/run.config.schema.json",
+    "schemaVersion": 1,
+    "runId": "gate8-solve-smoke",
+    "profile": "stable-demo",
+    "masterSeed": "gate8-solve-smoke-master-seed-1",
+    "search": {
+      "kTarget": 1,
+      "proposalWidth": 3,
+      "coldStartTrials": 1,
+      "ucbAirAlphaPerMille": 600,
+      "shortlistSize": 2,
+      "maxSolverTrials": 2,
+      "maxDiscoveryTrials": 1,
+      "discoveryBatchSize": 1,
+      "maxConsecutiveExpansionFailures": 3
+    },
+    "modelRoutes": [
+      {
+        "id": "dsh-evolve-le/recorded-proposer",
+        "provider": "recorded",
+        "contextWindowTokens": 131072,
+        "maxOutputTokens": 16384,
+        "inputUsdMicrosPerMTok": 3000000,
+        "outputUsdMicrosPerMTok": 15000000
+      },
+      {
+        "id": "deepseek/zen-compatible",
+        "provider": "zen-compatible",
+        "contextWindowTokens": 1000000,
+        "maxOutputTokens": 32768,
+        "inputUsdMicrosPerMTok": 140000,
+        "outputUsdMicrosPerMTok": 280000,
+        "credentialFile": "/root/.config/dsh-evolve-le/deepseek-official.key",
+        "baseUrl": "https://api.deepseek.com/v1",
+        "model": "deepseek-v4-flash",
+        "temperature": 0
+      }
+    ],
+    "proposerRoute": "dsh-evolve-le/recorded-proposer",
+    "solverRoute": "deepseek/zen-compatible",
+    "benchmark": {
+      "provider": "terminal-bench-2-1",
+      "tasksRoot": "/root/dsh-evolve-le-scratch/dsh-gate8-solve-smoke-hCMI3G/tasks",
+      "baselineSourceDir": "/root/vibe/dsh/dsh-evolve-le/packages/candidate-baseline",
+      "harbor": {
+        "bin": "harbor",
+        "version": "0.21.0",
+        "jobsRoot": "/root/dsh-evolve-le-scratch/dsh-gate8-solve-smoke-hCMI3G/jobs",
+        "concurrentTrials": 1
+      },
+      "artifactEndpoint": {
+        "host": "172.17.0.1",
+        "port": 8443
+      }
+    },
+    "budget": {
+      "usd": 1000000,
+      "proposerTokens": 20000000,
+      "proposalCalls": 20,
+      "taskTrials": 2,
+      "wallClockMinutes": 120,
+      "solverTokens": 2000000
+    },
+    "sealedAccess": false
+  }
+}

@@ -16,6 +16,13 @@ import { captureCanonicalSource, type CanonicalSource } from '../candidate/canon
 import { diffCanonicalSources, type CanonicalDiff } from '../candidate/diff.js'
 import { defaultScanPolicy, scanCanonicalSource } from '../candidate/scan.js'
 import { validateManifest } from '../schema.js'
+import {
+  assertTreeV2CandidateTree,
+  treeV2Digest,
+  type TreeV2CandidateIntent,
+  type TreeV2RequiredParentEvidence,
+} from '../tree-v2/contract.js'
+import { assertTreeV2ReceiptDocument } from '../tree-v2/receipts.js'
 import type { ArchiveCatalog } from './catalog.js'
 import { scanFieldsForCanary, scanForCanary } from './canary.js'
 import type { ExportManifest } from './export.js'
@@ -39,6 +46,12 @@ export interface ChildVerdict {
   admitted: boolean
   /** Rejection reason when not admitted. */
   reason?: string
+  /** Present only for a validated tree-v2 proposal; passed to the trusted rebuild. */
+  treeV2?: {
+    requiredParentEvidence: TreeV2RequiredParentEvidence
+    analysisReceiptDigest: string
+    proposalReceiptDigest: string
+  }
 }
 
 export interface ProposalValidation {
@@ -102,7 +115,23 @@ export async function validateProposalBundle(
         batchErrors.push(`child ${child.childName}: donor ${donor} is not in the archive catalog`)
       }
     }
-    for (const ref of child.evidenceRefs) {
+    if (proposal.schemaVersion === 2) {
+      try {
+        assertTreeV2ReceiptDocument('analysis', child.analysisReceipt)
+        assertTreeV2ReceiptDocument('proposal', child.proposalReceipt)
+      } catch (error) {
+        batchErrors.push(
+          `child ${child.childName}: invalid tree-v2 receipt: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    }
+    const evidenceRefs =
+      proposal.schemaVersion === 2
+        ? (child.analysisReceipt?.evidenceDigests ?? []).map((digest) =>
+            digest.startsWith('sha256:') ? digest.slice('sha256:'.length) : digest,
+          )
+        : (child.evidenceRefs ?? [])
+    for (const ref of evidenceRefs) {
       if (!exportDigests.has(ref)) {
         batchErrors.push(
           `child ${child.childName}: evidence ref ${ref} is not an object of export ${exportManifest.exportId}`,
@@ -145,6 +174,15 @@ export async function validateProposalBundle(
       filesChanged: diff.filesChanged,
       linesAdded: diff.linesAdded,
       linesRemoved: diff.linesRemoved,
+      ...(proposal.schemaVersion === 2
+        ? {
+            treeV2: {
+              requiredParentEvidence: child.proposalReceipt!.requiredParentEvidence,
+              analysisReceiptDigest: child.analysisReceipt!.receiptDigest,
+              proposalReceiptDigest: child.proposalReceipt!.receiptDigest,
+            },
+          }
+        : {}),
     } satisfies Omit<ChildVerdict, 'admitted' | 'reason'>
     const reject = (reason: string): void => {
       rejected.push({ ...base, admitted: false, reason })
@@ -191,6 +229,56 @@ export async function validateProposalBundle(
             reason = `candidate manifest rejected the child: ${result.error.errors
               .slice(0, 3)
               .join('; ')}`
+          } else if ((parsed as Record<string, unknown>).schemaVersion === 2) {
+            if (proposal.schemaVersion !== 2) {
+              reason = 'tree-v2 candidate was submitted through the legacy v1 proposal envelope'
+            } else {
+              const intent = parsed as TreeV2CandidateIntent
+              try {
+                assertTreeV2CandidateTree(source, intent)
+                // A v2 envelope never materializes a migration root: the root
+                // is rebuilt by the trusted builder from the configured
+                // baseline source, never proposed through the sandbox.
+                if (intent.parent === null) {
+                  throw new Error('tree-v2 proposal envelope materialized a migration root')
+                }
+                const parent = intent.parent
+                const analysis = child.analysisReceipt!
+                const proposalReceipt = child.proposalReceipt!
+                if (parent.sourceDigest !== proposal.parentSourceHash) {
+                  throw new Error(
+                    'candidate intent parent source does not match the proposal parent',
+                  )
+                }
+                if (
+                  parent.candidateDigest !== analysis.parentCandidateDigest ||
+                  parent.candidateDigest !== proposalReceipt.parentCandidateDigest
+                ) {
+                  throw new Error('candidate intent parent candidate does not match its receipts')
+                }
+                if (intent.receiptDigest !== proposalReceipt.candidateIntentDigest) {
+                  throw new Error('proposal receipt does not bind candidate-intent receipt')
+                }
+                if (analysis.receiptDigest !== proposalReceipt.analysisDigest) {
+                  throw new Error('proposal receipt does not bind analysis receipt')
+                }
+                if (
+                  treeV2Digest(intent.modeContract) !== treeV2Digest(proposalReceipt.modeContract)
+                ) {
+                  throw new Error('candidate intent and proposal mode contracts differ')
+                }
+                if (
+                  treeV2Digest(intent.requiredParentEvidence) !==
+                  treeV2Digest(proposalReceipt.requiredParentEvidence)
+                ) {
+                  throw new Error('candidate intent and proposal parent evidence differ')
+                }
+              } catch (error) {
+                reason = `tree-v2 candidate contract rejected the child: ${error instanceof Error ? error.message : String(error)}`
+              }
+            }
+          } else if (proposal.schemaVersion === 2) {
+            reason = 'tree-v2 proposal envelope materialized a legacy v1 candidate'
           }
         } catch (error) {
           reason = `candidate.json unparseable: ${

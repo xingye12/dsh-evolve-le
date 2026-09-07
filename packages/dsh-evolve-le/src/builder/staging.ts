@@ -9,17 +9,130 @@
  */
 
 import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
+import { existsSync, type Dirent } from 'node:fs'
 import { cp, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   captureCanonicalSource,
   type CanonicalFile,
   type CanonicalSource,
 } from '../candidate/canonical.js'
 import { computeTreeDigest } from '../digest.js'
+import { NATIVE_DSH_PACKAGE_PINS } from '../dsh/native-composition.js'
 import { repoRoot } from '../schema.js'
 import { PACKAGE_PINS } from './pins.js'
+
+interface PackageManifest {
+  name?: string
+  version?: string
+  main?: string
+  dependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>
+}
+
+/** A fixed, prebuilt upstream DSH workspace that the trusted builder may use. */
+export interface NativeDshCatalog {
+  root: string
+  packages: ReadonlyMap<string, string>
+}
+
+/** Frozen effective package closure for a native DSH run. */
+export interface NativeDshRuntimeLock {
+  catalogRoot: string
+  dependencyClosureSha256: string
+}
+
+export interface OfflineClosureOptions {
+  /**
+   * Absolute path to a vetted DSH checkout whose package `lib/` outputs have
+   * already been built. This is TCB run configuration, never candidate input.
+   */
+  nativeDshCatalogRoot?: string
+}
+
+/**
+ * Open an upstream package catalog without resolving through this workspace.
+ * The source layout follows the pinned DSH workspace recipe: `vendor/<name>`
+ * and `packages/<group>/<name>`. Every native root must have its exact version and a real
+ * published entrypoint before any candidate bytes are assembled.
+ */
+export async function openNativeDshCatalog(catalogRoot: string): Promise<NativeDshCatalog> {
+  if (!isAbsolute(catalogRoot)) {
+    throw new Error(`native DSH catalog root must be absolute: ${catalogRoot}`)
+  }
+  const root = resolve(catalogRoot)
+  const rootStats = await lstat(root).catch(() => undefined)
+  if (rootStats === undefined || !rootStats.isDirectory() || rootStats.isSymbolicLink()) {
+    throw new Error(`native DSH catalog root must be a real directory: ${root}`)
+  }
+  const packages = new Map<string, string>()
+  for (const area of ['vendor', 'packages'] as const) {
+    const areaDir = join(root, area)
+    let groups: Dirent<string>[]
+    try {
+      groups = await readdir(areaDir, { withFileTypes: true })
+    } catch (error) {
+      throw new Error(
+        `native DSH catalog ${root} is missing ${area}/: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    for (const group of groups) {
+      if (!group.isDirectory() || group.isSymbolicLink()) continue
+      const groupDir = join(areaDir, group.name)
+      if (area === 'vendor') {
+        await addCatalogPackage(packages, groupDir)
+        continue
+      }
+      const leaves = await readdir(groupDir, { withFileTypes: true })
+      for (const leaf of leaves) {
+        if (!leaf.isDirectory() || leaf.isSymbolicLink()) continue
+        await addCatalogPackage(packages, join(groupDir, leaf.name))
+      }
+    }
+  }
+  for (const [name, version] of NATIVE_DSH_PACKAGE_PINS) {
+    const packageDir = packages.get(name)
+    if (packageDir === undefined) {
+      throw new Error(`native DSH catalog ${root} is missing required ${name}@${version}`)
+    }
+    const manifest = await readPackageManifest(packageDir)
+    if (manifest.version !== version) {
+      throw new Error(
+        `native DSH catalog pin drift for ${name}: found ${manifest.version ?? 'unknown'}, expected ${version}`,
+      )
+    }
+    if (typeof manifest.main !== 'string' || manifest.main.length === 0) {
+      throw new Error(`native DSH catalog ${name}@${version} has no published main entrypoint`)
+    }
+    const entry = join(packageDir, manifest.main)
+    const stats = await lstat(entry).catch(() => undefined)
+    if (stats === undefined || !stats.isFile() || stats.isSymbolicLink()) {
+      throw new Error(`native DSH catalog ${name}@${version} is not built: missing ${manifest.main}`)
+    }
+  }
+  return { root, packages }
+}
+
+async function addCatalogPackage(packages: Map<string, string>, packageDir: string): Promise<void> {
+  const packageFile = join(packageDir, 'package.json')
+  const stats = await lstat(packageFile).catch(() => undefined)
+  if (stats === undefined) return
+  if (!stats.isFile() || stats.isSymbolicLink()) {
+    throw new Error(`native DSH catalog package manifest is not a regular file: ${packageFile}`)
+  }
+  const manifest = await readPackageManifest(packageDir)
+  if (typeof manifest.name !== 'string' || manifest.name.length === 0) return
+  const previous = packages.get(manifest.name)
+  if (previous !== undefined) {
+    throw new Error(`native DSH catalog duplicates package ${manifest.name}: ${previous} and ${packageDir}`)
+  }
+  packages.set(manifest.name, packageDir)
+}
+
+async function readPackageManifest(packageDir: string): Promise<PackageManifest> {
+  return JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8')) as PackageManifest
+}
 
 /**
  * Entries a proposer may declare as candidate source. Everything else in the
@@ -101,9 +214,14 @@ export async function materializeTree(files: CanonicalFile[], targetDir: string)
  */
 export async function assembleOfflineNodeModules(
   targetDir: string,
+  options: OfflineClosureOptions = {},
 ): Promise<{ digest: string; fileCount: number; packages: { name: string; version: string }[] }> {
   const root = join(targetDir, 'node_modules')
   await rm(root, { recursive: true, force: true })
+  const nativeCatalog =
+    options.nativeDshCatalogRoot === undefined
+      ? undefined
+      : await openNativeDshCatalog(options.nativeDshCatalogRoot)
   const packages: { name: string; version: string }[] = []
   const assembled = new Set<string>()
   interface WorkItem {
@@ -116,23 +234,22 @@ export async function assembleOfflineNodeModules(
     expectedVersion: pin.version,
     fromDir: join(repoRoot, pin.resolveFrom),
   }))
+  if (nativeCatalog !== undefined) {
+    for (const [name, version] of NATIVE_DSH_PACKAGE_PINS) {
+      worklist.push({ name, expectedVersion: version, fromDir: nativeCatalog.root })
+    }
+  }
 
   while (worklist.length > 0) {
     const item = worklist.shift()!
     if (assembled.has(item.name)) continue
-    if (packages.length > 80) {
+    if (packages.length >= 160) {
       throw new Error(
-        `dependency closure exceeds 80 packages at ${item.name}; refusing to assemble`,
+        `dependency closure exceeds 160 packages at ${item.name}; refusing to assemble`,
       )
     }
-    const pinDir = await resolvePackageDirectory(item.fromDir, item.name)
-    const manifest = JSON.parse(await readFile(join(pinDir, 'package.json'), 'utf8')) as {
-      name?: string
-      version?: string
-      dependencies?: Record<string, string>
-      peerDependencies?: Record<string, string>
-      peerDependenciesMeta?: Record<string, { optional?: boolean }>
-    }
+    const pinDir = nativeCatalog?.packages.get(item.name) ?? (await resolvePackageDirectory(item.fromDir, item.name))
+    const manifest = await readPackageManifest(pinDir)
     if (manifest.name !== item.name) {
       throw new Error(`closure drift for ${item.name}: resolved ${manifest.name}`)
     }
@@ -163,6 +280,25 @@ export async function assembleOfflineNodeModules(
   packages.sort((a, b) => (a.name < b.name ? -1 : 1))
   const { digest, fileCount } = await computeTreeDigest(root)
   return { digest, fileCount, packages }
+}
+
+/**
+ * Resolve and content-hash the exact closure that a native capsule would
+ * receive. Call this during preflight, then bind the returned digest into the
+ * run config; admission repeats the same check before every candidate build.
+ */
+export async function inspectNativeDshRuntime(
+  catalogRoot: string,
+  targetDir: string,
+): Promise<NativeDshRuntimeLock & { fileCount: number; packages: { name: string; version: string }[] }> {
+  const root = resolve(catalogRoot)
+  const closure = await assembleOfflineNodeModules(targetDir, { nativeDshCatalogRoot: root })
+  return {
+    catalogRoot: root,
+    dependencyClosureSha256: closure.digest,
+    fileCount: closure.fileCount,
+    packages: closure.packages,
+  }
 }
 
 /**

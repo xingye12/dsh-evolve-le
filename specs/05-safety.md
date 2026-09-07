@@ -220,6 +220,13 @@ public.read    = only revealed/sanitized artifacts
 sealed records 使用 canary token；monitor 在 proposer/controller logs、prompts、source 中发现 canary 时
 立即停止并 invalidates lineage。
 
+> ADR-046 实现注记（2026-09-07）：information-flow monitor 落于
+> `src/iteration/info-flow-monitor.ts`——canary 由 (master seed, run, principal) 确定性派生
+> （`deriveCanaryTokens`，guard 每任务一枚 + sealed sweep 集），guard 试次归一化证据内嵌自身
+> canary；三处检查面（export 创建、proposal result 验证、终止前 journal sweep），命中 →
+> SAFETY_ABORTED + lineage invalidated（S3：新 run ID，不得 resume）；`info-flow-monitor.json`
+> 只记 sha256 指纹，绝不记 token 本身。
+
 ## 11. Prompt-injection and evidence poisoning
 
 TB instructions、tool outputs、source files和历史 trajectories 都是不可信 content。Proposer runner：

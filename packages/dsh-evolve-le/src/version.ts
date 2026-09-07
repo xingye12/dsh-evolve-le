@@ -5,4 +5,4 @@
  * @module @dsh-evolve-le/core/version
  */
 
-export const BUILDER_VERSION = 'dsh-evolve-le-builder-0.0.2'
+export const BUILDER_VERSION = 'dsh-evolve-le-builder-0.0.4'

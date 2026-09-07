@@ -9,6 +9,8 @@ below is also executed end-to-end on a fresh profile by `pnpm install:verify`.
   pnpm ≥ 11.7, Docker with a working daemon
 - Network access to the npm registry, and to the Harbor/Terminal-Bench sources pinned in
   `provenance.lock.json` for `setup:source`
+- A prebuilt, pinned `deepseek-harness` checkout used as the native DSH catalog. The catalog is a
+  trusted runtime input, not candidate source; it is inspected and hash-locked before `init`.
 
 ## 1. Install and build
 
@@ -16,6 +18,10 @@ below is also executed end-to-end on a fresh profile by `pnpm install:verify`.
 git clone https://github.com/xingye12/dsh-evolve-le.git && cd dsh-evolve-le
 pnpm install
 pnpm setup:source      # materialize pinned upstreams (read-only) + Terminal-Bench source
+NATIVE_DSH_CATALOG="$(mktemp -d)"
+cp -a deepseek-harness/. "$NATIVE_DSH_CATALOG"/
+(cd "$NATIVE_DSH_CATALOG" && pnpm install --frozen-lockfile && pnpm build)
+pnpm native-dsh:inspect --catalog-root "$NATIVE_DSH_CATALOG" --output native-dsh.lock.json
 pnpm build
 pnpm provenance:check  # upstream commits/versions/toolchain match the lockfile
 pnpm test              # full unit + E2E suite (fake provider; no paid calls)
@@ -55,6 +61,8 @@ $CLI init \
   --tasks-root /path/to/terminal-bench-2.1 \
   --baseline-source packages/candidate-baseline \
   --jobs-root ./runs/jobs \
+  --native-dsh-catalog-root "$NATIVE_DSH_CATALOG" \
+  --native-dsh-closure-sha256 "$(node -e "console.log(require('./native-dsh.lock.json').dependencyClosureSha256)")" \
   --credential-file /path/to/proposer.key \
   --harbor-bin "$(command -v harbor)"
 

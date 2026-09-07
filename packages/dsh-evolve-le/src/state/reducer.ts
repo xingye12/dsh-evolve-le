@@ -29,6 +29,7 @@ import {
 import { GENESIS_PREVIOUS_HASH } from './journal.js'
 import { validateRef, type ObjectRef } from './object-store.js'
 import { validateRngReceipt, type RngReceipt } from './rng.js'
+import { CANARY_PATTERN } from '../proposer/canary.js'
 
 export const REDUCER_VERSION = 'dsh-evolve-le/reducer/v1'
 export const STATE_SCHEMA_VERSION = 1
@@ -51,6 +52,7 @@ export type RunPhase =
   | 'EVIDENCE_CORRUPT'
   | 'PROTOCOL_INVALID'
   | 'OPERATOR_STOPPED'
+  | 'NO_DEVELOPMENT_IMPROVEMENT'
 
 const EARLY_TERMINALS: RunPhase[] = [
   'PREFLIGHT_FAILED',
@@ -60,6 +62,7 @@ const EARLY_TERMINALS: RunPhase[] = [
   'EVIDENCE_CORRUPT',
   'PROTOCOL_INVALID',
   'OPERATOR_STOPPED',
+  'NO_DEVELOPMENT_IMPROVEMENT',
 ]
 
 /** Allowed phase edges (specs/00 §8); everything else is a violation. */
@@ -89,6 +92,7 @@ const PHASE_EDGES: Record<RunPhase, RunPhase[]> = {
   EVIDENCE_CORRUPT: [],
   PROTOCOL_INVALID: [],
   OPERATOR_STOPPED: [],
+  NO_DEVELOPMENT_IMPROVEMENT: [],
 }
 
 export function isTerminalPhase(phase: RunPhase): boolean {
@@ -133,6 +137,12 @@ export interface Observation {
   reward: 0 | 1
   costUsdMicros: number | null
   durationMs: number | null
+  /**
+   * Guard-trial embedding (ADR-046): the guard task's own canary, present
+   * only on dev-guard trials. Its designated home — the information-flow
+   * monitor tolerates the token in exactly this record, once.
+   */
+  infoFlowGuardCanary?: string
 }
 
 export type CandidateStatus =
@@ -442,11 +452,22 @@ export function validatePayload(type: string, payload: Fields): void {
 
 function validateObservation(observation: Fields): void {
   const keys = Object.keys(observation).sort().join(',')
-  if (
-    keys !==
+  const base =
     'actionId,attempt,candidateId,costUsdMicros,durationMs,opaqueTaskId,outcome,reward,split'
+  // ADR-046: the guard embedding is an optional 10th field — exact field-set
+  // validation still applies, in both shapes.
+  if (
+    keys !== base &&
+    keys !==
+      'actionId,attempt,candidateId,costUsdMicros,durationMs,infoFlowGuardCanary,opaqueTaskId,outcome,reward,split'
   ) {
     throw new ReducerError(`observation fields ${keys}`)
+  }
+  if (observation['infoFlowGuardCanary'] !== undefined) {
+    const canary = observation['infoFlowGuardCanary']
+    if (typeof canary !== 'string' || !CANARY_PATTERN.test(canary)) {
+      throw new ReducerError('observation.infoFlowGuardCanary must be a canary token')
+    }
   }
   for (const field of ['actionId', 'candidateId', 'opaqueTaskId'] as const) {
     if (typeof observation[field] !== 'string' || observation[field] === '') {

@@ -32,11 +32,13 @@ export {
   type Receipts,
   type ReceiptStatus,
   type StageName,
+  type TreeV2BuildReceipts,
 } from './builder/pipeline.js'
 export {
   ACP_ENTRYPOINT_NAME,
   archiveCapsule,
   CAPSULE_PROTOCOL,
+  NATIVE_DSH_COMPOSITION_PROTOCOL,
   type CapsuleBundle,
 } from './builder/capsule.js'
 export {
@@ -105,10 +107,56 @@ export { shouldExpand, UCB_AIR_ALPHA, type UcbAirInput } from './selection/ucbai
 export type { Observation, ObservationOutcome } from './state/reducer.js'
 export { canonicalHash, canonicalJson, CanonicalJsonError } from './state/canonical.js'
 export {
+  TREE_V2_PROTOCOL,
+  TREE_V2_RECEIPT_KINDS,
+  assertModeContract,
+  assertRequiredParentEvidence,
+  assertTreeV2CandidateTree,
+  assertTreeV2Child,
+  assertTreeV2RuntimeModeContract,
+  finalizeTreeV2Receipt,
+  treeV2Digest,
+  treeV2RuntimeFingerprint,
+  verifyTreeV2Receipt,
+  type TreeV2CandidateIntent,
+  type TreeV2Mode,
+  type TreeV2ModeContract,
+  type TreeV2Receipt,
+  type TreeV2ReceiptKind,
+  type TreeV2RequiredParentEvidence,
+} from './tree-v2/contract.js'
+export {
+  TREE_V2_MEDIA_TYPES,
+  assertTreeV2ReceiptChain,
+  assertTreeV2ReceiptDocument,
+  persistTreeV2ReceiptDocument,
+  type TreeV2AdmissionReceipt,
+  type TreeV2AnalysisReceipt,
+  type TreeV2CapabilityCatalogReceipt,
+  type TreeV2MaterializationReceipt,
+  type TreeV2MechanismOutcomeReceipt,
+  type TreeV2ProposalReceipt,
+  type TreeV2ReceiptChain,
+} from './tree-v2/receipts.js'
+export {
+  assertTreeV2MigrationReceipt,
+  createTreeV2MigrationReceipt,
+  persistTreeV2MigrationReceipt,
+  type TreeV2MigrationInput,
+} from './tree-v2/migration.js'
+export {
+  finalizeTreeV2Bundle,
+  TreeV2FinalizationError,
+  type FinalizeTreeV2BundleOptions,
+} from './tree-v2/finalize-bundle.js'
+export { validateTreeV2, type TreeV2SchemaKind } from './schema.js'
+export {
   runSplitCeremony,
   SPLIT_COUNTS,
+  splitCountsForPopulation,
   SPLIT_PROTOCOL,
   type SealedSplitStore,
+  type SplitCounts,
   type SplitCeremony,
   type SplitCeremonyInput,
 } from './split/ceremony.js'
@@ -116,10 +164,12 @@ export {
   defaultRunConfig,
   loadRunConfig,
   RUN_CONFIG_SCHEMA_ID,
+  TERMINAL_BENCH_MAX_AGENT_TIMEOUT_SEC,
   RunConfigError,
   STABLE_DEMO_DEFAULTS,
   validateRunConfig,
   type ModelRouteConfig,
+  type NativeDshRuntimeConfig,
   type RunConfig,
   type RunConfigErrorReport,
   type RunConfigResult,
@@ -127,6 +177,7 @@ export {
 export {
   remoteProposalRunner,
   remoteRoutePlanOf,
+  solverRoutePlan,
   REMOTE_PROPOSER_BUDGET,
   LIVE_ROUTE_REQUEST_TIMEOUT_MS,
 } from './proposer/remote-runner.js'
@@ -141,6 +192,31 @@ export {
   type RemoteReceiptVerification,
   type RemoteRoutePlan,
 } from './proposer/remote-gateway.js'
+export { upstreamChatCompletion } from './proposer/upstream.js'
+export {
+  DEFAULT_SOLVE_TRIAL_BUDGET,
+  openSolveGateway,
+  SOLVE_GATEWAY_PATH,
+  type SolveGateway,
+} from './solver/gateway.js'
+export {
+  verifySolveReceipts,
+  type SolveReceipt,
+  type SolveReceiptError,
+  type SolveReceiptOk,
+  type SolveReceiptVerification,
+} from './solver/receipts.js'
+export {
+  liveSolveLimitsFromAgentTimeout,
+  SOLVE_AGENT_LIMITS,
+  SOLVE_AGENT_TIMEOUT_ENV,
+  SOLVE_HARBOR_TEARDOWN_RESERVE_MS,
+  solverTrackOf,
+} from './config/run-config.js'
+// The controller derives the solve gateway's ADR-033 retry budget from the
+// in-container client's fixed per-request timeout (minus margin), so the two
+// sides of the wire stay coupled by one constant.
+export { SOLVE_CLIENT_REQUEST_TIMEOUT_MS } from './acp/solve-client.js'
 export {
   ITERATION_PROTOCOL,
   SEARCH_STATE_PROTOCOL,
@@ -161,14 +237,104 @@ export {
   credentialChecks,
   dockerCheck,
   harborVersionCheck,
+  nativeDshCatalogCheck,
+  proposalWorkerIdentityCheck,
   PreflightError,
   runPreflight,
   runRootCheck,
+  searchCalibrationCheck,
   tasksRootCheck,
   type PreflightCheck,
   type PreflightFinding,
 } from './iteration/preflight.js'
+export {
+  inspectNativeDshRuntime,
+  openNativeDshCatalog,
+  type NativeDshCatalog,
+  type NativeDshRuntimeLock,
+} from './builder/staging.js'
 export type {
   Config as ControllerServiceConfig,
   DshEvolveControllerService,
 } from './service/controller-service.js'
+export {
+  createNativeDshAgent,
+  candidateStrategySetupOf,
+  hasNativeDshComposition,
+  mountNativeDshComposition,
+  nativeAssistantText,
+  nativeUserMessage,
+  installNativePromptSections,
+  NativeDshUnavailableError,
+  NATIVE_DSH_PACKAGE_PINS,
+  assertNativeDshClosure,
+  nativeDshClosurePresent,
+  NATIVE_DSH_PROTOCOL,
+  type NativeDshAgent,
+  type NativeDshAgentOptions,
+  type NativeDshCancelCause,
+  type NativeDshPackage,
+  type NativeDshMode,
+  type NativeDshCompositionOptions,
+  type CandidateStrategySetup,
+  type NativePromptSection,
+} from './dsh/native-composition.js'
+export {
+  runNativeDshTurn,
+  type NativeDshTurnInput,
+  type NativeDshTurnResult,
+} from './dsh/native-runner.js'
+export {
+  installNativeProposalTools,
+  disposeNativeProposalTools,
+  type NativeProposalToolBackend,
+  type NativeProposalToolState,
+} from './dsh/native-proposal.js'
+export {
+  runNativeProposal,
+  NativeProposalError,
+  NATIVE_PROPOSAL_PROTOCOL,
+  type NativeProposalRunOptions,
+  type NativeProposalRunResult,
+} from './dsh/native-proposal-runner.js'
+export {
+  installNativeLlmAdapter,
+  type NativeLlmAdapterOptions,
+  type NativeLlmCompletionRequest,
+  type NativeLlmCompletionResult,
+  type NativeLlmToolSchema,
+} from './dsh/native-llm-adapter.js'
+export {
+  createNativeSolveAgent,
+  NATIVE_SOLVE_POLICY_SECTION,
+  type NativeSolveAgentOptions,
+  type NativeSolveSession,
+} from './acp/native-solve-agent.js'
+export { installNativeSolveTools } from './acp/native-solve-tools.js'
+export {
+  generateSealedPlan,
+  validateSealedPlan,
+  verifySealedPlanDraws,
+  SEALED_ANALYSIS_DEFAULTS,
+  SEALED_PLAN_PROTOCOL,
+  type SealedAnalysis,
+  type SealedBudget,
+  type SealedPlanDoc,
+  type SealedPlanInput,
+  type SealedTrialCell,
+} from './sealed/plan.js'
+export {
+  sealedEvaluate,
+  scoreSealed,
+  verdictSealed,
+  SEALED_DELTA_GATE,
+  SEALED_RESULTS_PROTOCOL,
+  SEALED_VERDICT_PROTOCOL,
+  type SealedEvaluateInput,
+  type SealedEvaluateResult,
+  type SealedResultsDoc,
+  type SealedScore,
+  type SealedTrialOutcome,
+  type SealedTrialRow,
+  type SealedVerdict,
+} from './sealed/evaluate.js'

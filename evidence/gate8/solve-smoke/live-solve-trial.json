@@ -1,0 +1,226 @@
+{
+  "gate": "gate8",
+  "kind": "live-solve-trial-smoke",
+  "generatedAt": "2026-08-31T08:51:09.875Z",
+  "environment": {
+    "node": "v24.14.0",
+    "platform": "linux x64",
+    "repositoryHead": "7fa9f2897f7a20ed1ce3eef6f795cd68b2559ed4"
+  },
+  "route": {
+    "id": "deepseek/zen-compatible",
+    "baseUrl": "https://api.deepseek.com/v1",
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "routeHash": "c6d3f226d75744780ee36ee3793e4d8844e8b9f237abccf0b07f180ae7587720",
+    "credentialFile": "/root/.config/dsh-evolve-le/deepseek-official.key"
+  },
+  "budgets": {
+    "usd": {
+      "spent": 162592,
+      "reserved": 0
+    },
+    "solver-tokens": {
+      "spent": 483783,
+      "reserved": 0
+    },
+    "task-trials": {
+      "spent": 2,
+      "reserved": 0
+    }
+  },
+  "run": {
+    "runId": "gate8-solve-smoke",
+    "configHash": "sha256:bd05c90127271d590a9adbc856ef0182f7d5e484ac4a997482c0abe4b3684263",
+    "stopReason": "K_REACHED",
+    "status": "STOPPED:K_REACHED",
+    "trials": 2,
+    "discoveryTrials": 1,
+    "expansionAttempts": 1,
+    "seconds": 5054
+  },
+  "trials": [
+    {
+      "jobName": "dsh-448ecc0b0a427f83cd2ad2ea",
+      "trialName": "adaptive-rejection-sampler__LZyV8xE",
+      "taskName": "terminal-bench/adaptive-rejection-sampler",
+      "reward": 0,
+      "agentResult": {
+        "n_input_tokens": 11213,
+        "n_cache_tokens": null,
+        "n_output_tokens": 144900,
+        "cost_usd": 0.042143,
+        "rollout_details": null,
+        "metadata": {
+          "acp": {
+            "registry_entry_id": "dsh-evolve-le-capsule",
+            "registry_entry_version": "17362a8f6275fb18540ee79a44f21681ce8a8728822f1a9f7b768f49ddd611dc",
+            "source": null,
+            "auth_policy": "disabled",
+            "selected_authenticate_method_id": null,
+            "authenticate_response": null,
+            "requested_model": null,
+            "resolved_session_model_id": null,
+            "set_model_response": null,
+            "set_model_error": null,
+            "set_model_attempts": null,
+            "initial_session_models": null,
+            "latest_session_info_update": null,
+            "initialize": {
+              "protocolVersion": 1,
+              "agentCapabilities": {
+                "loadSession": false,
+                "promptCapabilities": {
+                  "image": false,
+                  "audio": false,
+                  "embeddedContext": false
+                },
+                "mcpCapabilities": {
+                  "http": false,
+                  "sse": false,
+                  "acp": false
+                },
+                "sessionCapabilities": {},
+                "auth": {}
+              },
+              "authMethods": [],
+              "agentInfo": {
+                "name": "dsh-evolve-le-capsule-runner",
+                "version": "dsh-evolve-le-builder-0.0.2"
+              }
+            },
+            "agent_info": {
+              "name": "dsh-evolve-le-capsule-runner",
+              "version": "dsh-evolve-le-builder-0.0.2"
+            },
+            "auth_methods": [],
+            "error": null,
+            "prompt_response": {
+              "stopReason": "end_turn",
+              "usage": {
+                "totalTokens": 156113,
+                "inputTokens": 11213,
+                "outputTokens": 144900
+              }
+            },
+            "latest_usage_update": {
+              "used": 156113,
+              "size": 156113,
+              "cost": {
+                "amount": 0.042143,
+                "currency": "USD"
+              },
+              "sessionUpdate": "usage_update"
+            },
+            "selected_distribution": "binary",
+            "events_file": "acp-events.jsonl"
+          }
+        }
+      },
+      "trajectoryBytes": 297967,
+      "receipts": {
+        "ok": true,
+        "requests": 9,
+        "totalTokens": 156113,
+        "costUsdMicros": 42143
+      }
+    },
+    {
+      "jobName": "dsh-a26b384b6fd6df832f6680d3",
+      "trialName": "adaptive-rejection-sampler__hdWF8xo",
+      "taskName": "terminal-bench/adaptive-rejection-sampler",
+      "reward": 0,
+      "agentResult": {
+        "n_input_tokens": 152145,
+        "n_cache_tokens": null,
+        "n_output_tokens": 175525,
+        "cost_usd": 0.070449,
+        "rollout_details": null,
+        "metadata": {
+          "acp": {
+            "registry_entry_id": "dsh-evolve-le-capsule",
+            "registry_entry_version": "3660e95b14f49f1aa6e60b62d4cae3bb61d70ae70e394132f80eda5ea88595d7",
+            "source": null,
+            "auth_policy": "disabled",
+            "selected_authenticate_method_id": null,
+            "authenticate_response": null,
+            "requested_model": null,
+            "resolved_session_model_id": null,
+            "set_model_response": null,
+            "set_model_error": null,
+            "set_model_attempts": null,
+            "initial_session_models": null,
+            "latest_session_info_update": null,
+            "initialize": {
+              "protocolVersion": 1,
+              "agentCapabilities": {
+                "loadSession": false,
+                "promptCapabilities": {
+                  "image": false,
+                  "audio": false,
+                  "embeddedContext": false
+                },
+                "mcpCapabilities": {
+                  "http": false,
+                  "sse": false,
+                  "acp": false
+                },
+                "sessionCapabilities": {},
+                "auth": {}
+              },
+              "authMethods": [],
+              "agentInfo": {
+                "name": "dsh-evolve-le-capsule-runner",
+                "version": "dsh-evolve-le-builder-0.0.2"
+              }
+            },
+            "agent_info": {
+              "name": "dsh-evolve-le-capsule-runner",
+              "version": "dsh-evolve-le-builder-0.0.2"
+            },
+            "auth_methods": [],
+            "error": null,
+            "prompt_response": {
+              "stopReason": "end_turn",
+              "usage": {
+                "totalTokens": 327670,
+                "inputTokens": 152145,
+                "outputTokens": 175525
+              }
+            },
+            "latest_usage_update": {
+              "used": 327670,
+              "size": 327670,
+              "cost": {
+                "amount": 0.070449,
+                "currency": "USD"
+              },
+              "sessionUpdate": "usage_update"
+            },
+            "selected_distribution": "binary",
+            "events_file": "acp-events.jsonl"
+          }
+        }
+      },
+      "trajectoryBytes": 312938,
+      "receipts": {
+        "ok": true,
+        "requests": 16,
+        "totalTokens": 327670,
+        "costUsdMicros": 70449
+      }
+    }
+  ],
+  "receipts": {
+    "routeHash": "c6d3f226d75744780ee36ee3793e4d8844e8b9f237abccf0b07f180ae7587720",
+    "totalRequests": 25,
+    "totalTokens": 483783,
+    "costUsdMicros": 112592
+  },
+  "coveredBySuites": [
+    "packages/dsh-evolve-le/tests/live-solve-agent.test.ts",
+    "packages/dsh-evolve-le/tests/solve-gateway.test.ts",
+    "packages/dsh-evolve-le/tests/solve-gateway-container.test.ts"
+  ],
+  "failures": []
+}

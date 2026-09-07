@@ -35,18 +35,47 @@ import type {
   ProviderInspect,
   ProviderJobStatus,
   ProviderTerminal,
+  SolveReceiptVerification,
 } from '@dsh-evolve-le/core'
 import type { ObservationOutcome } from '@dsh-evolve-le/core'
 import { planSubmission } from './provider.js'
 import { normalizeJob, type NormalizedTrial } from './normalize.js'
 import type { SubmissionLedger } from './idempotency.js'
+import {
+  effectiveTaskAgentTimeoutMs,
+  SOLVE_AGENT_TIMEOUT_ENV,
+  taskAgentTimeoutSec,
+} from './task-timeout.js'
 
 /** The controller's evaluation-request shape (core `EvaluationRequest`). */
 export interface HarborEvaluationRequest {
   candidateId: string
   opaqueTaskId: string
   attempt: number
-  split: 'dev-observed' | 'dev-guard'
+  split: 'dev-observed' | 'dev-guard' | 'sealed'
+}
+
+/**
+ * Live-solve gateway wiring (ADR-030): all three env values and the mounted
+ * token PATH are non-secret; the token VALUE stays inside the 0600 root-only
+ * file and the trial container. The CLI composition binds `enroll` to the
+ * controller's `openSolveGateway` instance (idempotent per jobName).
+ */
+export interface HarborSolveGateway {
+  /** Frozen route id, recorded in the terminal fact's solver block. */
+  routeId: string
+  /** Native DSH provider/model lock, copied into the per-trial environment. */
+  nativeProvider?: string
+  nativeModel?: string
+  nativeMaxTokens?: number
+  /** Artifact-listener base URL the trial containers POST to. */
+  url: string
+  /** Frozen route-plan hash the capsule enforces on every reply. */
+  routeHash: string
+  /** Mount target of the token file inside the container. */
+  containerTokenPath: string
+  /** Enroll one jobName; resolves the host-side token file to bind-mount. */
+  enroll(jobName: string): Promise<{ tokenFilePath: string }>
 }
 
 export interface HarborProviderConfig {
@@ -55,17 +84,37 @@ export interface HarborProviderConfig {
   harborBin: string
   harborVersion: string
   tasksRoot: string
+  /** Frozen Terminal-Bench eligibility ceiling (seconds). */
+  maxAgentTimeoutSec: number
   jobsRoot: string
   concurrentTrials: number
   ledger: SubmissionLedger
   /** Opaque guard id → real task handle; TCB-only (sealed split store). */
   guardMap?: Record<string, string>
+  /**
+   * Opaque sealed id → real task handle (ADR-048); TCB-only, bound by the
+   * sealed-evaluate CLI, never by the development driver.
+   */
+  sealedMap?: Record<string, string>
   /** JobConfig YAML staging directory (default `<jobsRoot>/.plans`). */
   plansDir?: string
   /** Read-only container mounts (CA bundle for the artifact endpoint). */
   mounts?: { source: string; target: string }[]
   /** Container environment entries (e.g. SSL_CERT_FILE). */
   env?: Record<string, string>
+  /**
+   * Live solver route (ADR-030). When set, every planned job enrolls with the
+   * solve gateway and its JobConfig gains the read-only token mount plus the
+   * three non-secret env values; `collect` then demands a receipt-verified
+   * solver block (fail closed, specs/02 §13). Requires `solveUsage`.
+   */
+  solveGateway?: HarborSolveGateway
+  /**
+   * Receipt-verified solver usage for one finished job, derived ONLY from the
+   * terminal receipts file (byte-stable across collects and restarts). Bound
+   * by the CLI to the controller's receipt verifier over the gateway stateDir.
+   */
+  solveUsage?: (jobName: string) => Promise<SolveReceiptVerification>
   /**
    * Harbor runner seam: defaults to the real `harbor run` spawn. Tests
    * substitute a fake that materializes a terminal job directory.
@@ -88,10 +137,50 @@ export class HarborProviderError extends Error {
 /** Terminal fact media carried to the controller's object store. */
 export const TERMINAL_FACT_PROTOCOL = 'dsh-evolve-le/tb-terminal-fact/v1'
 
+/**
+ * The live-solver usage block appended to a terminal fact (ADR-030). Every
+ * figure comes from the receipt verifier over the receipts file; `problems`
+ * is empty on the only path that emits the block (a failing chain throws).
+ * No timestamps: the fact must be byte-stable across repeated collects.
+ */
+export interface SolverFactBlock {
+  routeId: string
+  routeHash: string
+  requests: number
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  costUsdMicros: number
+  errorReceipts: number
+  problems: string[]
+}
+
 function toOutcome(trial: NormalizedTrial): ObservationOutcome {
   if (trial.status === 'pass') return 'success'
   if (trial.status === 'infra_retryable') return 'missing'
   return 'failure'
+}
+
+/**
+ * Zero-usage solver block for a trial whose agent never booted (F6, K=10
+ * attempt 1): the gateway's receipts are written TCB-side by the controller,
+ * so a container cannot suppress them — a trial that never reached the ACP
+ * handshake can never have made an authenticated request, and "no receipts
+ * file" is the honest zero rather than an attribution failure. The block still
+ * names the frozen route so the terminal fact keeps its shape.
+ */
+function zeroUsageSolverBlock(gateway: HarborSolveGateway): SolverFactBlock {
+  return {
+    routeId: gateway.routeId,
+    routeHash: gateway.routeHash,
+    requests: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    costUsdMicros: 0,
+    errorReceipts: 0,
+    problems: [],
+  }
 }
 
 async function defaultRunHarbor(
@@ -121,8 +210,23 @@ export class HarborProvider implements BenchmarkProvider {
   private readonly capsules = new Map<string, RegisteredCapsule>()
   /** One entry per REAL harbor spawn (idempotent re-launch: none). */
   readonly launchEffects: string[] = []
+  /** One entry per solve-gateway enrollment call (idempotent per jobName). */
+  readonly solveEnrollments: string[] = []
 
-  constructor(private readonly config: HarborProviderConfig) {}
+  constructor(private readonly config: HarborProviderConfig) {
+    // A live route without a usage verifier would spend solver tokens that
+    // never settle against the budget dimension — wire both or neither.
+    if (this.config.solveGateway !== undefined && this.config.solveUsage === undefined) {
+      throw new HarborProviderError(
+        'solveGateway is set but solveUsage is missing (solver tokens would never settle)',
+      )
+    }
+    if (this.config.solveGateway === undefined && this.config.solveUsage !== undefined) {
+      throw new HarborProviderError(
+        'solveUsage is set but solveGateway is missing (no trial would produce receipts)',
+      )
+    }
+  }
 
   /** Bind a candidate id to its capsule identity before any launch. */
   registerCapsule(candidateId: string, capsule: RegisteredCapsule): this {
@@ -140,6 +244,15 @@ export class HarborProvider implements BenchmarkProvider {
       }
       return handle
     }
+    if (request.split === 'sealed') {
+      const handle = this.config.sealedMap?.[request.opaqueTaskId]
+      if (handle === undefined) {
+        throw new HarborProviderError(
+          `no sealed mapping for ${request.opaqueTaskId} (sealed split store missing?)`,
+        )
+      }
+      return handle
+    }
     return request.opaqueTaskId
   }
 
@@ -148,11 +261,23 @@ export class HarborProvider implements BenchmarkProvider {
     if (
       typeof value?.['candidateId'] !== 'string' ||
       typeof value?.['opaqueTaskId'] !== 'string' ||
-      typeof value?.['attempt'] !== 'number' ||
-      (value?.['split'] !== 'dev-observed' && value?.['split'] !== 'dev-guard')
+      (value?.['split'] !== 'dev-observed' &&
+        value?.['split'] !== 'dev-guard' &&
+        value?.['split'] !== 'sealed')
     ) {
       throw new HarborProviderError(
         `launch request is not an evaluation request: ${JSON.stringify(request)}`,
+      )
+    }
+    // ADR-046: any attempt ≥ 1 is a launchable paid identity; 0/NaN/fractional
+    // attempts name no trial at all.
+    if (
+      typeof value?.['attempt'] !== 'number' ||
+      !Number.isSafeInteger(value['attempt'] as number) ||
+      (value['attempt'] as number) < 1
+    ) {
+      throw new HarborProviderError(
+        `launch request attempt must be a positive safe integer, got ${JSON.stringify(value?.['attempt'])}`,
       )
     }
     return {
@@ -169,15 +294,20 @@ export class HarborProvider implements BenchmarkProvider {
     if (capsule === undefined) {
       throw new HarborProviderError(`candidate ${evaluation.candidateId} has no registered capsule`)
     }
-    if (evaluation.attempt !== 1) {
-      // One Harbor job = one task × one attempt (specs/04 §5 trial tuple); a
-      // second attempt is a different paid identity and needs its own ADR,
-      // not a silent ledger collision.
-      throw new HarborProviderError(
-        `attempt ${evaluation.attempt} unsupported: one paid trial per (candidate, task)`,
-      )
-    }
+    // ADR-046: attempt N of one (candidate, task) is its own paid identity —
+    // the request-level attempt feeds the ledger key (trialAttempt) while the
+    // JobConfig n_attempts stays 1 (one Harbor job = one trial).
     const handle = this.resolveHandle(evaluation)
+    const solveGateway = this.config.solveGateway
+    // Harbor applies AGENT_TIMEOUT_MULTIPLIER to this TB-native base limit.
+    // Resolve it before the paid reservation; a missing/malformed task limit
+    // is a TCB configuration error, never an opportunity for a static fallback.
+    const effectiveAgentTimeoutMs =
+      solveGateway === undefined
+        ? undefined
+        : effectiveTaskAgentTimeoutMs(
+            await taskAgentTimeoutSec(join(this.config.tasksRoot, handle)),
+          )
     const plan = await planSubmission({
       runId: this.config.runId,
       tasksRoot: this.config.tasksRoot,
@@ -186,12 +316,45 @@ export class HarborProvider implements BenchmarkProvider {
       archiveUrl: capsule.archiveUrl,
       jobsRoot: this.config.jobsRoot,
       harborVersion: this.config.harborVersion,
+      maxAgentTimeoutSec: this.config.maxAgentTimeoutSec,
       attempts: 1,
+      // Attempt 1 keeps the historical key shape (no trialAttempt field):
+      // pre-ADR-046 ledger entries resume unchanged.
+      ...(evaluation.attempt > 1 ? { trialAttempt: evaluation.attempt } : {}),
       concurrentTrials: this.config.concurrentTrials,
       ledger: this.config.ledger,
       controllerKey: idempotencyKey,
       ...(this.config.mounts !== undefined ? { mounts: this.config.mounts } : {}),
       ...(this.config.env !== undefined ? { env: this.config.env } : {}),
+      ...(solveGateway !== undefined
+        ? {
+            perJob: async (jobName: string) => {
+              // Enrollment is idempotent per jobName, so calling it on every
+              // plan (new or resumed) cannot mint a second token or budget.
+              this.solveEnrollments.push(jobName)
+              const { tokenFilePath } = await solveGateway.enroll(jobName)
+              return {
+                mounts: [{ source: tokenFilePath, target: solveGateway.containerTokenPath }],
+                env: {
+                  DSH_SOLVE_GATEWAY_URL: solveGateway.url,
+                  DSH_SOLVE_GATEWAY_TOKEN_FILE: solveGateway.containerTokenPath,
+                  DSH_SOLVE_GATEWAY_ROUTE_HASH: solveGateway.routeHash,
+                  [SOLVE_AGENT_TIMEOUT_ENV]: String(effectiveAgentTimeoutMs),
+                  ...(solveGateway.nativeProvider === undefined ||
+                  solveGateway.nativeModel === undefined
+                    ? {}
+                    : {
+                        DSH_NATIVE_PROVIDER: solveGateway.nativeProvider,
+                        DSH_NATIVE_MODEL: solveGateway.nativeModel,
+                        ...(solveGateway.nativeMaxTokens === undefined
+                          ? {}
+                          : { DSH_NATIVE_MAX_TOKENS: String(solveGateway.nativeMaxTokens) }),
+                      }),
+                },
+              }
+            },
+          }
+        : {}),
     })
     if (plan.status === 'existing' && plan.entry.controllerKey !== idempotencyKey) {
       throw new HarborProviderError(
@@ -278,6 +441,25 @@ export class HarborProvider implements BenchmarkProvider {
       opaque === undefined
         ? trial
         : { ...trial, taskName: opaque, identity: { ...trial.identity, handle: opaque } }
+    // Solver block (ADR-030 + ADR-040): derived only from the receipt verifier
+    // over the terminal receipts file — no gateway memory, no timestamps — so
+    // repeated collects (across crashes and restarts) emit identical bytes.
+    // ADR-040 makes the chain receipt-first: a verified chain with requests
+    // always yields its figures, whatever Harbor's participation heuristic
+    // says (an AgentTimeoutError kill discards the capsule report but the
+    // gateway still recorded every request — attempt 13's 262,250-token trial
+    // was zero-settled by the old participation-first branch). The heuristic
+    // now only downgrades a MISSING chain to the honest zero (a never-booted
+    // agent can never have called the gateway — K=10 attempt 1); any other
+    // broken chain keeps the fail-closed throw.
+    const solver =
+      this.config.solveUsage !== undefined && this.config.solveGateway !== undefined
+        ? await this.solverBlockFor(
+            externalJobId,
+            trial.outcome.agentParticipation === 'never-initialized' ||
+              trial.status === 'infra_retryable',
+          )
+        : undefined
     const trajectory = Buffer.from(
       JSON.stringify({
         protocol: TERMINAL_FACT_PROTOCOL,
@@ -285,6 +467,7 @@ export class HarborProvider implements BenchmarkProvider {
         idempotencyKey: entry.key,
         artifactSha256: artifact.artifactSha256,
         trial: factTrial,
+        ...(solver !== undefined ? { solver } : {}),
       }),
       'utf8',
     )
@@ -293,7 +476,45 @@ export class HarborProvider implements BenchmarkProvider {
       costUsdMicros:
         trial.usage.costUsd === null ? null : Math.round(trial.usage.costUsd * 1_000_000),
       durationMs: trial.usage.agentExecutionMs,
+      // Null for replay trials (no live solver route configured).
+      solverTokens: solver === undefined ? null : solver.totalTokens,
       trajectory,
+    }
+  }
+
+  /** Receipt-verified solver usage, or a fail-closed throw (specs/02 §13). */
+  private async solverBlockFor(
+    jobName: string,
+    honestZeroOnMissingChain: boolean,
+  ): Promise<SolverFactBlock> {
+    const gateway = this.config.solveGateway
+    const solveUsage = this.config.solveUsage
+    if (gateway === undefined || solveUsage === undefined) {
+      throw new HarborProviderError(`solver block requested for ${jobName} without solve wiring`)
+    }
+    const verification = await solveUsage(jobName)
+    if (!verification.ok) {
+      // ADR-040: only the never-booted classification turns a missing/gapped
+      // chain into the honest zero; a gapped/tampered receipt chain for any
+      // other trial is an attribution failure — the run fails closed instead
+      // of scoring an unattributable trial.
+      if (honestZeroOnMissingChain) {
+        return zeroUsageSolverBlock(gateway)
+      }
+      throw new HarborProviderError(
+        `job ${jobName} solver receipts failed verification: ${verification.problems.join('; ')}`,
+      )
+    }
+    return {
+      routeId: gateway.routeId,
+      routeHash: gateway.routeHash,
+      requests: verification.usage.requests,
+      promptTokens: verification.usage.promptTokens,
+      completionTokens: verification.usage.completionTokens,
+      totalTokens: verification.usage.totalTokens,
+      costUsdMicros: verification.usage.costUsdMicros,
+      errorReceipts: verification.errorReceipts,
+      problems: verification.problems,
     }
   }
 }

@@ -23,6 +23,8 @@ describe('self-evolving-candidate baseline', () => {
     expect(sections[0]?.order).toBe(100)
     expect(sections[0]?.text).toContain('c_gate1goldenfixture000000000000')
     expect(sections[0]?.text).toContain('solve mode')
+    expect(harness.tools().map((tool) => tool.name)).toEqual(['candidate_strategy_snapshot'])
+    expect(harness.skills().map((skill) => skill.name)).toEqual(['candidate-strategy-review'])
   })
 
   it('registers exactly one candidate:proposal-policy section in propose mode', () => {
@@ -32,12 +34,14 @@ describe('self-evolving-candidate baseline', () => {
     expect(sections).toHaveLength(1)
     expect(sections[0]?.name).toBe('candidate:proposal-policy')
     expect(sections[0]?.text).toContain('propose mode')
+    expect(harness.tools()).toHaveLength(1)
+    expect(harness.skills()).toHaveLength(1)
   })
 
   it('owns its section through an effect: disposal removes it and runs teardown', () => {
     const harness = createHarness()
     apply(harness.ctx, config('solve'))
-    expect(harness.effects()).toHaveLength(1)
+    expect(harness.effects()).toHaveLength(3)
     expect(harness.effects()[0]?.disposed).toBe(false)
 
     harness.dispose()
@@ -48,9 +52,10 @@ describe('self-evolving-candidate baseline', () => {
   it('registers nothing beyond the single section', () => {
     const harness = createHarness()
     apply(harness.ctx, config('solve'))
-    // The SDK surface records sections and effects only; a baseline candidate
-    // contributes exactly one of each.
+    // Prompt, tool, and skill are all effect-owned by the candidate Fiber.
     expect(harness.sections()).toHaveLength(1)
-    expect(harness.effects()).toHaveLength(1)
+    expect(harness.tools()).toHaveLength(1)
+    expect(harness.skills()).toHaveLength(1)
+    expect(harness.effects()).toHaveLength(3)
   })
 })

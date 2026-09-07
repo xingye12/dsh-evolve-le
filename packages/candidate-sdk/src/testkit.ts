@@ -1,17 +1,24 @@
 /**
  * Candidate testkit (specs/02 §7): a dependency-free fake of the exact Cordis
  * surface {@link defineCandidate} touches, so candidate-owned tests can assert
- * their mode wiring without a live harness, network, or model.
+ * their prompt, tool and skill wiring without a live harness, network, or model.
  *
- * It is deliberately minimal — it records `systemPrompt.section` calls and
- * `ctx.effect` ownership, nothing else. If a candidate needs more than this to
- * test itself, that is a signal its behavior exceeds the candidate surface.
+ * It is deliberately minimal — it records strategy registrations and
+ * `ctx.effect` ownership. If a candidate needs more than this to test itself,
+ * that is a signal its behavior exceeds the candidate surface.
  *
  * @module @dsh-evolve-le/candidate-sdk/testkit
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { CandidateMode, PromptSection } from './index.js'
+import type {
+  CandidateMode,
+  CandidateEventRegistration,
+  CandidateSkillRegistration,
+  CandidateToolDefinition,
+  CandidateWorkflowRegistration,
+  PromptSection,
+} from './index.js'
 
 /** One live section: present while its owning effect is undisposed. */
 export interface RecordedSection extends PromptSection {}
@@ -22,6 +29,11 @@ export interface RecordedEffect {
   disposed: boolean
 }
 
+export interface RecordedTool extends CandidateToolDefinition {}
+export interface RecordedSkill extends CandidateSkillRegistration {}
+export interface RecordedEvent extends CandidateEventRegistration {}
+export interface RecordedWorkflow extends CandidateWorkflowRegistration {}
+
 /** A mock plugin context plus readouts; `ctx` is cast, the rest is real. */
 export interface CandidateHarness {
   /** Mock context satisfying exactly the surface the SDK touches. */
@@ -30,6 +42,14 @@ export interface CandidateHarness {
   sections(): readonly RecordedSection[]
   /** Effects registered through `ctx.effect`, with disposal state. */
   effects(): readonly RecordedEffect[]
+  /** Candidate tools currently registered through the DSH-shaped registry. */
+  tools(): readonly RecordedTool[]
+  /** Candidate skills currently registered through the DSH-shaped registry. */
+  skills(): readonly RecordedSkill[]
+  /** Candidate agent/session event listeners still mounted. */
+  events(): readonly RecordedEvent[]
+  /** Candidate workflows still registered through the trusted registry. */
+  workflows(): readonly RecordedWorkflow[]
   /** Run all effect teardowns in reverse order (simulates Fiber disposal). */
   dispose(): void
 }
@@ -43,6 +63,10 @@ export interface CandidateHarness {
 export function createHarness(): CandidateHarness {
   const liveSections: RecordedSection[] = []
   const effects: RecordedEffect[] = []
+  const liveTools: RecordedTool[] = []
+  const liveSkills: RecordedSkill[] = []
+  const liveEvents: RecordedEvent[] = []
+  const liveWorkflows: RecordedWorkflow[] = []
   const teardownFor = new Map<RecordedEffect, () => void>()
 
   const systemPrompt = {
@@ -70,12 +94,53 @@ export function createHarness(): CandidateHarness {
     return () => runTeardown(record)
   }
 
-  const ctx = { systemPrompt, effect } as unknown as Context
+  const tools = {
+    register(definition: CandidateToolDefinition): () => void {
+      liveTools.push(definition)
+      return () => {
+        const at = liveTools.indexOf(definition)
+        if (at >= 0) liveTools.splice(at, 1)
+      }
+    },
+  }
+  const skills = {
+    register(skill: CandidateSkillRegistration): () => void {
+      liveSkills.push(skill)
+      return () => {
+        const at = liveSkills.indexOf(skill)
+        if (at >= 0) liveSkills.splice(at, 1)
+      }
+    },
+  }
+
+  const candidateWorkflows = {
+    register(workflow: CandidateWorkflowRegistration): () => void {
+      liveWorkflows.push(workflow)
+      return () => {
+        const at = liveWorkflows.indexOf(workflow)
+        if (at >= 0) liveWorkflows.splice(at, 1)
+      }
+    },
+  }
+  const on = (name: string, handler: (...args: unknown[]) => unknown): (() => void) => {
+    const event: RecordedEvent = { name: name as RecordedEvent['name'], handler }
+    liveEvents.push(event)
+    return () => {
+      const at = liveEvents.indexOf(event)
+      if (at >= 0) liveEvents.splice(at, 1)
+    }
+  }
+
+  const ctx = { systemPrompt, tools, skills, candidateWorkflows, effect, on } as unknown as Context
 
   return {
     ctx,
     sections: () => [...liveSections],
     effects: () => effects.map((effect) => ({ ...effect })),
+    tools: () => [...liveTools],
+    skills: () => [...liveSkills],
+    events: () => [...liveEvents],
+    workflows: () => [...liveWorkflows],
     dispose(): void {
       for (const record of [...effects].reverse()) runTeardown(record)
     },

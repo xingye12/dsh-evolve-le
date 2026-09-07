@@ -14,7 +14,6 @@
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { execFileSync } from 'node:child_process'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   assertPreflight,
@@ -23,9 +22,12 @@ import {
   credentialChecks,
   dockerCheck,
   harborVersionCheck,
+  nativeDshCatalogCheck,
+  proposalWorkerIdentityCheck,
   PreflightError,
   runPreflight,
   runRootCheck,
+  searchCalibrationCheck,
   tasksRootCheck,
   type PreflightFinding,
 } from '../../src/iteration/preflight.js'
@@ -59,6 +61,13 @@ describe('preflight runner', () => {
     expect(findings.map((finding) => finding.name)).toEqual(['a', 'b', 'preflight-internal', 'd'])
     expect(findings[2]?.ok).toBe(false)
     expect(findings[2]?.detail).toContain('exploded')
+  })
+
+  it('reports whether the host can actually drop a proposal worker to a non-root uid', async () => {
+    const [finding] = await runPreflight([proposalWorkerIdentityCheck()])
+    expect(finding?.name).toBe('proposal-worker-identity')
+    expect(typeof finding?.ok).toBe('boolean')
+    expect(finding?.detail).toMatch(/setpriv|uid/i)
   })
 
   it('assertPreflight throws with every failed finding listed', () => {
@@ -105,6 +114,22 @@ describe('preflight checks', () => {
     const finding = await configCheck(bad)()
     expect(finding.ok).toBe(false)
     expect(finding.detail).toContain('sealedAccess')
+  })
+
+  it('nativeDshCatalogCheck fails closed before launch when no native runtime lock exists', async () => {
+    const config = defaultRunConfig({
+      runId: 'preflight-native-lock',
+      masterSeed: 'preflight-native-lock-seed',
+      tasksRoot: '/tmp/tasks',
+      baselineSourceDir: '/tmp/baseline',
+      jobsRoot: '/tmp/jobs',
+    })
+    const finding = await nativeDshCatalogCheck(config)()
+    expect(finding).toEqual({
+      name: 'native-dsh-catalog',
+      ok: false,
+      detail: 'nativeDsh catalogRoot and dependencyClosureSha256 are required',
+    })
   })
 
   it('credentialChecks stats the file and owner-only mode; content is never read', async () => {
@@ -154,8 +179,9 @@ describe('preflight checks', () => {
     expect(docker.ok).toBe(false)
 
     const nodeBin = process.execPath
-    // `node --version` prints "vX.Y.Z" — expect an exact-match mismatch.
-    const version = execFileSync(nodeBin, ['--version'], { encoding: 'utf8' }).trim()
+    // Avoid synchronous child creation: this host's seccomp profile rejects
+    // spawnSync even though the async preflight check remains available.
+    const version = `v${process.versions.node}`
     const wrong = await harborVersionCheck(nodeBin, '0.21.0')()
     expect(wrong.ok).toBe(false)
     expect(wrong.detail).toContain(version)
@@ -182,5 +208,155 @@ describe('preflight checks', () => {
     expect((await baselineSourceCheck(join(root, 'nope'))()).ok).toBe(false)
     expect((await runRootCheck(root)()).ok).toBe(true)
     expect((await runRootCheck(join(root, 'nope'))()).ok).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Search calibration (specs/03 §2, ADR-042)
+// ---------------------------------------------------------------------------
+
+describe('search calibration preflight (specs/03 §2, ADR-042)', () => {
+  const HANDLES = Array.from(
+    { length: 89 },
+    (_unused, index) => `task-${String(index + 1).padStart(3, '0')}`,
+  )
+
+  function calibrationConfig(
+    overrides: Record<string, number> = {},
+  ): ReturnType<typeof defaultRunConfig> {
+    return defaultRunConfig({
+      runId: 'calibration-unit',
+      masterSeed: 'calibration-unit-seed-0',
+      tasksRoot: '/tmp/dsh-tasks',
+      baselineSourceDir: '/repo/packages/candidate-baseline',
+      jobsRoot: '/tmp/dsh-jobs',
+      overrides,
+    })
+  }
+
+  it('accepts the stable-demo envelope (minimum 9 inside 15)', async () => {
+    const finding = await searchCalibrationCheck(calibrationConfig(), HANDLES)()
+    expect(finding.ok).toBe(true)
+    expect(finding.detail).toContain('minimumTrials=9')
+  })
+
+  it('accepts K=10 with the pre-registered 24×1 benchmark baseline', async () => {
+    const config = calibrationConfig({
+      kTarget: 10,
+      maxSolverTrials: 60,
+      baselineTaskCount: 24,
+      baselineAttemptsPerTask: 1,
+      baselineBatchSize: 6,
+    })
+    const finding = await searchCalibrationCheck(config, HANDLES)()
+    expect(finding.ok).toBe(true)
+    expect(finding.detail).toContain('minimumTrials=49')
+    expect(finding.detail).toContain('matrix=24')
+  })
+
+  it('returns a finding (never throws) for the 89→72 live population (attempt-2 regression)', async () => {
+    // The live tasks root carries the frozen ≤1800s exclusion: 72 handles.
+    // The default 89-slot split would throw "cannot fill 89 slots" inside the
+    // check and surface as a preflight-internal failure — attempt 2 died on
+    // exactly this before any paid trial. The check must scale its ceremony
+    // to the actual population and report normally.
+    const liveHandles = Array.from(
+      { length: 72 },
+      (_unused, index) => `live-${String(index + 1).padStart(3, '0')}`,
+    )
+    const config = calibrationConfig({
+      kTarget: 10,
+      maxSolverTrials: 60,
+      baselineTaskCount: 24,
+      baselineAttemptsPerTask: 1,
+      baselineBatchSize: 6,
+    })
+    const finding = await searchCalibrationCheck(config, liveHandles)()
+    expect(finding.ok).toBe(true)
+    expect(finding.detail).toContain('minimumTrials=49')
+    expect(finding.detail).toContain('matrix=24')
+  })
+
+  it('bounds the matrix by the development split (observed+guard, ADR-046): 49 for 72 handles', async () => {
+    const liveHandles = Array.from(
+      { length: 72 },
+      (_unused, index) => `live-${String(index + 1).padStart(3, '0')}`,
+    )
+    const base = {
+      kTarget: 10,
+      maxSolverTrials: 60,
+      baselineAttemptsPerTask: 1,
+      baselineBatchSize: 6,
+    }
+    // 49 = 39 observed + 10 guard: the full development split is legal.
+    const legal = await searchCalibrationCheck(
+      calibrationConfig({ ...base, baselineTaskCount: 49 }),
+      liveHandles,
+    )()
+    expect(legal.ok).toBe(true)
+    expect(legal.detail).toContain('matrix=49')
+    // 50 = 39 observed + 11 guard: one task beyond the development split.
+    const overflow = await searchCalibrationCheck(
+      calibrationConfig({ ...base, baselineTaskCount: 50 }),
+      liveHandles,
+    )()
+    expect(overflow.ok).toBe(false)
+    expect(overflow.detail).toContain('exceeds the development split (49 handles)')
+  })
+
+  it('accepts the ADR-045 k80 envelope against the 72-handle live population', async () => {
+    // ADR-045: alpha=0.8 → finalGate 240 → minimumTrials 255 inside the
+    // amended 400-trial envelope; the 39×2 matrix sits at the observed split
+    // (39 observed, inside the ADR-046 development bound of 49).
+    const liveHandles = Array.from(
+      { length: 72 },
+      (_unused, index) => `live-${String(index + 1).padStart(3, '0')}`,
+    )
+    const config = calibrationConfig({
+      kTarget: 80,
+      coldStartTrials: 3,
+      shortlistSize: 5,
+      ucbAirAlphaPerMille: 800,
+      maxSolverTrials: 400,
+      taskTrials: 400,
+      baselineTaskCount: 39,
+      baselineAttemptsPerTask: 2,
+      baselineBatchSize: 8,
+    })
+    const finding = await searchCalibrationCheck(config, liveHandles)()
+    expect(finding.ok).toBe(true)
+    expect(finding.detail).toContain('minimumTrials=255')
+    expect(finding.detail).toContain('matrix=78')
+  })
+
+  it('still REJECTS the k80 envelope at the frozen 0.6 alpha even inside 400 trials', async () => {
+    // The specs/03 §2 mandate shape stays contract-tested: at alpha=0.6 the
+    // final gate alone needs N ≥ ceil(80^(5/3))=1486, which no amended solver
+    // cap can afford — the reason ADR-045 pre-registers 0.8 for the formal
+    // profile instead of silently resizing around the gate.
+    const config = calibrationConfig({
+      kTarget: 80,
+      coldStartTrials: 3,
+      shortlistSize: 5,
+      maxSolverTrials: 400,
+      taskTrials: 400,
+    })
+    const finding = await searchCalibrationCheck(config, HANDLES)()
+    expect(finding.ok).toBe(false)
+    expect(finding.detail).toContain('minimumTrials=1501')
+    expect(finding.detail).toContain('exceeds maxSolverTrials=400')
+  })
+
+  it('rejects a benchmark baseline larger than the development split', async () => {
+    const config = calibrationConfig({
+      kTarget: 10,
+      maxSolverTrials: 60,
+      baselineTaskCount: 61, // development split is 60 = 48 observed + 12 guard for the pinned population
+      baselineAttemptsPerTask: 1,
+      baselineBatchSize: 6,
+    })
+    const finding = await searchCalibrationCheck(config, HANDLES)()
+    expect(finding.ok).toBe(false)
+    expect(finding.detail).toContain('exceeds the development split (60 handles)')
   })
 })

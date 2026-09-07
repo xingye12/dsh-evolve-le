@@ -8,8 +8,6 @@
 并保留从 proposal 到 admission 的哈希链、内容寻址证据。
 
 > [!IMPORTANT]
-> 本仓库是前代项目 `dsh-self-evolving`
-> （[`timwhitez/dsh-self-evolving`](https://github.com/timwhitez/dsh-self-evolving) @ `6324afd`）规范的重新实现。
 > 实现 Gate 0–6 已随记录证据验收（见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)）；Gate 7（本发布候选）交付可安装性与文档。
 > **尚未发生 sealed benchmark 揭盲，也不声称任何 benchmark 提升。**当前可以声称什么的唯一权威表述是
 > [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。

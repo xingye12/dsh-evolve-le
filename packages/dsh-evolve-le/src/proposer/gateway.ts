@@ -16,6 +16,11 @@ import { open } from 'node:fs/promises'
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { promptSha256 } from '../acp/recorded-replay.js'
+import type {
+  NativeLlmCompletionRequest,
+  NativeLlmCompletionResult,
+  NativeLlmToolSchema,
+} from '../dsh/native-llm-adapter.js'
 
 export const GATEWAY_VERSION = 'dsh-evolve-le/model-gateway/v1'
 
@@ -65,6 +70,10 @@ export class ModelGatewayError extends Error {
 export interface GatewayRequest {
   sections: readonly { name: string; order: number; text: string }[]
   userText: string
+  /** Native DSH message history; absent on the compatibility directive loop. */
+  messages?: readonly { role: string; content: unknown }[]
+  /** Native DSH tool schemas; absent on the compatibility directive loop. */
+  tools?: readonly NativeLlmToolSchema[]
 }
 
 /**
@@ -74,6 +83,9 @@ export interface GatewayRequest {
  */
 export interface RecordedModel {
   complete(request: GatewayRequest): string | Promise<string>
+  completeNative?(
+    request: NativeLlmCompletionRequest,
+  ): Promise<NativeLlmCompletionResult> | NativeLlmCompletionResult
 }
 
 export interface GatewayUsage {
@@ -207,6 +219,8 @@ function renderPrompt(request: GatewayRequest): string {
       .sort((a, b) => a.order - b.order)
       .map((section) => ({ name: section.name, text: section.text })),
     user: request.userText,
+    ...(request.messages === undefined ? {} : { messages: request.messages }),
+    ...(request.tools === undefined ? {} : { tools: request.tools }),
   })
 }
 

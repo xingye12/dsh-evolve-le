@@ -14,7 +14,7 @@
 
 import type { CandidateState, Observation } from '../state/reducer.js'
 import { betaParametersFor, cladeStats, nodeStats } from './clade.js'
-import { drawWords, hashDrawInput, type RngReceipt } from '../state/rng.js'
+import { drawWords, hashDrawInput, type RngReceipt, type RngStreamName } from '../state/rng.js'
 
 /** Primary-run default tau (HGM public implementation cool_down=false). */
 export const DEFAULT_TAU = 1
@@ -144,16 +144,20 @@ export function drawParentThompson(input: {
     counter: input.counter,
     kind: 'parent',
     parameters,
+    stream: 'scheduler-thompson',
   })
 }
 
-/** One node-evaluation draw: `theta_node(a) ~ Beta(1+s, 1+f)` (specs/03 §6). */
+/** One node-evaluation draw: `theta_node(a) ~ Beta(1+s, 1+f)` (specs/03 §6).
+ * The tournament shortlist draw (ADR-047, specs/03 §11) uses the same
+ * q10(Beta) semantics on its own dedicated `'tournament'` stream. */
 export function drawNodeThompson(input: {
   masterSeed: string
   runId: string
   counter: number
   candidates: readonly CandidateState[]
   observations: readonly Observation[]
+  stream?: RngStreamName
 }): ThompsonDraw {
   const ordered = canonicalOrder(input.candidates)
   if (ordered.length === 0) throw new Error('thompson: empty node population')
@@ -173,6 +177,7 @@ export function drawNodeThompson(input: {
     counter: input.counter,
     kind: 'node',
     parameters,
+    stream: input.stream ?? 'scheduler-thompson',
   })
 }
 
@@ -182,9 +187,10 @@ function samplePopulation(input: {
   counter: number
   kind: 'parent' | 'node'
   parameters: DrawParameters[]
+  stream: RngStreamName
 }): ThompsonDraw {
   const description = {
-    stream: 'scheduler-thompson',
+    stream: input.stream,
     kind: input.kind,
     population: input.parameters.map((parameter) => parameter.candidateId),
     parameters: input.parameters.map((parameter) => [parameter.alpha, parameter.beta]),
@@ -192,7 +198,7 @@ function samplePopulation(input: {
   const words = drawWords({
     masterSeed: input.masterSeed,
     runId: input.runId,
-    stream: 'scheduler-thompson',
+    stream: input.stream,
     counter: input.counter,
     words: wordsForPopulation(input.parameters.length),
   })
@@ -205,7 +211,7 @@ function samplePopulation(input: {
     if (thetas[index]! > thetas[winnerIndex]!) winnerIndex = index
   }
   const receipt: RngReceipt = {
-    stream: 'scheduler-thompson',
+    stream: input.stream,
     counter: input.counter,
     algorithm: 'dsh-evolve-le/counter-hmac-sha256/v1',
     inputHash: hashDrawInput(description),

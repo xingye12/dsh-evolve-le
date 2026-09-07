@@ -20,6 +20,7 @@ import { createEvidenceExport, PROPOSER_READ_LABELS } from '../src/proposer/expo
 import { generateCanaryTokens } from '../src/proposer/canary.js'
 import {
   runProposalSandbox,
+  proposalWorkerIdentityAvailable,
   verifyProposalSandboxReplay,
   WORKER_UID,
   type ProposalSandboxOutcome,
@@ -41,9 +42,18 @@ async function freshRoot(prefix: string): Promise<string> {
 }
 
 /** Skip guard: the OS boundary needs setpriv (uid drop) + root supervisor. */
-const setprivAvailable = existsSync('/usr/bin/setpriv')
+const setprivAvailable =
+  existsSync('/usr/bin/setpriv') &&
+  spawnSync(
+    '/usr/bin/setpriv',
+    [`--reuid=${WORKER_UID}`, `--regid=${WORKER_UID}`, '--clear-groups', 'true'],
+    { stdio: 'ignore', timeout: 10_000 },
+  ).status === 0
+const networkNamespaceAvailable =
+  spawnSync('/usr/bin/unshare', ['--net', 'true'], { stdio: 'ignore', timeout: 10_000 }).status ===
+  0
 const isRoot = typeof process.getuid === 'function' && process.getuid() === 0
-const boundaryAvailable = setprivAvailable && isRoot
+const boundaryAvailable = setprivAvailable && networkNamespaceAvailable && isRoot
 
 describe.skipIf(!boundaryAvailable)('proposal sandbox one-shot run', () => {
   let parent: BuildResult
@@ -105,8 +115,33 @@ describe.skipIf(!boundaryAvailable)('proposal sandbox one-shot run', () => {
       parentSourceHash: parent.sourceDigest,
       width: 3,
       timeoutMs: 300_000,
+      // ADR-044: the controller-owned feedback doc must land in the sealed
+      // input view (deterministic from state, read-only after sealing).
+      priorRejections: [
+        {
+          actionId: 'prop-0',
+          rejected: [
+            {
+              childName: 'child-0',
+              reason:
+                'candidate scan rejected the child: package/missing at <root>:0; patch/missing at <root>:0',
+            },
+          ],
+          batchErrors: [],
+        },
+      ],
     })
   }, 600_000)
+
+  it('stages the ADR-044 prior-rejections doc into the sealed input view', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const doc = JSON.parse(
+      await readFile(join(sandboxRoot, 'input', 'prior-rejections.json'), 'utf8'),
+    ) as { protocol: string; entries: Array<{ actionId: string }> }
+    expect(doc.protocol).toBe('dsh-evolve-le/prior-rejections/v1')
+    expect(doc.entries).toHaveLength(1)
+    expect(doc.entries[0]!.actionId).toBe('prop-0')
+  })
 
   it('drops the worker to an unprivileged uid inside a network namespace', () => {
     expect(outcome.sandbox.kind).toBe('uid-netns')
@@ -167,6 +202,13 @@ describe.skipIf(!boundaryAvailable)('proposal sandbox one-shot run', () => {
 })
 
 describe('proposal sandbox fail-closed boundaries', () => {
+  it.skipIf(proposalWorkerIdentityAvailable().ok)(
+    'refuses the supervisor path before it can launch a root worker',
+    async () => {
+      await expect(runProposalSandbox({} as never)).rejects.toThrow(/non-root uid/)
+    },
+  )
+
   it('the worker refuses to run as root', async () => {
     const root = await freshRoot('dsh-sbx-root-')
     const inputRoot = join(root, 'input')
@@ -203,6 +245,114 @@ describe('proposal sandbox fail-closed boundaries', () => {
       // Unprivileged host: the refusal is still recorded.
       expect(result.error).toBeDefined()
     }
+  }, 60_000)
+
+  it('keeps the lazy stdio PipeWraps inside the quiescence baseline', async () => {
+    // Regression for the attempt-5 false positive: Node materializes stdio
+    // PipeWraps on first access, and the supervisor pipes this worker's
+    // stderr, so a boot/dispose cycle that never touches stdio still showed
+    // drift.processHandles {before: {}, after: {PipeWrap: 1}} and every
+    // proposal failed closed. The worker must establish both stdio handles
+    // BEFORE the baseline census, like candidate-probe and native-turn-probe.
+    const root = await freshRoot('dsh-sbx-stdio-')
+    const inputRoot = join(root, 'input')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(inputRoot, { recursive: true })
+    await mkdir(join(root, 'work'), { recursive: true })
+    // No capsule: the worker fails at bootLoader, but only AFTER the baseline
+    // census — which is exactly the window the regression lives in. stderr is
+    // piped, mirroring the supervisor's stdio: ['ignore', 'ignore', 'pipe'].
+    await writeFile(
+      join(inputRoot, 'config.json'),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        parentSourceHash: `sha256:${'0'.repeat(64)}`,
+        width: 3,
+        declaredProposeSections: [],
+        dacProbePaths: [],
+      })}\n`,
+      'utf8',
+    )
+    const workerEntry = join(repoRoot, 'packages/dsh-evolve-le/lib/bin/proposer-worker.js')
+    const run = spawnSync(process.execPath, [workerEntry, root], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'pipe'],
+      timeout: 30_000,
+    })
+    expect(run.status).toBe(1)
+    const result = JSON.parse(await readFile(join(root, 'work', 'worker-result.json'), 'utf8')) as {
+      ok: boolean
+      error?: string
+    }
+    expect(result.ok).toBe(false)
+    expect(result.error).toBeDefined()
+    // The failure is the missing capsule, never a quiescence/PipeWrap drift.
+    expect(result.error).not.toMatch(/did not return the worker process to baseline/)
+    // The census itself ran with stdio already materialized: with stderr
+    // piped, a child that touches both stdio streams reports PipeWrap(s) in
+    // getActiveResourcesInfo(); one that never touches them reports none.
+    const { spawnSync: spawnProbe } = await import('node:child_process')
+    const probeScript =
+      'void process.stdout; void process.stderr; ' +
+      'const c = {}; for (const k of process.getActiveResourcesInfo()) c[k] = (c[k] ?? 0) + 1; ' +
+      'process.stderr.write(JSON.stringify(c))'
+    const touched = spawnProbe(process.execPath, ['-e', probeScript], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'pipe'],
+      timeout: 10_000,
+    })
+    expect(touched.status).toBe(0)
+    const touchedKinds = JSON.parse(touched.stderr) as Record<string, number>
+    expect(touchedKinds.PipeWrap).toBeGreaterThanOrEqual(1)
+    const untouched = spawnProbe(process.execPath, ['-e', 'process.exitCode = 0'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'pipe'],
+      timeout: 10_000,
+    })
+    expect(untouched.status).toBe(0)
+  }, 60_000)
+
+  it('refuses a remote route when the capsule packs no native DSH closure', async () => {
+    if (!boundaryAvailable) return
+    // The downgrade refusal (ADR-030) fires right after the supervisor reads
+    // the staged capsule manifest — before the export view, the parent tree,
+    // or the worker spawn — so a hand-built minimal capsule suffices: the
+    // manifest lacks runtime.nativeDsh, which is exactly what a compatibility
+    // closure produces. A remote route against it must fail closed instead of
+    // silently downgrading to the directive loop.
+    const root = await freshRoot('dsh-sbx-downgrade-')
+    const capsule = join(root, 'capsule')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(join(capsule, 'candidate'), { recursive: true })
+    await writeFile(
+      join(capsule, 'manifest.json'),
+      `${JSON.stringify({ identity: { candidateId: 'cand-downgrade-test' } })}\n`,
+    )
+    await writeFile(join(capsule, 'candidate', 'package.json'), '{"name":"@test/candidate"}\n')
+    await writeFile(join(capsule, 'candidate', 'candidate.json'), '{}\n')
+    const receiptsPath = join(root, 'receipts.jsonl')
+    await expect(
+      runProposalSandbox({
+        sandboxRoot: join(root, 'sandbox'),
+        capsuleDir: capsule,
+        exportDir: join(root, 'export'),
+        parentTreeDir: join(root, 'parent'),
+        parentSourceHash: `sha256:${'0'.repeat(64)}`,
+        width: 1,
+        model: {
+          kind: 'remote',
+          socketPath: join(root, 'gw.sock'),
+          routeId: 'test/route',
+          routeHash: 'a'.repeat(64),
+          receiptsPath,
+          provider: 'test-provider',
+          model: 'test-model',
+        },
+      }),
+    ).rejects.toThrow(/refusing compatibility-loop downgrade/)
+    // Fail-closed also means no durable receipt file was created for a run
+    // that never happened.
+    expect(existsSync(receiptsPath)).toBe(false)
   }, 60_000)
 
   it('tampering with the capsule is detected by the post-run digest', async () => {

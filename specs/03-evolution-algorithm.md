@@ -31,8 +31,12 @@ Run manifest 在启动前固定：
 | `waveSize`      | decisions made from one frozen state           |    available worker slots |
 | `shortlistSize` | final development tournament candidates        |                         2 |
 
+> ADR-045：表内 0.6 是全局默认；formal `terminal-bench-formal` k80 profile 预注册 alpha=0.8
+> （0.6 下最低 trial 量 ≥ ceil(80^(5/3))≈1486，任何可行墙钟都不可负担）。
+
 默认 `stable-demo` 的 `K=3/q0=1/shortlistSize=2` 只证明稳定迭代，不执行 champion tournament。可选
-`terminal-bench-formal` profile 使用 `K=80/q0=3/shortlistSize=5`。K 始终指通过完整 build/admission
+`terminal-bench-formal` profile 使用 `K=80/q0=3/shortlistSize=5`、`alpha=0.8`（ADR-045 预注册修订：
+0.6 下最低 trial 量 ≥ ceil(80^(5/3))≈1486，任何可行墙钟都不可负担）。K 始终指通过完整 build/admission
 pipeline 的唯一 artifacts；被拒 proposal、duplicate source、retry 和 evaluation 不计为 candidate，
 但全部记入预算/证据。
 
@@ -141,7 +145,10 @@ candidate_to_evaluate = argmax theta_node(a)
 
 令：
 
-- `N` = 已完成且计入 utility 的 ordinary development trials；
+- `N` = 已完成 development trials 总数（discovery / benchmark baseline、cold start、ordinary
+  evaluation 的全部观测；ADR-042 修正：literal 只读 ordinary 会让首个 expansion 门
+  `N ≥ 1` 在尚无子代可评估时死启动——baseline 已耗尽 pool，普通 trial 永远无法先于 expansion 存在，
+  与 driver 的实际语义及 K=3/K=10 实跑轨迹一致）；
 - `P_eval` = 当前 wave 已预留 evaluation 数；
 - `T` = 已 admitted candidates（含 baseline）加当前 wave 的 unique pending children 上界。
 
@@ -197,12 +204,24 @@ Prompt SHOULD 描述目标、边界和 output protocol，不列出 task-specific
 clustering 由 proposer/diagnosis model 对真实证据完成；trusted code 只做 schema/大小/label 过滤，
 避免手工规则成为能力上限。
 
+tree-v2 使用 `dsh-evolve-le/proposal/v2` envelope。每个 child 必须携带 independently
+content-addressed `analysis` 与 `proposal` receipts，并以
+`requiredParentEvidence.{analysisDigest,mechanismOutcomeDigest,normalizedTrialDigest,trajectoryDigest}`
+取代裸 `evidenceRefs`。controller 必须把 normalized trial 和 raw trajectory digest 解析到本次
+label-filtered export 的真实对象，再把 proposal receipt 与重新捕获的 `candidate-intent` 对齐。
+v1 envelope 只能产生 v1 candidate；协议交叉必须拒绝。
+协议版本由 trusted controller 根据父代 admission record 选择并写入 durable proposal request：
+legacy 父代保持 v1 以兼容历史 replay；有 tree-v2 admission record 的父代默认且只能产出 v2，
+并把父代 candidate/mechanism-outcome digest 带入一次性 sandbox。proposer 不能自行降级。
+
 为避免 proposal mode 只复制 parent：
 
 - `W_p=3` children 需声明不同主 hypothesis；
 - semantic diff 相同会 deduplicate；
 - proposer 可读其他 clade 机制形成 donor provenance；
 - no-change、test-only、comment-only 或仅延长 prompt 无机制证据的 child 被拒。
+- tree-v2 child 还必须产生 production diff、新增具名 mechanism test，并满足 target/preserved
+  mode 的字节与 Loader fingerprint 契约。
 
 ## 10. Archive views and Pareto policy
 
@@ -253,6 +272,14 @@ Parent selection 仍以 CMP Thompson 为主，Pareto view 不删枝。
 stable-demo 的 baseline failure pool 和 candidate task RNG streams 必须在 candidate reward 可见前写入
 manifest/journal。reward 出现后不得换题、补抽失败题或丢弃通过题。该 development score 只代表 demo
 sample，不代表 Terminal-Bench 性能。
+
+> ADR-047 实现注记（2026-09-07）：tournament 在 `search()` 返回 K_REACHED 后由 driver 执行，
+> 仅在 `terminal-bench-formal` profile 下进入。覆盖计划按 72 题 ≤1800s 资格群体为 49 tasks
+> （39 observed + 10 guard，guard 以 opaque handle + `dev-guard` split 参与——guard 结果在
+> 此处进入 selector，始终不向 proposer 暴露）；`q10` 短名单与 top-up 使用专用 `'tournament'`
+> RNG stream + hash tie-break，降级路径与 top-up 数量全部 receipt 入 journal。champion 三重
+> hash 锁定后 emit `candidate.locked`（reducer 一次性）并转 CANDIDATE_LOCKED。
+> `NO_DEVELOPMENT_IMPROVEMENT` 为新增 reducer 终止 phase（ADR-047 决策 3）。
 
 ## 12. Sealed gate is outside the search algorithm
 

@@ -6,6 +6,9 @@ export default defineConfig({
     include: [
       'packages/*/tests/**/*.{test,spec}.ts',
       'benchmark-adapters/*/tests/**/*.{test,spec}.ts',
+      // Host-side launcher helpers (e.g. the trial egress forwarder's
+      // loopback contract selftest, ADR-028 falsification amendment).
+      'scripts/tests/**/*.test.ts',
     ],
     // Fixture trees (e.g. the golden scan case) contain candidate-owned specs
     // that are data, not tests of this repo; only real packages run.

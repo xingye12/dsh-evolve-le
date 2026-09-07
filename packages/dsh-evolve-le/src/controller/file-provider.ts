@@ -23,6 +23,7 @@ interface FileJob {
   status: ProviderJobStatus
   costUsdMicros: number | null
   durationMs: number | null
+  solverTokens: number | null
   trajectoryBase64: string | null
 }
 
@@ -125,6 +126,8 @@ export class FileProvider implements BenchmarkProvider {
       // here would silently re-price unpriced usage).
       costUsdMicros: preset !== undefined ? preset.costUsdMicros : 100,
       durationMs: 5_000,
+      // The harness provider never runs a live solver route (ADR-030).
+      solverTokens: null,
       trajectoryBase64: null,
     }
     await this.persist({
@@ -168,6 +171,7 @@ export class FileProvider implements BenchmarkProvider {
       outcome: job.outcome,
       costUsdMicros: job.costUsdMicros,
       durationMs: job.durationMs,
+      solverTokens: job.solverTokens,
       trajectory,
     }
   }

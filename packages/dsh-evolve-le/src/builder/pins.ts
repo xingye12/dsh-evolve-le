@@ -7,14 +7,10 @@
  * @module @dsh-evolve-le/core/builder/pins
  */
 
-import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { repoRoot } from '../schema.js'
-
-const execFileAsync = promisify(execFile)
 
 /** One pinned package: name, exact version, and the workspace package whose install resolves it. */
 export interface PackagePin {
@@ -31,7 +27,7 @@ export interface PackagePin {
  * loader plugins are host-side (the runner boots them); schemastery and the
  * candidate SDK are candidate-facing; cordis/cosmokit are shared.
  */
-export const PACKAGE_PINS: PackagePin[] = [
+export const BASE_PACKAGE_PINS: readonly PackagePin[] = [
   {
     name: '@deepseek-ai/cordis',
     version: '4.0.1',
@@ -86,6 +82,14 @@ export const PACKAGE_PINS: PackagePin[] = [
   },
 ]
 
+/**
+ * Compatibility closure pins. Native DSH is deliberately not discovered from
+ * this repository's install: callers must supply a prebuilt, validated
+ * upstream catalog to obtain a native capsule. This prevents an incidental
+ * developer dependency from silently changing the trusted runtime surface.
+ */
+export const PACKAGE_PINS: readonly PackagePin[] = BASE_PACKAGE_PINS
+
 /** Resolve a pin to its on-disk package directory inside the repo install. */
 export function resolvePinDirectory(pin: PackagePin): string {
   const anchored = createRequire(join(repoRoot, pin.resolveFrom, 'package.json'))
@@ -109,10 +113,25 @@ export async function toolchainFingerprints(): Promise<{
   const tsPackage = JSON.parse(await readFile(join(typescriptDir, 'package.json'), 'utf8')) as {
     version: string
   }
-  const { stdout } = await execFileAsync('pnpm', ['--version'])
+  // `packageManager` is the repository's Corepack pin and therefore the
+  // reproducible package-manager identity. Do not shell out to `pnpm
+  // --version`: in restricted child-process environments stdout can be
+  // silently empty even when the command succeeded, which used to produce an
+  // invalid admitted manifest after the expensive build had completed.
+  const rootPackage = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8')) as {
+    packageManager?: unknown
+  }
+  const packageManager = rootPackage.packageManager
+  const pnpmMatch =
+    typeof packageManager === 'string' ? /^pnpm@(\d+\.\d+\.\d+)(?:$|\+)/.exec(packageManager) : null
+  if (pnpmMatch === null) {
+    throw new Error(
+      `repository packageManager must pin pnpm as pnpm@<semver>, got ${JSON.stringify(packageManager)}`,
+    )
+  }
   return {
     node: process.version,
-    pnpm: stdout.trim(),
+    pnpm: pnpmMatch[1]!,
     typescript: tsPackage.version,
     typescriptBin: join(typescriptDir, 'bin/tsc'),
   }

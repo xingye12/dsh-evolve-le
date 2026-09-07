@@ -32,6 +32,14 @@ export interface IdempotencyInputs {
   attempts: number
   /** Harbor version pinned in the run manifest. */
   harborVersion: string
+  /**
+   * Request-level attempt (ADR-046): attempt N>1 of one (candidate, task) is
+   * its own paid identity. Deliberately separate from `attempts`, which stays
+   * 1 — one Harbor job is one trial, and the JobConfig n_attempts field must
+   * not silently become the trial counter. Omitted (pre-ADR-046 identity) for
+   * the first attempt, so historical keys stay byte-identical.
+   */
+  trialAttempt?: number
 }
 
 export interface LedgerEntry {
@@ -45,6 +53,12 @@ export interface LedgerEntry {
   handles: string[]
   attempts: number
   harborVersion: string
+  /**
+   * Request-level attempt (ADR-046), mirrored from the identity inputs; part
+   * of the paid key, never of the JobConfig n_attempts. Absent on
+   * pre-ADR-046 entries (attempt 1 identity).
+   */
+  trialAttempt?: number
   /**
    * Controller-side idempotency key (`eval-<actionId>`) when the reservation
    * was made through the Gate 5 provider adapter. Deliberately NOT part of
@@ -68,6 +82,7 @@ export function idempotencyKey(inputs: IdempotencyInputs): string {
     handles: [...inputs.handles].sort(),
     attempts: inputs.attempts,
     harborVersion: inputs.harborVersion,
+    ...(inputs.trialAttempt !== undefined ? { trialAttempt: inputs.trialAttempt } : {}),
   }
   return createHash('sha256').update(JSON.stringify(document), 'utf8').digest('hex')
 }
@@ -85,6 +100,8 @@ export function jobNameForKey(key: string): string {
  * first, so re-submits converge on the original job directory.
  */
 export class SubmissionLedger {
+  private reserveChain: Promise<void> = Promise.resolve()
+
   constructor(private readonly path: string) {}
 
   async entries(): Promise<LedgerEntry[]> {
@@ -122,15 +139,25 @@ export class SubmissionLedger {
     status: 'new' | 'existing'
     entry: LedgerEntry
   }> {
-    const existing = await this.lookup(entry.key)
-    if (existing !== undefined) return { status: 'existing', entry: existing }
-    const record: LedgerEntry = {
-      ...entry,
-      protocol: LEDGER_PROTOCOL,
-      recordedAt: new Date().toISOString(),
+    let resolveOperation!: () => void
+    const previous = this.reserveChain
+    this.reserveChain = new Promise<void>((resolve) => {
+      resolveOperation = resolve
+    })
+    await previous
+    try {
+      const existing = await this.lookup(entry.key)
+      if (existing !== undefined) return { status: 'existing', entry: existing }
+      const record: LedgerEntry = {
+        ...entry,
+        protocol: LEDGER_PROTOCOL,
+        recordedAt: new Date().toISOString(),
+      }
+      await mkdir(dirname(this.path), { recursive: true })
+      await appendFile(this.path, `${JSON.stringify(record)}\n`, 'utf8')
+      return { status: 'new', entry: record }
+    } finally {
+      resolveOperation()
     }
-    await mkdir(dirname(this.path), { recursive: true })
-    await appendFile(this.path, `${JSON.stringify(record)}\n`, 'utf8')
-    return { status: 'new', entry: record }
   }
 }

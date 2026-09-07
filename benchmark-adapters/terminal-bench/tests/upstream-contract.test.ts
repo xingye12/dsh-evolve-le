@@ -110,4 +110,62 @@ print('harbor-validated')
     const { stdout } = await exec(HARBOR_PYTHON, ['-c', checker])
     expect(stdout.trim()).toBe('harbor-validated')
   }, 60_000)
+
+  it('validates the augmented solve-gateway JobConfig (token mount + env)', async () => {
+    const inventory = await buildTaskInventory(tasksRoot)
+    const extractElf = inventory.tasks.find((task) => task.handle === 'extract-elf')
+    if (extractElf === undefined) throw new Error('extract-elf missing from pinned set')
+
+    const entry = buildAcpRegistryEntry({
+      capsuleArchiveSha256: CAPSULE_SHA,
+      archiveUrl: ARCHIVE_URL,
+    })
+    // The live-solve job shape (ADR-030): CA bundle + read-only per-trial
+    // token mounts and the four non-secret env entries.
+    const plan = buildJobConfig({
+      jobName: 'dsh-upstream-solve',
+      jobsDir: join(scratch, 'jobs'),
+      taskPaths: [extractElf.path],
+      registryEntry: entry,
+      attempts: 1,
+      concurrentTrials: 1,
+      mounts: [
+        { source: '/host/ca.crt', target: '/etc/ssl/certs/dsh-ca.crt' },
+        { source: '/run/dsh/tokens/dsh-x.token', target: '/run/dsh-solve/token' },
+      ],
+      env: {
+        DSH_SOLVE_GATEWAY_ROUTE_HASH: 'b'.repeat(64),
+        DSH_SOLVE_GATEWAY_TOKEN_FILE: '/run/dsh-solve/token',
+        DSH_SOLVE_GATEWAY_URL: 'https://172.17.0.1:8443',
+        SSL_CERT_FILE: '/etc/ssl/certs/dsh-ca.crt',
+      },
+    })
+    const configPath = join(scratch, 'job-config-solve.yaml')
+    await writeFile(configPath, plan.yaml, 'utf8')
+
+    const checker = `
+import yaml
+from harbor.models.job.config import JobConfig
+
+config = JobConfig.model_validate(yaml.safe_load(open(${JSON.stringify(configPath)})))
+assert config.environment.type == 'docker'
+mounts = config.environment.mounts
+assert mounts is not None and len(mounts) == 2, mounts
+# ServiceVolumeConfig entries stay plain mappings until compose-time coercion.
+def field(mount, key):
+    return mount[key] if isinstance(mount, dict) else getattr(mount, key)
+assert all(field(m, 'read_only') is True for m in mounts), mounts
+assert field(mounts[1], 'target') == '/run/dsh-solve/token', mounts[1]
+env = config.environment.env
+assert sorted(env) == [
+  'DSH_SOLVE_GATEWAY_ROUTE_HASH',
+  'DSH_SOLVE_GATEWAY_TOKEN_FILE',
+  'DSH_SOLVE_GATEWAY_URL',
+  'SSL_CERT_FILE',
+], sorted(env)
+print('harbor-validated-solve')
+`
+    const { stdout } = await exec(HARBOR_PYTHON, ['-c', checker])
+    expect(stdout.trim()).toBe('harbor-validated-solve')
+  }, 60_000)
 })

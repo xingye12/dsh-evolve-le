@@ -85,7 +85,17 @@ export async function materializeNodeRuntime(options: {
   }
 
   await mkdir(dirname(join(options.workDir, NODE_RUNTIME_TARBALL_MEMBER)), { recursive: true })
-  await exec('tar', ['-xJf', tarballPath, '-C', options.workDir, NODE_RUNTIME_TARBALL_MEMBER])
+  // Archive ownership is not part of the pinned runtime identity; preserving
+  // Node's distribution uid/gid breaks legitimate rootless builder namespaces.
+  // The verified bytes and executable mode remain the admission contract.
+  await exec('tar', [
+    '--no-same-owner',
+    '-xJf',
+    tarballPath,
+    '-C',
+    options.workDir,
+    NODE_RUNTIME_TARBALL_MEMBER,
+  ])
   const binaryPath = join(options.workDir, NODE_RUNTIME_TARBALL_MEMBER)
   const binary = await readFile(binaryPath)
   const binaryDigest = createHash('sha256').update(binary).digest('hex')

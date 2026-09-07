@@ -31,7 +31,12 @@ export {
   type IdempotencyInputs,
   type LedgerEntry,
 } from './idempotency.js'
-export { planSubmission, type PlanSubmissionInput, type SubmissionPlan } from './provider.js'
+export {
+  planSubmission,
+  type PerJobOverlay,
+  type PlanSubmissionInput,
+  type SubmissionPlan,
+} from './provider.js'
 export {
   INFRA_RETRYABLE_EXCEPTIONS,
   RUN_PROTOCOL,
@@ -58,5 +63,36 @@ export {
   TERMINAL_FACT_PROTOCOL,
   type HarborEvaluationRequest,
   type HarborProviderConfig,
+  type HarborSolveGateway,
   type RegisteredCapsule,
+  type SolverFactBlock,
 } from './harbor-provider.js'
+export {
+  IMAGE_PREFETCH_PROTOCOL,
+  parseDockerImage,
+  prefetchTaskImages,
+  taskImageRefs,
+  type ImageCommandRunner,
+  type ImagePrefetchReceipt,
+  type ImagePrefetchRecord,
+} from './image-cache.js'
+export {
+  ACP_RUNTIME_PACKAGE,
+  ACP_RUNTIME_VENV_PATH,
+  VERIFIER_IMAGE_PROTOCOL,
+  prepareOfflineVerifierTasks,
+  rewriteVerifierOffline,
+  rewriteVerifierGitClones,
+  verifierRequirements,
+  verifierSystemRequirements,
+  type VerifierImageCommandRunner,
+  type VerifierGitSource,
+  type VerifierImageReceipt,
+  type VerifierImageRecord,
+} from './verifier-image.js'
+export {
+  effectiveTaskAgentTimeoutMs,
+  parseTaskAgentTimeoutSec,
+  taskAgentTimeoutSec,
+  SOLVE_AGENT_TIMEOUT_ENV,
+} from './task-timeout.js'

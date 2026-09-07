@@ -81,6 +81,19 @@ describe('task inventory', () => {
     await expect(buildTaskInventory(FIXTURE_TASKS)).rejects.toThrow(/not-a-task/)
   })
 
+  it('freezes the Terminal-Bench timeout eligibility subset', async () => {
+    const tasksRoot = await freshScratch('dsh-inv-filter-')
+    await stageFixtureTask(tasksRoot, 'alpha')
+    await stageFixtureTask(tasksRoot, 'beta')
+    const inventory = await buildTaskInventory(tasksRoot, { maxAgentTimeoutSec: 300 })
+    expect(inventory.tasks.map((task) => task.handle)).toEqual(['beta'])
+    expect(inventory.selection).toEqual({
+      maxAgentTimeoutSec: 300,
+      sourceTaskCount: 2,
+      excludedHandles: ['alpha'],
+    })
+  })
+
   it('selects by handle and refuses unknown handles', async () => {
     const tasksRoot = await freshScratch('dsh-select-')
     await stageFixtureTask(tasksRoot, 'alpha')
@@ -172,6 +185,18 @@ describe('harbor job config', () => {
     // retry, restricted to the normalizer's INFRA_RETRYABLE_EXCEPTIONS set so
     // the plan and the observation classification share one source of truth.
     expect(round['agent_setup_timeout_multiplier']).toBe(5)
+    // Live-agent wall clock vs the task's 900 s ceiling (paid-smoke findings):
+    // 3× on the AGENT phase only — the graceful end (prompt reply → summary
+    // write → runner exit) measured ≈ 2.5-3 min beyond the capsule's own
+    // 1740 s wall clock, so 2× killed solved trials at exactly 1800.0 s and
+    // lost their usage. The capsule still ends its loop first.
+    expect(round['agent_timeout_multiplier']).toBe(3)
+    // Environment phase includes the task-image pull (K=10 attempt 1): a cold
+    // pull under load exceeded the task's 600 s default and the trial died
+    // EnvironmentStartTimeoutError before the agent ever booted. 5× covers a
+    // cold pull; a warm start never reaches the ceiling.
+    expect(round['environment_build_timeout_multiplier']).toBe(5)
+    expect(round['verifier_timeout_multiplier']).toBeUndefined()
     expect(round['retry']).toEqual({
       max_retries: 1,
       include_exceptions: [
@@ -299,5 +324,102 @@ describe('planSubmission', () => {
         ledger: new SubmissionLedger(join(dir, 'ledger.jsonl')),
       }),
     ).rejects.toThrow(/not in inventory/)
+  })
+})
+
+describe('per-job overlay (ADR-030 solve gateway)', () => {
+  const ROUTE_HASH = 'b'.repeat(64)
+  const TOKEN_VALUE = 'c0ffee'.repeat(10) + 'ab' // 64-hex secret stand-in
+
+  async function stagedPlan() {
+    const tasksRoot = await freshScratch('dsh-overlay-tasks-')
+    await stageFixtureTask(tasksRoot, 'alpha')
+    const jobsRoot = await freshScratch('dsh-overlay-jobs-')
+    const tokenDir = join(jobsRoot, 'solve-gateway', 'tokens')
+    await mkdir(tokenDir, { recursive: true })
+    const tokenFilePath = join(tokenDir, 'overlay-trial.token')
+    await writeFile(tokenFilePath, `${TOKEN_VALUE}\n`, 'utf8')
+    return { tasksRoot, jobsRoot, tokenFilePath }
+  }
+
+  it('merges the overlay after the globals, env keys sorted, bytes stable', async () => {
+    const { tasksRoot, jobsRoot, tokenFilePath } = await stagedPlan()
+    const perJobCalls: string[] = []
+    const input = () => ({
+      runId: 'gate2-dev',
+      tasksRoot,
+      handles: ['alpha'],
+      capsuleArchiveSha256: CAPSULE,
+      archiveUrl: ARCHIVE_URL,
+      jobsRoot,
+      harborVersion: '0.21.0',
+      mounts: [{ source: '/host/ca.crt', target: '/etc/ssl/certs/dsh-ca.crt' }],
+      env: { SSL_CERT_FILE: '/etc/ssl/certs/dsh-ca.crt' },
+      perJob: (jobName: string) => {
+        perJobCalls.push(jobName)
+        return {
+          mounts: [{ source: tokenFilePath, target: '/run/dsh-solve/token' }],
+          env: {
+            DSH_SOLVE_GATEWAY_TOKEN_FILE: '/run/dsh-solve/token',
+            DSH_SOLVE_GATEWAY_URL: 'https://172.17.0.1:8443',
+            DSH_SOLVE_GATEWAY_ROUTE_HASH: ROUTE_HASH,
+          },
+        }
+      },
+      ledger: new SubmissionLedger(join(jobsRoot, 'ledger.jsonl')),
+    })
+
+    const first = await planSubmission(input())
+    const second = await planSubmission(input())
+    // Re-planning the same identity is byte-stable (harbor resume idempotency
+    // relies on the same job config; digests are compared on collect).
+    expect(second.jobPlan.yaml).toBe(first.jobPlan.yaml)
+    expect(perJobCalls).toEqual([first.jobName, first.jobName])
+
+    const round = parseYaml(first.jobPlan.yaml) as {
+      environment: {
+        mounts: { type: string; source: string; target: string; read_only: boolean }[]
+        env: Record<string, string>
+      }
+    }
+    // Both mounts survive: the global CA bundle first, the per-trial token
+    // second, both read-only.
+    expect(round.environment.mounts).toEqual([
+      {
+        type: 'bind',
+        source: '/host/ca.crt',
+        target: '/etc/ssl/certs/dsh-ca.crt',
+        read_only: true,
+      },
+      { type: 'bind', source: tokenFilePath, target: '/run/dsh-solve/token', read_only: true },
+    ])
+    // Exactly the four non-secret env keys, sorted (byte-stable YAML).
+    expect(Object.keys(round.environment.env)).toEqual([
+      'DSH_SOLVE_GATEWAY_ROUTE_HASH',
+      'DSH_SOLVE_GATEWAY_TOKEN_FILE',
+      'DSH_SOLVE_GATEWAY_URL',
+      'SSL_CERT_FILE',
+    ])
+    expect(round.environment.env['DSH_SOLVE_GATEWAY_URL']).toBe('https://172.17.0.1:8443')
+    expect(round.environment.env['DSH_SOLVE_GATEWAY_TOKEN_FILE']).toBe('/run/dsh-solve/token')
+    expect(round.environment.env['DSH_SOLVE_GATEWAY_ROUTE_HASH']).toBe(ROUTE_HASH)
+    // CLAUDE.md rule 8: the token VALUE never appears — only its mounted path.
+    expect(first.jobPlan.yaml).not.toContain(TOKEN_VALUE)
+  })
+
+  it('omits environment keys entirely when neither globals nor overlay set them', async () => {
+    const { tasksRoot, jobsRoot } = await stagedPlan()
+    const plan = await planSubmission({
+      runId: 'gate2-dev',
+      tasksRoot,
+      handles: ['alpha'],
+      capsuleArchiveSha256: CAPSULE,
+      archiveUrl: ARCHIVE_URL,
+      jobsRoot,
+      harborVersion: '0.21.0',
+      ledger: new SubmissionLedger(join(jobsRoot, 'ledger.jsonl')),
+    })
+    const round = parseYaml(plan.jobPlan.yaml) as { environment: unknown }
+    expect(round.environment).toEqual({ type: 'docker' })
   })
 })

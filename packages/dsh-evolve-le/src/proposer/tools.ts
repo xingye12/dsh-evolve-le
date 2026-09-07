@@ -15,6 +15,10 @@
 import { lstat, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
+import { finalizeTreeV2Bundle } from '../tree-v2/finalize-bundle.js'
+import type { ArchiveCatalog } from './catalog.js'
+import type { ExportManifest } from './export.js'
+import type { ProposalOutput } from './protocol.js'
 
 export const TOOLS_VERSION = 'dsh-evolve-le/proposer-tools/v1'
 
@@ -23,6 +27,14 @@ export const TOOL_CAPS = {
   maxFilesPerChild: 25,
   maxTotalWriteBytes: 1_048_576,
 } as const
+
+/**
+ * ADR-038: how many controller-side test runs one proposal session may spend
+ * across ALL finalizeProposal retries. Two children per bundle = up to two
+ * runs per successful finalization; a failing bundle costs one per failing
+ * child, so 12 covers several fix-and-retry cycles.
+ */
+export const CANDIDATE_TEST_RUN_BUDGET = 12
 
 export class ToolError extends Error {
   constructor(message: string) {
@@ -48,6 +60,14 @@ export interface ProposerTools {
   readChild(childName: string, relPath: string): Promise<string>
   /** Write one file of a child source tree (the only mutation surface). */
   writeChildFile(childName: string, relPath: string, content: string): Promise<void>
+  /**
+   * TCB finalization at the submit boundary (ADR-034): v1 bundles pass
+   * through untouched; v2 receipt digests are DERIVED from the model's
+   * semantic fields against the trusted export manifest, parent facts and
+   * archive catalog — the model never authors a digest. Reads here are
+   * controller-staged facts, so they are not journaled into the access log.
+   */
+  finalizeProposal(proposal: unknown): Promise<ProposalOutput>
   /** Every operation so far, in order. */
   accessLog(): readonly AccessRecord[]
 }
@@ -99,10 +119,24 @@ async function existsReal(path: string): Promise<boolean> {
 export function openProposerTools(options: {
   inputRoot: string
   childrenRoot: string
+  /** Trusted admission facts; required to finalize a v2 proposal bundle. */
+  treeV2Parent?: { candidateDigest: string; mechanismOutcomeDigest: string }
+  parentSourceHash?: string
+  /**
+   * ADR-038: controller-side stage-6 suite runner over a merged parent+child
+   * view. Present on networked live routes (the worker speaks to the model
+   * gateway socket); absent on recorded routes, which skip the check — the
+   * controller's own typeLintUnit still gates every route.
+   */
+  candidateTestRunner?: (
+    childName: string,
+    files: Record<string, string>,
+  ) => Promise<{ ok: boolean; output: string }>
 }): ProposerTools {
   const log: AccessRecord[] = []
   const written = new Map<string, number>() // childName → bytes
   const fileCounts = new Map<string, number>()
+  let candidateTestRuns = 0
 
   const record = (entry: AccessRecord): void => {
     log.push(entry)
@@ -196,6 +230,118 @@ export function openProposerTools(options: {
     },
 
     accessLog: () => [...log],
+
+    async finalizeProposal(proposal) {
+      if (proposal === null || typeof proposal !== 'object' || Array.isArray(proposal)) {
+        throw new ToolError('finalizeProposal: proposal must be an object')
+      }
+      if ((proposal as Record<string, unknown>)['schemaVersion'] !== 2) {
+        return proposal as ProposalOutput
+      }
+      if (options.treeV2Parent === undefined || options.parentSourceHash === undefined) {
+        throw new ToolError('finalizeProposal: a v2 bundle requires trusted parent evidence')
+      }
+      // Controller-staged facts, read with the same containment proof as every
+      // other input read but without journaling: these are TCB operations, not
+      // model observations.
+      const readJson = async (rel: string): Promise<unknown> => {
+        const target = await resolveContained(options.inputRoot, rel, 'finalizeProposal')
+        try {
+          return JSON.parse(await readFile(target, 'utf8')) as unknown
+        } catch (error) {
+          throw new ToolError(
+            `finalizeProposal: ${rel} unreadable: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          )
+        }
+      }
+      // ADR-037: the finalizer enforces the modeComponents projection contract
+      // against the TCB-staged parent source view. parent-files.json is the
+      // same list the model reads; each file is read through the containment
+      // prover. Any staging gap fails the finalization closed.
+      const parentFileList = await readJson('parent-files.json')
+      if (
+        !Array.isArray(parentFileList) ||
+        parentFileList.some((entry) => typeof entry !== 'string')
+      ) {
+        throw new ToolError('finalizeProposal: parent-files.json must be a string array')
+      }
+      const parentSourceFiles: Record<string, string> = {}
+      for (const rel of parentFileList as string[]) {
+        const target = await resolveContained(options.inputRoot, `parent/${rel}`, 'finalizeProposal')
+        try {
+          parentSourceFiles[rel] = await readFile(target, 'utf8')
+        } catch (error) {
+          throw new ToolError(
+            `finalizeProposal: parent/${rel} unreadable: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          )
+        }
+      }
+      const finalized = await finalizeTreeV2Bundle({
+        proposal: proposal as ProposalOutput,
+        childrenRoot: options.childrenRoot,
+        exportManifest: (await readJson('export/manifest.json')) as ExportManifest,
+        treeV2Parent: options.treeV2Parent,
+        parentSourceHash: options.parentSourceHash,
+        catalog: (await readJson('archive-catalog.json')) as ArchiveCatalog,
+        parentSourceFiles,
+      })
+      if (options.candidateTestRunner === undefined) return finalized
+      // ADR-038: run the stage-6 suite over each child's merged parent+child
+      // view — parent files plus the child's written tree (child files shadow
+      // parent files), the same merge the builder's stage 3 materializes. A
+      // failure surfaces here as a tool error the model can fix and retry,
+      // instead of a silent controller rejection one attempt later.
+      const readChildTree = async (childName: string): Promise<Record<string, string>> => {
+        const files: Record<string, string> = {}
+        const childRoot = await resolveContained(options.childrenRoot, childName, 'finalizeProposal')
+        const walk = async (relDir: string): Promise<void> => {
+          for (const entry of await readdir(join(childRoot, relDir), { withFileTypes: true })) {
+            if (entry.name === 'node_modules') continue
+            const rel = relDir === '' ? entry.name : `${relDir}/${entry.name}`
+            if (entry.isDirectory()) {
+              await walk(rel)
+              continue
+            }
+            if (!entry.isFile()) continue
+            const target = await resolveContained(childRoot, rel, 'finalizeProposal')
+            files[rel] = await readFile(target, 'utf8')
+          }
+        }
+        await walk('')
+        return files
+      }
+      for (const child of finalized.children ?? []) {
+        if (candidateTestRuns >= CANDIDATE_TEST_RUN_BUDGET) {
+          throw new ToolError(
+            `finalizeProposal: candidate test budget exhausted (${CANDIDATE_TEST_RUN_BUDGET} runs)`,
+          )
+        }
+        candidateTestRuns += 1
+        const childFiles = await readChildTree(child.childName)
+        const files: Record<string, string> = { ...parentSourceFiles }
+        for (const [rel, content] of Object.entries(childFiles)) files[rel] = content
+        let result: { ok: boolean; output: string }
+        try {
+          result = await options.candidateTestRunner(child.childName, files)
+        } catch (error) {
+          throw new ToolError(
+            `finalizeProposal: candidate tests unavailable: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          )
+        }
+        if (!result.ok) {
+          throw new ToolError(
+            `finalizeProposal: child ${child.childName} candidate tests failed:\n${result.output}`,
+          )
+        }
+      }
+      return finalized
+    },
   }
   return tools
 }

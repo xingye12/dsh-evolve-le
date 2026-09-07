@@ -20,6 +20,11 @@
  * around holds observed handles, opaque guard ids and the sealed root only;
  * the guard map goes to the provider bridge (TCB) and nowhere else; the
  * proposer export is label-filtered and canary-checked by the controller.
+ * ADR-046 adds the dev-guard baseline segment (opaque guard trials with their
+ * own embedded canaries, observed-only failure pool) and the run-level
+ * information-flow monitor: export/proposal/journal boundaries that see a
+ * guard or sealed token outside its designated home end the run
+ * SAFETY_ABORTED with a fingerprint-only receipt.
  * @module @dsh-evolve-le/core/iteration/driver
  */
 
@@ -27,8 +32,10 @@ import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { buildCandidate } from '../builder/pipeline.js'
+import { buildCandidate, type BuildInput, type TreeV2BuildReceipts } from '../builder/pipeline.js'
+import { captureCanonicalSource } from '../candidate/canonical.js'
 import { loadCandidateSource } from '../candidate/store.js'
+import { stageDeclaredSource } from '../builder/staging.js'
 import {
   Controller,
   TERMINAL_ACTIONS,
@@ -38,23 +45,48 @@ import {
 import type { ProposalRunner } from '../controller/controller.js'
 import type { BenchmarkProvider } from '../controller/provider.js'
 import { buildArchiveCatalog } from '../proposer/catalog.js'
-import { createEvidenceExport, PROPOSER_READ_LABELS } from '../proposer/export.js'
-import { deriveCanaryTokens } from '../proposer/canary.js'
+import {
+  createEvidenceExport,
+  EvidenceExportCanaryError,
+  PROPOSER_READ_LABELS,
+} from '../proposer/export.js'
+import { deriveCanaryTokens, type CanaryHit } from '../proposer/canary.js'
+import { createInfoFlowMonitor, type InfoFlowMonitor } from './info-flow-monitor.js'
+import {
+  mergeProposalRejections,
+  proposalRejectionOf,
+  type ProposalRejectionRecord,
+} from '../proposer/feedback.js'
 import type { RunConfig } from '../config/run-config.js'
-import { proposalSandboxLimits } from '../config/run-config.js'
+import { proposalSandboxLimits, solverTrackOf } from '../config/run-config.js'
+import { solverRoutePlan } from '../proposer/remote-runner.js'
+import { remoteRoutePlanHash } from '../proposer/remote-gateway.js'
 import { drawNodeThompson, drawParentThompson } from '../selection/thompson.js'
+import {
+  buildTournamentCoverage,
+  drawTournamentShortlist,
+  eligibleTournamentNodes,
+  scoreTournament,
+  tripleLockHash,
+  type TournamentCoverageWave,
+} from '../selection/tournament.js'
 import { shouldExpand } from '../selection/ucbair.js'
-import { runSplitCeremony, type SplitCeremony } from '../split/ceremony.js'
+import { runSplitCeremony, type SplitCeremony, type SplitCounts } from '../split/ceremony.js'
 import { stateHashOf } from '../state/reducer.js'
+import { readJournal } from '../state/journal.js'
 import type { RngReceipt } from '../state/rng.js'
 import type { ObjectRef } from '../state/object-store.js'
 import { hashDrawInput, sampleIndex } from '../state/rng.js'
 import { openObjectStore } from '../state/object-store.js'
-import { canonicalHash } from '../state/canonical.js'
+import { canonicalHash, canonicalJson } from '../state/canonical.js'
+import { persistTreeV2ReceiptDocument } from '../tree-v2/receipts.js'
+import { persistTreeV2MigrationReceipt } from '../tree-v2/migration.js'
+import type { TreeV2Receipt } from '../tree-v2/contract.js'
 
 export const ITERATION_PROTOCOL = 'dsh-evolve-le/iteration/v1'
 export const SEARCH_STATE_PROTOCOL = 'dsh-evolve-le/search-state/v1'
 export const FAILURE_POOL_PROTOCOL = 'dsh-evolve-le/failure-pool/v1'
+export const TREE_V2_MIGRATION_BINDING_PROTOCOL = 'dsh-evolve-le/tree-v2-migration-binding/v1'
 
 /** A trusted-builder capsule the driver can hand to the provider bridge. */
 export interface BuiltCapsule {
@@ -67,11 +99,19 @@ export interface BuiltCapsule {
   stagedSourceDir: string
   /** Capsule tar.gz on disk (content-addressed name). */
   archivePath: string
+  treeV2?: {
+    modeFingerprints: Record<'solve' | 'propose', string>
+    mechanismOutcomeDigest: string
+    admissionReceiptDigest: string
+    /** Builder-owned documents copied into the durable run evidence tree. */
+    receipts?: TreeV2BuildReceipts
+  }
 }
 
 export type BuildCapsuleFn = (
   sourceDir: string,
   parentTreeDir?: string,
+  treeV2ParentEvidence?: BuildInput['treeV2ParentEvidence'],
 ) => Promise<BuildCapsuleResult>
 
 /**
@@ -124,8 +164,39 @@ export interface IterationDriverInput {
   runRoot: string
   /** Pinned task handles (the full dataset population, inventory order). */
   handles: readonly string[]
+  /** Split allocation frozen during init for filtered populations. */
+  splitCounts?: SplitCounts
   provider: BenchmarkProvider
   bridge: ProviderBridge
+  /** Content-addressed Docker warm-up receipt supplied by the real CLI composition. */
+  imagePrefetchReceipt?: {
+    protocol: string
+    path: 'image-prefetch.json'
+    sha256: string
+    imageCount: number
+  }
+  /**
+   * Run-scoped verifier image repair receipt. Live solver runs may use a
+   * derived task copy whose verifier dependencies were baked before launch;
+   * this binds that repair to the manifest instead of silently changing the
+   * upstream task environment.
+   */
+  verifierImageReceipt?: {
+    protocol: string
+    path: 'verifier-image-receipt.json'
+    sha256: string
+    taskCount: number
+  }
+  /**
+   * Pre-registered sealed plan receipt (ADR-047/048): mandatory on the
+   * `terminal-bench-formal` profile — drive() fails closed before any
+   * external effect when it is absent, and the champion lock binds its hash.
+   */
+  sealedPlanReceipt?: {
+    protocol: string
+    path: 'sealed-plan.json'
+    sha256: string
+  }
   /** Defaults to the trusted builder; tests substitute a deterministic fake. */
   buildCapsule?: BuildCapsuleFn
   /** Sandbox runner seam (tests); defaults to the real one-shot sandbox. */
@@ -148,6 +219,9 @@ export type StopReason =
   | 'NO_ADMISSIBLE_CHILD'
   | 'NO_REAL_FAILURE_SIGNAL'
   | 'NO_ADMISSIBLE_TASK'
+  | 'SAFETY_ABORTED'
+  | 'NO_DEVELOPMENT_IMPROVEMENT'
+  | 'CHAMPION_LOCKED'
 
 export interface DriveReport {
   runId: string
@@ -159,8 +233,13 @@ export interface DriveReport {
    * §11); otherwise `STOPPED:<stopReason>`.
    */
   status: string
-  /** Committed observations (discovery + search). */
+  /**
+   * Committed SEARCH-phase observations (discovery + search) — ADR-049:
+   * `tourn-` rows are excluded and reported as `tournamentTrials`, so the
+   * per-phase envelopes bound the two paid phases separately.
+   */
   trials: number
+  /** Baseline-candidate search-phase observations (the matrix rows). */
   discoveryTrials: number
   admittedNonBaseline: number
   /** Longest parent chain from the baseline to any candidate. */
@@ -175,12 +254,39 @@ export interface DriveReport {
   failurePool: string[]
   stateHash: string
   budget: Record<string, { spent: number; reserved: number }>
+  /**
+   * Champion tournament facts (ADR-047): present only when the run entered
+   * the tournament (formal profile + K_REACHED). `tournamentTrials` counts
+   * committed `tourn-` observations; the lock fields carry the champion's
+   * triple hash on CANDIDATE_LOCKED / NO_DEVELOPMENT_IMPROVEMENT resumes.
+   */
+  tournamentTrials?: number
+  /** Shortlist node ids in draw order (primary path only). */
+  shortlist?: string[]
+  championId?: string
+  championLockHash?: string
 }
 
 export class IterationDriverError extends Error {
   constructor(message: string) {
     super(`iteration: ${message}`)
     this.name = 'IterationDriverError'
+  }
+}
+
+/**
+ * Internal abort signal (ADR-046): a monitor token surfaced on a guarded
+ * boundary. drive() catches it, reports the hit to the information-flow
+ * monitor, and closes the run as SAFETY_ABORTED — never as an ordinary
+ * search failure.
+ */
+class SafetyAbort extends Error {
+  constructor(
+    readonly surface: string,
+    readonly hits: CanaryHit[],
+  ) {
+    super(`information-flow breach on surface ${surface}: ${hits.length} canary fingerprint(s)`)
+    this.name = 'SafetyAbort'
   }
 }
 
@@ -193,6 +299,13 @@ interface CapsuleRecord {
   capsuleDir: string
   stagedSourceDir: string
   archivePath: string
+  treeV2?: {
+    modeFingerprints: Record<'solve' | 'propose', string>
+    mechanismOutcomeDigest: string
+    admissionReceiptDigest: string
+    /** Content-addressed builder receipts; absent on pre-tree-v2/test records. */
+    receiptRefs?: Record<string, ObjectRef>
+  }
 }
 
 interface SearchState {
@@ -207,6 +320,10 @@ interface SearchState {
   /** Children of crash-abandoned expansion intents (specs/03 §7); absent on
    * pre-ADR-026 run roots, normalized to []. */
   abandonedIntents?: AbandonedIntent[]
+  /** Per-expansion rejected children + reasons (ADR-044), merged idempotently
+   * in the same save as the expansion counters; absent on pre-ADR-044 run
+   * roots, normalized to []. */
+  proposalRejections?: ProposalRejectionRecord[]
 }
 
 interface FailurePoolDoc {
@@ -214,6 +331,15 @@ interface FailurePoolDoc {
   handles: string[]
   frozenFromObservations: number
   poolHash: string
+}
+
+interface TreeV2MigrationBinding {
+  protocol: typeof TREE_V2_MIGRATION_BINDING_PROTOCOL
+  legacySourceDigest: string
+  treeV2SourceDigest: string
+  resultsInherited: false
+  receipt: TreeV2Receipt
+  receiptRef: ObjectRef
 }
 
 const CANARY_COUNT = 4
@@ -225,32 +351,47 @@ const CANARY_COUNT = 4
  * "全部 build reject …… 计作一次失败"), while builder-environment errors the
  * builder raises itself still propagate and fail the run closed.
  */
-const defaultBuildCapsule: BuildCapsuleFn = async (sourceDir, parentTreeDir) => {
-  const workRoot = await mkdtemp(join(tmpdir(), 'dsh-iterate-build-'))
-  const build = await buildCandidate({
-    sourceDir,
-    workRoot,
-    ...(parentTreeDir !== undefined ? { parentTreeDir } : {}),
-  })
-  if (build.outcome !== 'admitted' || build.capsule === undefined) {
+const defaultBuildCapsule =
+  (nativeDsh: NonNullable<RunConfig['nativeDsh']>): BuildCapsuleFn =>
+  async (sourceDir, parentTreeDir, treeV2ParentEvidence) => {
+    const workRoot = await mkdtemp(join(tmpdir(), 'dsh-iterate-build-'))
+    const build = await buildCandidate({
+      sourceDir,
+      workRoot,
+      nativeDshCatalogRoot: nativeDsh.catalogRoot,
+      expectedDependencyClosureSha256: nativeDsh.dependencyClosureSha256,
+      ...(parentTreeDir !== undefined ? { parentTreeDir } : {}),
+      ...(treeV2ParentEvidence !== undefined ? { treeV2ParentEvidence } : {}),
+    })
+    if (build.outcome !== 'admitted' || build.capsule === undefined) {
+      return {
+        outcome: 'rejected',
+        stage: build.rejection?.stage ?? 'unknown',
+        reason: build.rejection?.reason ?? 'unknown rejection',
+      }
+    }
     return {
-      outcome: 'rejected',
-      stage: build.rejection?.stage ?? 'unknown',
-      reason: build.rejection?.reason ?? 'unknown rejection',
+      outcome: 'admitted',
+      capsule: {
+        candidateId: build.candidateId,
+        sourceDigest: build.sourceDigest,
+        archiveSha256: build.capsule.archiveSha256,
+        capsuleDir: build.artifacts.capsuleDir,
+        stagedSourceDir: join(build.artifacts.workRoot, 'staged-src'),
+        archivePath: build.artifacts.capsuleArchive,
+        ...(build.treeV2 === undefined
+          ? {}
+          : {
+              treeV2: {
+                modeFingerprints: build.treeV2.modeFingerprints,
+                mechanismOutcomeDigest: build.treeV2.receipts.mechanismOutcome.receiptDigest,
+                admissionReceiptDigest: build.treeV2.receipts.admission.receiptDigest,
+                receipts: build.treeV2.receipts,
+              },
+            }),
+      },
     }
   }
-  return {
-    outcome: 'admitted',
-    capsule: {
-      candidateId: build.candidateId,
-      sourceDigest: build.sourceDigest,
-      archiveSha256: build.capsule.archiveSha256,
-      capsuleDir: build.artifacts.capsuleDir,
-      stagedSourceDir: join(build.artifacts.workRoot, 'staged-src'),
-      archivePath: build.artifacts.capsuleArchive,
-    },
-  }
-}
 
 function shortId(candidateId: string): string {
   return candidateId.replace(/^c_?/, '').slice(0, 8)
@@ -260,9 +401,19 @@ export class IterationDriver {
   private readonly buildCapsule: BuildCapsuleFn
   private readonly canaryCount: number
   private controller: Controller | undefined
+  /** Run-level information-flow monitor (created in drive(), before the matrix). */
+  private monitor: InfoFlowMonitor | undefined
 
   constructor(private readonly input: IterationDriverInput) {
-    this.buildCapsule = input.buildCapsule ?? defaultBuildCapsule
+    if (input.buildCapsule !== undefined) {
+      this.buildCapsule = input.buildCapsule
+    } else if (input.config.nativeDsh !== undefined) {
+      this.buildCapsule = defaultBuildCapsule(input.config.nativeDsh)
+    } else {
+      throw new IterationDriverError(
+        'native DSH runtime lock is required when using the built-in candidate admission pipeline',
+      )
+    }
     this.canaryCount = input.canaryCount ?? CANARY_COUNT
   }
 
@@ -326,6 +477,28 @@ export class IterationDriver {
       await rm(stagedSourceDir, { recursive: true, force: true })
       await cp(built.stagedSourceDir, stagedSourceDir, { recursive: true })
     }
+    let treeV2ReceiptRefs: Record<string, ObjectRef> | undefined
+    if (built.treeV2?.receipts !== undefined) {
+      const store = await openObjectStore(join(this.runRoot, 'objects'))
+      treeV2ReceiptRefs = {}
+      const receiptFiles = {
+        'mechanism-outcome': built.treeV2.receipts.mechanismOutcome,
+        'capability-catalog': built.treeV2.receipts.capabilityCatalog,
+        'materialization-receipt': built.treeV2.receipts.materialization,
+        'admission-receipt': built.treeV2.receipts.admission,
+      }
+      for (const [name, receipt] of Object.entries(receiptFiles)) {
+        treeV2ReceiptRefs[name] = await persistTreeV2ReceiptDocument(
+          store,
+          name as
+            | 'mechanism-outcome'
+            | 'capability-catalog'
+            | 'materialization-receipt'
+            | 'admission-receipt',
+          receipt,
+        )
+      }
+    }
     const record: CapsuleRecord = {
       protocol: ITERATION_PROTOCOL,
       candidateId: built.candidateId,
@@ -334,6 +507,16 @@ export class IterationDriver {
       capsuleDir: 'capsules/' + `${built.candidateId}/capsule`,
       stagedSourceDir: 'capsules/' + `${built.candidateId}/src`,
       archivePath: 'capsules/' + `${built.archiveSha256}.tar.gz`,
+      ...(built.treeV2 === undefined
+        ? {}
+        : {
+            treeV2: {
+              modeFingerprints: built.treeV2.modeFingerprints,
+              mechanismOutcomeDigest: built.treeV2.mechanismOutcomeDigest,
+              admissionReceiptDigest: built.treeV2.admissionReceiptDigest,
+              ...(treeV2ReceiptRefs === undefined ? {} : { receiptRefs: treeV2ReceiptRefs }),
+            },
+          }),
     }
     await this.freeze(this.recordPath(built.candidateId), record)
     await this.input.bridge.registerCapsule(built.candidateId, {
@@ -347,6 +530,10 @@ export class IterationDriver {
     const record = await this.readJson<CapsuleRecord>(this.recordPath(candidateId))
     if (record === null) {
       throw new IterationDriverError(`no capsule record for ${candidateId} (partial run?)`)
+    }
+    if (record.treeV2?.receiptRefs !== undefined) {
+      const store = await openObjectStore(join(this.runRoot, 'objects'))
+      await store.scrub(Object.values(record.treeV2.receiptRefs))
     }
     return record
   }
@@ -421,11 +608,13 @@ export class IterationDriver {
         )
       }
       // Pre-ADR-026 run roots predate the rejection/abandonment accounting;
-      // normalize so one code path reads the state.
+      // pre-ADR-044 roots predate proposal-rejection feedback; normalize so
+      // one code path reads the state.
       return {
         ...existing,
         rebuildRejections: existing.rebuildRejections ?? [],
         abandonedIntents: existing.abandonedIntents ?? [],
+        proposalRejections: existing.proposalRejections ?? [],
       }
     }
     const fresh: SearchState = {
@@ -436,6 +625,7 @@ export class IterationDriver {
       maxConsecutiveExpansionFailures: frozen,
       rebuildRejections: [],
       abandonedIntents: [],
+      proposalRejections: [],
     }
     await this.writeJson(path, fresh)
     return fresh
@@ -454,16 +644,52 @@ export class IterationDriver {
     const controllerDir = join(runRoot, 'controller')
     const objectsRoot = join(runRoot, 'objects')
 
+    // --- formal gate (ADR-047/048): the pre-registered sealed plan receipt
+    // is mandatory on the formal profile — fail closed before any external
+    // effect, not after the search has spent money.
+    if (config.profile === 'terminal-bench-formal' && this.input.sealedPlanReceipt === undefined) {
+      throw new IterationDriverError(
+        'profile terminal-bench-formal requires the pre-registered sealed plan receipt',
+      )
+    }
+
     // --- ceremony: idempotent, concealment-checked -----------------------
     const ceremony = runSplitCeremony({
       runId: config.runId,
       masterSeed: config.masterSeed,
       handles: [...this.input.handles],
+      ...(this.input.splitCounts !== undefined ? { counts: this.input.splitCounts } : {}),
     })
     await this.freeze(join(runRoot, 'split-ceremony.json'), ceremony.ceremony)
     await this.input.bridge.setGuardMap(ceremony.sealedStore.guardMap)
 
+    // --- information-flow monitor (ADR-046): deterministic canary families
+    // for every guard task + the sealed sweep; owns every SAFETY_ABORTED
+    // decision in this run.
+    this.monitor = createInfoFlowMonitor({
+      runRoot,
+      runId: config.runId,
+      masterSeed: config.masterSeed,
+      guardOpaqueIds: ceremony.ceremony.guardOpaqueIds,
+      canaryCount: this.canaryCount,
+      ...(this.input.clock !== undefined ? { clock: this.input.clock } : {}),
+    })
+
     // --- run manifest: the config freeze point (specs/06 §2) -------------
+    // Solver fields spread only when a solver route is configured (ADR-030,
+    // R1): an unconditioned key would change the manifest document and fail
+    // `freeze()` on resume of every pre-solver run root.
+    const solverPlan = solverRoutePlan(config)
+    if (
+      solverPlan !== null &&
+      config.benchmark.harbor.prefetchImages === true &&
+      this.input.provider.name === 'terminal-bench-2-1/harbor' &&
+      this.input.imagePrefetchReceipt === undefined
+    ) {
+      throw new IterationDriverError(
+        'real live-solver provider has no content-addressed image-prefetch receipt',
+      )
+    }
     const manifest = {
       schemaVersion: 1,
       protocol: ITERATION_PROTOCOL,
@@ -473,6 +699,21 @@ export class IterationDriver {
       datasetHandlesHash: `sha256:${canonicalHash([...this.input.handles].sort())}`,
       sealedRoot: ceremony.ceremony.sealedRoot,
       sealedCount: ceremony.ceremony.sealedCount,
+      ...(solverPlan !== null
+        ? {
+            solverTrack: solverTrackOf(config) ?? 'assisted',
+            solverRouteHash: remoteRoutePlanHash(solverPlan),
+          }
+        : {}),
+      ...(solverPlan !== null && this.input.imagePrefetchReceipt !== undefined
+        ? { imagePrefetchReceipt: this.input.imagePrefetchReceipt }
+        : {}),
+      ...(solverPlan !== null && this.input.verifierImageReceipt !== undefined
+        ? { verifierImageReceipt: this.input.verifierImageReceipt }
+        : {}),
+      ...(this.input.sealedPlanReceipt !== undefined
+        ? { sealedPlanReceipt: this.input.sealedPlanReceipt }
+        : {}),
       config,
     }
     await this.freeze(join(runRoot, 'run-manifest.json'), manifest)
@@ -490,6 +731,11 @@ export class IterationDriver {
           'proposal-calls': config.budget.proposalCalls,
           'task-trials': config.budget.taskTrials,
           'wall-clock-seconds': config.budget.wallClockMinutes * 60,
+          // Carried only when the run solves live (ADR-030 D2): the presence
+          // of the dimension is what gates the controller's solver settles.
+          ...(config.budget.solverTokens !== undefined
+            ? { 'solver-tokens': config.budget.solverTokens }
+            : {}),
         },
         ...(this.input.proposalRunner !== undefined
           ? { proposalRunner: this.input.proposalRunner as ProposalRunner }
@@ -511,16 +757,71 @@ export class IterationDriver {
       // --- baseline: build once, register, admit -------------------------
       const baselineId = await this.ensureBaseline()
 
-      // --- discovery → frozen failure pool --------------------------------
-      const pool = await this.discoverFailures(baselineId)
+      // --- tournament terminal resume (ADR-047) ---------------------------
+      // A locked or NO_DEVELOPMENT_IMPROVEMENT run must never re-derive the
+      // failure pool: the baseline's tournament rows are part of the record
+      // and (e.g. when the baseline won) may leave zero matrix failures — a
+      // re-freeze would mislabel the run NO_REAL_FAILURE_SIGNAL. Read the
+      // frozen doc read-only and report straight from the reducer.
+      const terminalPhase =
+        controller.state.phase === 'CANDIDATE_LOCKED' ||
+        controller.state.phase === 'NO_DEVELOPMENT_IMPROVEMENT'
+
+      // --- discovery / benchmark baseline → frozen failure pool -----------
+      // ADR-042 (specs/04 §4.2): a pre-registered benchmarkBaseline replaces
+      // the stable-demo discovery phase with the full matrix.
+      const pool = terminalPhase
+        ? ((await this.readJson<FailurePoolDoc>(join(runRoot, 'failure-pool.json')))?.handles ??
+          null)
+        : config.search.benchmarkBaseline !== undefined
+          ? await this.freezeBenchmarkBaseline(baselineId)
+          : await this.discoverFailures(baselineId)
+
+      const monitor = this.monitor
+      if (monitor === undefined) throw new IterationDriverError('information-flow monitor missing')
 
       let stopReason: StopReason
-      if (pool === null) {
-        stopReason = 'NO_REAL_FAILURE_SIGNAL'
-      } else {
-        const searched = await this.search(baselineId, pool)
-        stopReason = searched.stopReason
-        searchState = searched.searchState
+      let safetyAbort: { surface: string; hits: CanaryHit[] } | null = null
+      let tournament: {
+        shortlist?: string[]
+        championId?: string
+        championLockHash?: string
+      } | null = null
+      try {
+        if (terminalPhase) {
+          // Resume after a tournament terminal (ADR-047): never re-enter the
+          // search loop; the report re-reads the lock facts from the reducer.
+          stopReason =
+            controller.state.phase === 'CANDIDATE_LOCKED'
+              ? 'CHAMPION_LOCKED'
+              : 'NO_DEVELOPMENT_IMPROVEMENT'
+          const lock = controller.state.locks.candidateLock
+          tournament = {
+            ...(lock !== null
+              ? { championId: lock.candidateId, championLockHash: lock.lockHash }
+              : {}),
+          }
+        } else if (pool === null) {
+          stopReason = 'NO_REAL_FAILURE_SIGNAL'
+        } else {
+          const searched = await this.search(baselineId, pool)
+          stopReason = searched.stopReason
+          searchState = searched.searchState
+          // Champion tournament (ADR-047, specs/03 §11): only after K_REACHED
+          // on the formal profile; any other profile stops at K as before.
+          if (stopReason === 'K_REACHED' && config.profile === 'terminal-bench-formal') {
+            const ran = await this.runTournament(baselineId, pool)
+            stopReason = ran.stopReason
+            tournament = ran.result
+          }
+        }
+      } catch (error) {
+        if (error instanceof SafetyAbort) {
+          safetyAbort = { surface: error.surface, hits: error.hits }
+          stopReason = 'SAFETY_ABORTED'
+        } else {
+          throw error
+        }
       }
 
       // --- archive catalog ------------------------------------------------
@@ -528,6 +829,38 @@ export class IterationDriver {
         createdFromStateHash: `sha256:${stateHashOf(controller.state)}`,
       })
       await this.writeJson(join(runRoot, 'archive-catalog.json'), catalog)
+
+      // --- information-flow close-out (ADR-046, specs/05 §10) -------------
+      // A surface abort reports its hit first; then the terminal journal
+      // sweep checks every committed event (the guard embedding is the only
+      // designated home). A clean run writes the canary-absence receipt; an
+      // aborted one stays invalidated.
+      if (safetyAbort !== null) {
+        await monitor.reportHit(safetyAbort.surface, safetyAbort.hits)
+        if (controller.state.phase !== 'SAFETY_ABORTED') {
+          await controller.changePhase(
+            'SAFETY_ABORTED',
+            `information-flow breach on surface ${safetyAbort.surface}`,
+          )
+        }
+      }
+      const { events: journalEvents } = await readJournal(controllerDir, {
+        runId: config.runId,
+        segmentMaxBytes: 1 << 20,
+      })
+      const sweepHits = monitor.sweepJournal(journalEvents)
+      if (sweepHits.length > 0) {
+        stopReason = 'SAFETY_ABORTED'
+        await monitor.reportHit('journal-sweep', sweepHits)
+        if (controller.state.phase !== 'SAFETY_ABORTED') {
+          await controller.changePhase(
+            'SAFETY_ABORTED',
+            'terminal journal sweep found a canary outside its designated home',
+          )
+        }
+      } else if (safetyAbort === null) {
+        await monitor.writeCleanReceipt(journalEvents.length)
+      }
 
       const observations = Object.values(controller.state.observations)
       const lineageDepthMax = this.lineageDepthMax()
@@ -549,9 +882,16 @@ export class IterationDriver {
         runId: config.runId,
         phase: controller.state.phase,
         stopReason,
-        status: stableVerified ? 'STABLE_ITERATION_VERIFIED' : `STOPPED:${stopReason}`,
-        trials: observations.length,
-        discoveryTrials: observations.filter((o) => o.candidateId === baselineId).length,
+        status:
+          stopReason === 'CHAMPION_LOCKED'
+            ? 'CHAMPION_LOCKED'
+            : stableVerified
+              ? 'STABLE_ITERATION_VERIFIED'
+              : `STOPPED:${stopReason}`,
+        trials: observations.filter((o) => !o.actionId.startsWith('tourn-')).length,
+        discoveryTrials: observations.filter(
+          (o) => o.candidateId === baselineId && !o.actionId.startsWith('tourn-'),
+        ).length,
         admittedNonBaseline: this.admittedIds().length - 1,
         lineageDepthMax,
         expansionAttempts: searchState.expansionAttempts,
@@ -566,6 +906,20 @@ export class IterationDriver {
             { spent: totals.spent, reserved: totals.reserved },
           ]),
         ),
+        ...(tournament !== null
+          ? {
+              tournamentTrials: observations.filter((o) => o.actionId.startsWith('tourn-')).length,
+              ...(tournament.shortlist !== undefined ? { shortlist: tournament.shortlist } : {}),
+              ...(tournament.championId !== undefined
+                ? {
+                    championId: tournament.championId,
+                    ...(tournament.championLockHash !== undefined
+                      ? { championLockHash: tournament.championLockHash }
+                      : {}),
+                  }
+                : {}),
+            }
+          : {}),
       }
       await this.writeJson(join(runRoot, 'drive-report.json'), report)
       return report
@@ -580,7 +934,12 @@ export class IterationDriver {
     const state = this.controller?.state
     if (state === undefined) return []
     return Object.values(state.candidates)
-      .filter((candidate) => candidate.status === 'admitted' || candidate.status === 'dev-champion')
+      .filter(
+        (candidate) =>
+          candidate.status === 'admitted' ||
+          candidate.status === 'dev-champion' ||
+          candidate.status === 'locked',
+      )
       .map((candidate) => candidate.candidateId)
       .sort()
   }
@@ -611,9 +970,13 @@ export class IterationDriver {
       (candidate) => candidate.parentCandidateId === null,
     )
     if (existing !== undefined) {
-      await this.ensureCapsuleBound(existing.candidateId, () => {
+      const record = await this.ensureCapsuleBound(existing.candidateId, () => {
         throw new IterationDriverError(`baseline ${existing.candidateId} has no capsule record`)
       })
+      await this.assertBaselineProtocol(record)
+      if (this.config.candidateProtocol === 'tree-v2') {
+        await this.ensureTreeV2Migration(record)
+      }
       if (existing.status === 'registered') {
         await controller.changeCandidateStatus({
           candidateId: existing.candidateId,
@@ -632,7 +995,11 @@ export class IterationDriver {
       )
     }
     const built = baselineBuild.capsule
+    await this.assertBaselineProtocol(built)
     const record = await this.persistCapsule(built)
+    if (this.config.candidateProtocol === 'tree-v2') {
+      await this.ensureTreeV2Migration(record)
+    }
     await controller.registerCandidate({
       candidateId: built.candidateId,
       sourceHash: built.sourceDigest,
@@ -645,6 +1012,58 @@ export class IterationDriver {
       reason: `lineage root baseline admitted by the trusted builder (${record.archiveSha256.slice(0, 16)}…)`,
     })
     return built.candidateId
+  }
+
+  private async assertBaselineProtocol(
+    baseline: Pick<BuiltCapsule | CapsuleRecord, 'candidateId' | 'treeV2'>,
+  ): Promise<void> {
+    if (this.config.candidateProtocol === 'tree-v2' && baseline.treeV2 === undefined) {
+      throw new IterationDriverError(
+        `configured tree-v2 baseline ${baseline.candidateId} was admitted as legacy-v1`,
+      )
+    }
+    if (this.config.candidateProtocol === 'legacy-v1' && baseline.treeV2 !== undefined) {
+      throw new IterationDriverError(
+        `configured legacy-v1 baseline ${baseline.candidateId} was admitted as tree-v2`,
+      )
+    }
+  }
+
+  /**
+   * Bind a parentless tree-v2 root to the exact legacy source it supersedes.
+   * The receipt is frozen before discovery, and explicitly forbids inheriting
+   * any old score or trial result.
+   */
+  private async ensureTreeV2Migration(root: Pick<CapsuleRecord, 'sourceDigest'>): Promise<void> {
+    const legacySourceDir = this.config.benchmark.legacyBaselineSourceDir
+    if (legacySourceDir === undefined) {
+      throw new IterationDriverError('tree-v2 migration has no configured legacy baseline source')
+    }
+    const scratch = await mkdtemp(join(tmpdir(), 'dsh-tree-v2-legacy-'))
+    let legacySourceDigest: string
+    try {
+      const staged = join(scratch, 'source')
+      await stageDeclaredSource(legacySourceDir, staged)
+      legacySourceDigest = `sha256:${(await captureCanonicalSource(staged)).sha256}`
+    } finally {
+      await rm(scratch, { recursive: true, force: true })
+    }
+    const store = await openObjectStore(join(this.runRoot, 'objects'))
+    const persisted = await persistTreeV2MigrationReceipt(store, {
+      legacyCandidateDigest: legacySourceDigest,
+      treeV2CandidateDigest: root.sourceDigest,
+      sourceDigest: root.sourceDigest,
+    })
+    const binding: TreeV2MigrationBinding = {
+      protocol: TREE_V2_MIGRATION_BINDING_PROTOCOL,
+      legacySourceDigest,
+      treeV2SourceDigest: root.sourceDigest,
+      resultsInherited: false,
+      receipt: persisted.receipt,
+      receiptRef: persisted.ref,
+    }
+    await this.freeze(join(this.runRoot, 'tree-v2-migration.json'), binding)
+    await store.verify(persisted.ref)
   }
 
   /**
@@ -714,35 +1133,45 @@ export class IterationDriver {
       }
 
       const batchIndex = Math.floor(done.length / batchSize)
-      const waveId = `discovery-${batchIndex + 1}`
       const batch = ceremony.observedHandles.slice(
         batchIndex * batchSize,
-        (batchIndex + 1) * batchSize,
+        Math.min((batchIndex + 1) * batchSize, config.search.maxDiscoveryTrials),
       )
-      const members = batch.map((handle) => `eval-${shortId(baselineId)}-${handle}`)
-      const wave = controller.state.waves[waveId]
-      if (wave === undefined) {
-        await controller.planWave(waveId, 'dev-observed', members)
-      } else if (
-        wave.members.length !== members.length ||
-        wave.members.some((member, index) => member !== members[index])
-      ) {
-        throw new IterationDriverError(
-          `discovery wave ${waveId} disagrees with the frozen ceremony order`,
-        )
-      }
-      for (const handle of batch) {
-        await controller.runEvaluation({
+      const concurrency = config.benchmark.harbor.concurrentTrials
+      // A discovery decision batch may contain several provider waves. Each
+      // wave is planned independently so it can commit after its concurrent
+      // jobs finish, while the failure pool still freezes at the batch boundary.
+      const batchStart = batchIndex * batchSize
+      let offset = Math.max(0, done.length - batchStart)
+      while (offset < batch.length) {
+        const chunk = batch.slice(offset, offset + concurrency)
+        const waveIndex = Math.floor(offset / concurrency) + 1
+        const waveId = `discovery-${batchIndex + 1}-${waveIndex}`
+        const members = chunk.map((handle) => `eval-${shortId(baselineId)}-${handle}`)
+        const wave = controller.state.waves[waveId]
+        if (wave === undefined) {
+          await controller.planWave(waveId, 'dev-observed', members)
+        } else if (
+          wave.members.length !== members.length ||
+          wave.members.some((member, index) => member !== members[index])
+        ) {
+          throw new IterationDriverError(
+            `discovery wave ${waveId} disagrees with the frozen ceremony order`,
+          )
+        }
+        const inputs = chunk.map((handle) => ({
           actionId: `eval-${shortId(baselineId)}-${handle}`,
           candidateId: baselineId,
           opaqueTaskId: handle,
           attempt: 1,
-          split: 'dev-observed',
+          split: 'dev-observed' as const,
           waveId,
           estimate: this.trialEstimate(),
-        })
+        }))
+        await controller.runEvaluationWave(inputs)
+        await controller.commitWave(waveId)
+        offset += chunk.length
       }
-      await controller.commitWave(waveId)
     }
     if (controller.state.phase === 'PREFLIGHT' || controller.state.phase === 'DRAFT') {
       await controller.changePhase(
@@ -753,14 +1182,616 @@ export class IterationDriver {
     return poolDoc.handles
   }
 
-  /** Worst-case reservation per development trial (frozen by the config). */
-  private trialEstimate(): Array<{ dimension: 'usd' | 'task-trials'; amount: number }> {
+  /**
+   * Benchmark baseline freeze (specs/04 §4.2, ADR-042, ADR-046): when the
+   * config pre-registers `search.benchmarkBaseline`, this replaces the
+   * stable-demo discovery phase (specs/04 §4.1) with the full matrix — the
+   * first `taskCount` development tasks in frozen ceremony order (observed
+   * handles first, then opaque `guard-NN` tasks up to the development split),
+   * `attemptsPerTask` attempts each, scheduled in batches of `batchSize`
+   * (waves `baseline-<attempt>-<batch>-<wave>`). The failure pool freezes
+   * only after the WHOLE matrix produced real outcomes: pool = OBSERVED
+   * tasks with zero successful attempts (with attemptsPerTask > 1, a task
+   * the baseline solves at least once is solvable by the baseline and is not
+   * a search target); guard outcomes never enter the pool — the pool doubles
+   * as proposer evidence supply, and a guard id in it would hit the export
+   * label check (ADR-046). An empty pool stops the run honestly
+   * (NO_REAL_FAILURE_SIGNAL); an infra-dead observation fails closed before
+   * any proposal (ADR-028).
+   *
+   * Guard trials carry their own canary (`infoFlowGuardCanary`, derived from
+   * the guard task's family): the designated home the information-flow
+   * monitor tolerates at sweep time.
+   *
+   * Crash resume: the wave schedule is deterministic (ceremony order ×
+   * attempt), so re-running it verifies every existing wave's membership and
+   * completes only the missing actions — each launch is exactly-once by key
+   * (specs/06 §12). No re-planning, no shift by observation count.
+   */
+  private async freezeBenchmarkBaseline(baselineId: string): Promise<string[] | null> {
+    const controller = this.controller
+    if (controller === undefined) throw new IterationDriverError('controller not open')
+    const config = this.config
+    const baseline = config.search.benchmarkBaseline
+    if (baseline === undefined) {
+      throw new IterationDriverError('benchmarkBaseline not configured')
+    }
+    const ceremony = await this.readJson<SplitCeremony>(join(this.runRoot, 'split-ceremony.json'))
+    if (ceremony === null) throw new IterationDriverError('split ceremony missing')
+    const monitor = this.monitor
+    if (monitor === undefined) throw new IterationDriverError('information-flow monitor missing')
+    const developmentCount = ceremony.observedHandles.length + ceremony.guardOpaqueIds.length
+    if (baseline.taskCount > developmentCount) {
+      throw new IterationDriverError(
+        `benchmarkBaseline.taskCount=${baseline.taskCount} exceeds the development split (${developmentCount} handles)`,
+      )
+    }
+    const observedTasks = ceremony.observedHandles.slice(0, baseline.taskCount)
+    // Guard segment (ADR-046): opaque dev-guard tasks fill the matrix up to
+    // taskCount once the observed segment is exhausted.
+    const guardIds = ceremony.guardOpaqueIds.slice(0, baseline.taskCount - observedTasks.length)
+    const tasks = [...observedTasks, ...guardIds]
+    const guardSet = new Set(guardIds)
+    const concurrency = config.benchmark.harbor.concurrentTrials
+    const short = shortId(baselineId)
+    const batchCount = Math.ceil(baseline.taskCount / baseline.batchSize)
+
+    for (let attempt = 1; attempt <= baseline.attemptsPerTask; attempt += 1) {
+      for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
+        const batch = tasks.slice(
+          batchIndex * baseline.batchSize,
+          Math.min((batchIndex + 1) * baseline.batchSize, tasks.length),
+        )
+        for (let offset = 0; offset < batch.length; offset += concurrency) {
+          const chunk = batch.slice(offset, offset + concurrency)
+          const waveIndex = Math.floor(offset / concurrency) + 1
+          const waveId = `baseline-${attempt}-${batchIndex + 1}-${waveIndex}`
+          // The action id carries the attempt: reserve() early-returns on an
+          // existing action id, so an attempt-agnostic id would silently skip
+          // every attempt after the first (attempts 2..A share candidate+task).
+          const members = chunk.map((handle) => `eval-${short}-${handle}-a${attempt}`)
+          const wave = controller.state.waves[waveId]
+          if (wave === undefined) {
+            // Guard-labeled waves carry at least one opaque guard member.
+            await controller.planWave(
+              waveId,
+              chunk.some((handle) => guardSet.has(handle)) ? 'dev-guard' : 'dev-observed',
+              members,
+            )
+          } else if (
+            wave.members.length !== members.length ||
+            wave.members.some((member, index) => member !== members[index])
+          ) {
+            throw new IterationDriverError(
+              `baseline wave ${waveId} disagrees with the frozen ceremony order`,
+            )
+          }
+          const inputs = chunk.map((handle) => {
+            const isGuard = guardSet.has(handle)
+            return {
+              actionId: `eval-${short}-${handle}-a${attempt}`,
+              candidateId: baselineId,
+              opaqueTaskId: handle,
+              attempt,
+              split: isGuard ? ('dev-guard' as const) : ('dev-observed' as const),
+              waveId,
+              estimate: this.trialEstimate(),
+              ...(isGuard ? { infoFlowGuardCanary: monitor.guardToken(handle) } : {}),
+            }
+          })
+          await controller.runEvaluationWave(inputs)
+          await controller.commitWave(waveId)
+        }
+      }
+    }
+
+    const baselineObservations = Object.values(controller.state.observations).filter(
+      (observation) => observation.candidateId === baselineId,
+    )
+    const infraDead = baselineObservations
+      .filter((observation) => observation.outcome === 'missing')
+      .map((observation) => observation.opaqueTaskId)
+      .sort()
+    if (infraDead.length > 0) {
+      throw new IterationDriverError(
+        `infra-dead benchmark baseline trial(s) [${infraDead.join(', ')}]: an agent that never ran is not a capability fact, so the pool cannot freeze — restart the pilot (ADR-028)`,
+      )
+    }
+    const succeeded = new Set(
+      baselineObservations
+        .filter((observation) => observation.outcome === 'success')
+        .map((observation) => observation.opaqueTaskId),
+    )
+    // Observed-only pool (ADR-046): guard ids never become proposer evidence.
+    const failures = observedTasks.filter((handle) => !succeeded.has(handle)).sort()
+    if (failures.length === 0) return null // NO_REAL_FAILURE_SIGNAL: no zero-success task
+
+    const poolPath = join(this.runRoot, 'failure-pool.json')
+    const existingPool = await this.readJson<FailurePoolDoc>(poolPath)
+    if (existingPool !== null) {
+      // Resume: post-freeze observations legitimately grew the count frozen
+      // into `frozenFromObservations`, so the frozen doc can never re-derive
+      // byte-for-byte. The capability fact is the handle set — verify that
+      // and keep the frozen doc byte-stable (ADR-047 crash-drill fix).
+      if (canonicalHash(existingPool.handles) !== canonicalHash(failures)) {
+        throw new IterationDriverError(
+          `failure pool ${poolPath} disagrees with the re-derived failure set`,
+        )
+      }
+    } else {
+      const poolDoc: FailurePoolDoc = {
+        protocol: FAILURE_POOL_PROTOCOL,
+        handles: failures,
+        frozenFromObservations: Object.keys(controller.state.observations).length,
+        poolHash: `sha256:${canonicalHash(failures)}`,
+      }
+      await this.freeze(poolPath, poolDoc)
+      if (controller.state.phase === 'PREFLIGHT' || controller.state.phase === 'DRAFT') {
+        await controller.changePhase(
+          'CALIBRATED',
+          `benchmark baseline frozen: ${failures.length}/${tasks.length} tasks with zero successes over ${baselineObservations.length} baseline trial(s)`,
+        )
+      }
+    }
+    return failures
+  }
+
+  /** Wall clock now (tests inject a fake; live runs use system time). */
+  private now(): string {
+    return this.input.clock !== undefined ? this.input.clock() : new Date().toISOString()
+  }
+
+  /** One-shot NO_DEVELOPMENT_IMPROVEMENT phase change (ADR-047): idempotent
+   * across resumes because the phase itself is terminal. */
+  private async stopNoDevelopmentImprovement(reason: string): Promise<void> {
+    const controller = this.controller
+    if (controller === undefined) throw new IterationDriverError('controller not open')
+    if (controller.state.phase !== 'NO_DEVELOPMENT_IMPROVEMENT') {
+      await controller.changePhase('NO_DEVELOPMENT_IMPROVEMENT', reason)
+    }
+  }
+
+  /**
+   * Champion tournament (ADR-047, specs/03 §11): eligibility → q10 shortlist
+   * (top-up degradation) → node-major coverage → paired-delta scoring with
+   * the 90% cluster-bootstrap LCB → champion triple-hash lock. Only entered
+   * after K_REACHED on the formal profile; a champion decision whose winner
+   * does not strictly beat the baseline ends NO_DEVELOPMENT_IMPROVEMENT
+   * without touching the sealed split.
+   *
+   * Resume safety: every stage is idempotent. `tournament-start.json` freezes
+   * the wall-budget anchor; existing waves are verified, never re-planned;
+   * bootstrap scoring runs on the tournament-exclusive 'bootstrap' stream at
+   * a fixed counter, so a crash after journaling re-scores to the identical
+   * receipts the reducer accepts as idempotent replays; the lock document
+   * freezes before the lock events, and each event is guarded by the reducer
+   * state it transitions.
+   *
+   * Wall budget: wallClockMinutes − 1800 minutes from the frozen start
+   * (search owns the first 1800). A wave that would cross it stops the run
+   * BUDGET_EXHAUSTED — a legal SEARCHING edge.
+   */
+  private async runTournament(
+    baselineId: string,
+    pool: readonly string[],
+  ): Promise<{
+    stopReason: 'NO_DEVELOPMENT_IMPROVEMENT' | 'CHAMPION_LOCKED' | 'BUDGET_EXHAUSTED'
+    /** Always set once the tournament is entered — the report's tournament
+     * facts (trial count, shortlist) exist even on the NDI/BUDGET paths. */
+    result: { shortlist: string[]; championId?: string; championLockHash?: string }
+  }> {
+    const controller = this.controller
+    if (controller === undefined) throw new IterationDriverError('controller not open')
+    const tournamentConfig = this.config.search.tournament
+    if (tournamentConfig === undefined) {
+      throw new IterationDriverError('formal profile requires search.tournament')
+    }
+    const baseline = this.config.search.benchmarkBaseline
+    if (baseline === undefined) {
+      throw new IterationDriverError('formal profile requires search.benchmarkBaseline')
+    }
+    const ceremony = await this.readJson<SplitCeremony>(join(this.runRoot, 'split-ceremony.json'))
+    if (ceremony === null) throw new IterationDriverError('split ceremony missing')
+    const monitor = this.monitor
+    if (monitor === undefined) throw new IterationDriverError('information-flow monitor missing')
+    const devTasks = [...ceremony.observedHandles, ...ceremony.guardOpaqueIds]
+    const guardSet = new Set(ceremony.guardOpaqueIds)
+    // Planning snapshot: pre-tournament only (tournament rows are filtered
+    // out of `preTournament`), so a crash/resume mid-tournament re-derives
+    // the identical plan. The scoring pass refreshes this below.
+    let observations = Object.values(controller.state.observations)
+    let byActionId = new Map(observations.map((observation) => [observation.actionId, observation]))
+    // Eligibility, top-up need and attempt numbering are all functions of the
+    // PRE-tournament observation set only: tournament trials themselves must
+    // not move the plan, or a crash/resume mid-tournament would re-derive a
+    // different shortlist and different action ids (specs/06 §12).
+    const preTournament = (candidateId: string) =>
+      observations.filter(
+        (observation) =>
+          observation.candidateId === candidateId && !observation.actionId.startsWith('tourn-'),
+      )
+    // Attempt numbering continues after EVERY pre-tournament attempt of the
+    // node on the task — including the baseline's matrix trials. The
+    // reducer's observation identity is (candidate, task, split, attempt),
+    // so a tournament trial that reused the matrix attempt number would
+    // collide; the ADR-047 formula `priorAttempts + attempt` is what keeps
+    // every identity unique.
+    const priorAttempts = (candidateId: string, taskId: string): number =>
+      preTournament(candidateId).filter((observation) => observation.opaqueTaskId === taskId).length
+
+    // --- frozen tournament start: the wall-budget anchor across resumes ---
+    const startPath = join(this.runRoot, 'tournament-start.json')
+    const startDoc = (await this.readJson<{ at: string }>(startPath)) ?? { at: this.now() }
+    await this.freeze(startPath, startDoc)
+    const wallBudgetMinutes = Math.max(0, this.config.budget.wallClockMinutes - 1800)
+    const wallExhausted = (): boolean =>
+      (Date.parse(this.now()) - Date.parse(startDoc.at)) / 60000 > wallBudgetMinutes
+
+    // --- eligibility + shortlist (specs/03 §11 steps 2–3) -----------------
+    const children = this.admittedIds().filter((candidateId) => candidateId !== baselineId)
+    const admittedCandidates = children.flatMap((candidateId) => {
+      const candidate = controller.state.candidates[candidateId]
+      return candidate === undefined ? [] : [candidate]
+    })
+    const eligible = eligibleTournamentNodes({
+      baselineId,
+      nodes: children.map((candidateId) => ({
+        candidateId,
+        observationCount: preTournament(candidateId).length,
+        artifactsComplete: existsSync(this.recordPath(candidateId)),
+      })),
+      minEligibilityTrials: tournamentConfig.minEligibilityTrials,
+    })
+    let shortlist: string[]
+    let topUpNodes: string[] = []
+    if (eligible.length >= 5) {
+      const population = eligible.flatMap((node) => {
+        const candidate = controller.state.candidates[node.candidateId]
+        return candidate === undefined ? [] : [candidate]
+      })
+      const draw = drawTournamentShortlist({
+        masterSeed: this.config.masterSeed,
+        runId: this.config.runId,
+        counter: this.nextRngCounter('tournament'),
+        candidates: population,
+        observations,
+        shortlistSize: this.config.search.shortlistSize,
+      })
+      await controller.recordRngDraw(draw.draw.receipt)
+      shortlist = draw.shortlist
+    } else if (eligible.length > 0) {
+      // 1..4 eligible: all enter — no RNG consumed (ADR-047).
+      shortlist = eligible.map((node) => node.candidateId)
+    } else {
+      // Degradation (ADR-047): q10 over every admitted child, topped up to
+      // the eligibility floor before coverage; a top-up that cannot fit the
+      // trial budget ends NO_DEVELOPMENT_IMPROVEMENT with zero tournament
+      // trials.
+      if (children.length === 0) {
+        await this.stopNoDevelopmentImprovement('no admitted child for the tournament top-up')
+        return { stopReason: 'NO_DEVELOPMENT_IMPROVEMENT', result: { shortlist: [] } }
+      }
+      const draw = drawTournamentShortlist({
+        masterSeed: this.config.masterSeed,
+        runId: this.config.runId,
+        counter: this.nextRngCounter('tournament'),
+        candidates: admittedCandidates,
+        observations,
+        shortlistSize: this.config.search.shortlistSize,
+      })
+      await controller.recordRngDraw(draw.draw.receipt)
+      shortlist = draw.shortlist
+      topUpNodes = draw.shortlist
+    }
+
+    // --- budget gating: top-up must fit; coverage must fit the remainder --
+    // The top-up runs FIRST: a coverage overflow afterwards abandons the
+    // tournament with the top-up trials already committed (ADR-047: the
+    // whole tournament is abandoned, top-up included).
+    const concurrency = this.config.benchmark.harbor.concurrentTrials
+    const topUpNeed = new Map<string, number>()
+    let topUpTrials = 0
+    for (const nodeId of topUpNodes) {
+      const need = Math.max(0, tournamentConfig.minEligibilityTrials - preTournament(nodeId).length)
+      topUpNeed.set(nodeId, need)
+      topUpTrials += need
+    }
+    if (topUpTrials > tournamentConfig.maxTrials) {
+      await this.stopNoDevelopmentImprovement(
+        `tournament top-up needs ${topUpTrials} trials but the budget caps at ${tournamentConfig.maxTrials}`,
+      )
+      return { stopReason: 'NO_DEVELOPMENT_IMPROVEMENT', result: { shortlist } }
+    }
+    // --- top-up waves (pool tasks only; observed split, no guard) ---------
+    // Each node's need cycles the frozen pool in order; later visits to the
+    // same task increment the attempt so action ids stay unique. The visit
+    // counts ALSO shift the coverage attempts past the top-up ones, so a
+    // task that appears in both never shares an action id.
+    const topUpWaves: TournamentCoverageWave[] = []
+    const topUpVisits = new Map<string, number>()
+    for (const nodeId of topUpNodes) {
+      const need = topUpNeed.get(nodeId) ?? 0
+      const members: Array<{ taskId: string; attempt: number }> = []
+      const uses = new Map<string, number>()
+      for (let index = 0; index < need; index += 1) {
+        const taskId = pool[index % pool.length]
+        if (taskId === undefined) {
+          throw new IterationDriverError('tournament top-up has no pool task to run')
+        }
+        const used = uses.get(taskId) ?? 0
+        uses.set(taskId, used + 1)
+        members.push({ taskId, attempt: priorAttempts(nodeId, taskId) + used + 1 })
+      }
+      for (const member of members) {
+        const key = `${nodeId}\0${member.taskId}`
+        topUpVisits.set(key, (topUpVisits.get(key) ?? 0) + 1)
+      }
+      const nodeIdx = shortlist.indexOf(nodeId) + 1 // plan order: baseline first
+      for (let offset = 0; offset < members.length; offset += concurrency) {
+        topUpWaves.push({
+          waveId: `tournament-${nodeIdx}-topup-${Math.floor(offset / concurrency) + 1}-1`,
+          nodeIdx,
+          members: members.slice(offset, offset + concurrency),
+        })
+      }
+    }
+    const coverage = buildTournamentCoverage({
+      baselineId,
+      shortlist,
+      tasks: devTasks,
+      attemptsPerTask: tournamentConfig.coverageAttemptsPerTask,
+      batchSize: baseline.batchSize,
+      concurrency,
+      priorAttempts: (candidateId, taskId) =>
+        priorAttempts(candidateId, taskId) + (topUpVisits.get(`${candidateId}\0${taskId}`) ?? 0),
+    })
+
+    /** Run waves exactly-once by key (specs/06 §12); verifies existing wave
+     * membership, completes only missing actions, and checks the tournament
+     * wall budget before each wave. Returns 'wall-exhausted' when the wave
+     * would cross the frozen limit. */
+    const runWaves = async (
+      nodes: string[],
+      waves: TournamentCoverageWave[],
+    ): Promise<'ok' | 'wall-exhausted'> => {
+      for (const wave of waves) {
+        if (wallExhausted()) return 'wall-exhausted'
+        const nodeId = nodes[wave.nodeIdx]
+        if (nodeId === undefined) {
+          throw new IterationDriverError(`tournament wave ${wave.waveId} has no node`)
+        }
+        const members = wave.members.map((member) => {
+          const isGuard = guardSet.has(member.taskId)
+          return {
+            actionId: `tourn-${shortId(nodeId)}-${wave.nodeIdx}-${member.taskId}-a${member.attempt}`,
+            candidateId: nodeId,
+            opaqueTaskId: member.taskId,
+            attempt: member.attempt,
+            split: isGuard ? ('dev-guard' as const) : ('dev-observed' as const),
+            waveId: wave.waveId,
+            estimate: this.trialEstimate(),
+            ...(isGuard ? { infoFlowGuardCanary: monitor.guardToken(member.taskId) } : {}),
+          }
+        })
+        const existing = controller.state.waves[wave.waveId]
+        if (existing === undefined) {
+          await controller.planWave(
+            wave.waveId,
+            wave.members.some((member) => guardSet.has(member.taskId))
+              ? 'dev-guard'
+              : 'dev-observed',
+            members.map((member) => member.actionId),
+          )
+        } else if (
+          existing.members.length !== members.length ||
+          existing.members.some((member, index) => member !== members[index]!.actionId)
+        ) {
+          throw new IterationDriverError(
+            `tournament wave ${wave.waveId} disagrees with the coverage plan`,
+          )
+        }
+        await controller.runEvaluationWave(members)
+        await controller.commitWave(wave.waveId)
+      }
+      return 'ok'
+    }
+
+    if ((await runWaves(coverage.nodes, topUpWaves)) === 'wall-exhausted') {
+      return { stopReason: 'BUDGET_EXHAUSTED', result: { shortlist } }
+    }
+    if (coverage.trialCount > tournamentConfig.maxTrials - topUpTrials) {
+      await this.stopNoDevelopmentImprovement(
+        `tournament coverage needs ${coverage.trialCount} trials but only ${tournamentConfig.maxTrials - topUpTrials} remain after the top-up`,
+      )
+      return { stopReason: 'NO_DEVELOPMENT_IMPROVEMENT', result: { shortlist } }
+    }
+    if ((await runWaves(coverage.nodes, coverage.waves)) === 'wall-exhausted') {
+      return { stopReason: 'BUDGET_EXHAUSTED', result: { shortlist } }
+    }
+    // Scoring must see the tournament trials just committed; planning
+    // (eligibility/top-up/attempt numbering) is unaffected — `preTournament`
+    // filters every `tourn-` row out of the plan, so re-snapshotting cannot
+    // move it (specs/06 §12).
+    observations = Object.values(controller.state.observations)
+    byActionId = new Map(observations.map((observation) => [observation.actionId, observation]))
+
+    // --- paired-delta scoring (specs/03 §11 steps 5–6) --------------------
+    // Per (node, task): the mean reward over the planned coverage attempts;
+    // the paired delta against the baseline feeds the cluster bootstrap.
+    const nodeOutcomeMean = (nodeId: string, taskId: string): number => {
+      let sum = 0
+      let count = 0
+      for (let attempt = 1; attempt <= tournamentConfig.coverageAttemptsPerTask; attempt += 1) {
+        const coverageAttempt =
+          priorAttempts(nodeId, taskId) + (topUpVisits.get(`${nodeId}\0${taskId}`) ?? 0) + attempt
+        const actionId = `tourn-${shortId(nodeId)}-${coverage.nodes.indexOf(nodeId)}-${taskId}-a${coverageAttempt}`
+        const observation = byActionId.get(actionId)
+        if (observation === undefined) {
+          throw new IterationDriverError(`tournament observation missing for ${actionId}`)
+        }
+        sum += observation.reward
+        count += 1
+      }
+      return count === 0 ? 0 : sum / count
+    }
+    const nodeTournamentObservations = (nodeId: string) =>
+      observations.filter(
+        (observation) =>
+          observation.candidateId === nodeId && observation.actionId.startsWith('tourn-'),
+      )
+    const score = scoreTournament({
+      masterSeed: this.config.masterSeed,
+      runId: this.config.runId,
+      // Fixed counter: the 'bootstrap' stream is tournament-exclusive and the
+      // score is a pure function of the journaled facts, so re-scoring after
+      // a crash reproduces byte-identical receipts (idempotent replays).
+      counter: 0,
+      baselineId,
+      nodes: coverage.nodes.map((nodeId) => {
+        const rows = nodeTournamentObservations(nodeId)
+        const costs = rows
+          .map((row) => row.costUsdMicros)
+          .filter((value): value is number => value !== null)
+        const durations = rows
+          .map((row) => row.durationMs)
+          .filter((value): value is number => value !== null)
+        return {
+          candidateId: nodeId,
+          deltasPerTask: devTasks.map(
+            (taskId) => nodeOutcomeMean(nodeId, taskId) - nodeOutcomeMean(baselineId, taskId),
+          ),
+          ...(costs.length > 0
+            ? {
+                meanCostUsdMicros: costs.reduce((sum, value) => sum + value, 0) / costs.length,
+                ...(durations.length > 0
+                  ? {
+                      medianDurationMs: durations.sort((a, b) => a - b)[
+                        Math.floor((durations.length - 1) / 2)
+                      ],
+                    }
+                  : {}),
+              }
+            : {}),
+        }
+      }),
+      resamples: tournamentConfig.bootstrapResamples,
+    })
+    for (const row of score.rows) await controller.recordRngDraw(row.receipt)
+    await this.writeJson(join(this.runRoot, 'tournament-score.json'), {
+      protocol: 'dsh-evolve-le/tournament-score/v1',
+      runId: this.config.runId,
+      baselineId,
+      championId: score.championId,
+      rows: score.rows.map((row) => ({
+        candidateId: row.candidateId,
+        deltaPerMille: Math.round(row.delta * 1000),
+        lcbPerMille: Math.round(row.lcb * 1000),
+        meanCostUsdMicros: row.meanCostUsdMicros ?? null,
+        medianDurationMs: row.medianDurationMs ?? null,
+      })),
+    })
+
+    // --- champion decision: a winner that is not strictly better than the
+    // baseline ends NO_DEVELOPMENT_IMPROVEMENT (specs/03 §11 step 7) -------
+    const championRow = score.rows.find((row) => row.candidateId === score.championId)
+    if (championRow === undefined) {
+      throw new IterationDriverError('champion row missing from the tournament score')
+    }
+    if (score.championId === baselineId || championRow.delta <= 0) {
+      await this.stopNoDevelopmentImprovement(
+        score.championId === baselineId
+          ? 'baseline won the champion tournament'
+          : `tournament winner delta ${championRow.delta} is not strictly positive`,
+      )
+      return { stopReason: 'NO_DEVELOPMENT_IMPROVEMENT', result: { shortlist } }
+    }
+
+    // --- champion triple-hash lock (ADR-047 step 2) -----------------------
+    const championId = score.championId
+    const capsuleRecord = await this.readJson<CapsuleRecord>(this.recordPath(championId))
+    if (capsuleRecord === null) {
+      throw new IterationDriverError(`champion ${championId} has no capsule record`)
+    }
+    const lockHash = tripleLockHash(
+      capsuleRecord.sourceDigest,
+      capsuleRecord.archiveSha256,
+      this.input.configHash,
+    )
+    const lockDoc = {
+      protocol: 'dsh-evolve-le/candidate-lock/v1',
+      runId: this.config.runId,
+      winnerId: championId,
+      sourceHash: capsuleRecord.sourceDigest,
+      archiveSha256: capsuleRecord.archiveSha256,
+      runManifestHash: this.input.configHash,
+      sealedPlanHash: this.input.sealedPlanReceipt!.sha256,
+      tripleHash: lockHash,
+    }
+    await this.freeze(join(this.runRoot, 'candidate-lock.json'), lockDoc)
+
+    if (controller.state.candidates[championId] === undefined) {
+      throw new IterationDriverError(`unknown champion ${championId}`)
+    }
+    if (controller.state.locks.candidateLock === null) {
+      // Fresh status reads: each emit transitions the reducer state, so the
+      // pre-emit snapshot can be stale by the next guard.
+      if (controller.state.candidates[championId]!.status !== 'dev-champion') {
+        await controller.changeCandidateStatus({
+          candidateId: championId,
+          to: 'dev-champion',
+          reason: `highest tournament LCB (${championRow.lcb})`,
+        })
+      }
+      await controller.lockCandidate({ candidateId: championId, lockHash })
+    }
+    if (controller.state.candidates[championId]!.status !== 'locked') {
+      await controller.changeCandidateStatus({
+        candidateId: championId,
+        to: 'locked',
+        reason: `triple lock ${lockHash.slice(0, 16)}…`,
+      })
+    }
+    if (controller.state.phase !== 'CANDIDATE_LOCKED') {
+      await controller.changePhase('CANDIDATE_LOCKED', `champion ${championId} triple-locked`)
+    }
+    return {
+      stopReason: 'CHAMPION_LOCKED',
+      result: { shortlist, championId, championLockHash: lockHash },
+    }
+  }
+
+  /**
+   * Worst-case reservation per development trial (frozen by the config). A
+   * solver-token run reserves `budget.solverTokens / taskTrials` per trial
+   * (ADR-030 D2) — without the reservation the dimension could never trip
+   * mid-run and the controller's settle would exceed what it reserved.
+   */
+  private trialEstimate(): Array<{
+    dimension: 'usd' | 'task-trials' | 'solver-tokens'
+    amount: number
+  }> {
     return [
       {
         dimension: 'usd',
         amount: Math.floor(this.config.budget.usd / this.config.budget.taskTrials),
       },
       { dimension: 'task-trials', amount: 1 },
+      ...(this.config.budget.solverTokens !== undefined
+        ? [
+            {
+              dimension: 'solver-tokens' as const,
+              // A floor of zero (solverTokens < taskTrials) would admit a
+              // trial with nothing reserved: the first token-earning settle
+              // would then crash the ledger's settle-≤-reserved invariant
+              // instead of stopping the loop. Reserve at least one token so
+              // the pre-launch check — not a mid-run crash — is what stops.
+              amount: Math.max(
+                1,
+                Math.floor(this.config.budget.solverTokens / this.config.budget.taskTrials),
+              ),
+            },
+          ]
+        : []),
     ]
   }
 
@@ -783,6 +1814,7 @@ export class IterationDriver {
   /** True when the next reservation of `estimate` cannot fit the frozen limits. */
   private budgetWouldExhaust(
     estimate: ReadonlyArray<{ dimension: string; amount: number }>,
+    count = 1,
   ): boolean {
     const state = this.controller?.state
     if (state === undefined) return true
@@ -792,12 +1824,15 @@ export class IterationDriver {
       'proposal-calls': this.config.budget.proposalCalls,
       'task-trials': this.config.budget.taskTrials,
       'wall-clock-seconds': this.config.budget.wallClockMinutes * 60,
+      ...(this.config.budget.solverTokens !== undefined
+        ? { 'solver-tokens': this.config.budget.solverTokens }
+        : {}),
     }
     for (const { dimension, amount } of estimate) {
       const limit = limits[dimension]
       if (limit === undefined) continue
       const totals = state.budget[dimension]
-      const used = (totals?.spent ?? 0) + (totals?.reserved ?? 0) + amount
+      const used = (totals?.spent ?? 0) + (totals?.reserved ?? 0) + amount * count
       if (used > limit) return true
     }
     return false
@@ -820,14 +1855,22 @@ export class IterationDriver {
    * handles this candidate has not run; sampled through the 'task-sampler'
    * stream with the receipt journaled.
    */
-  private async sampleTask(candidateId: string, pool: readonly string[]): Promise<string | null> {
+  private async sampleTask(
+    candidateId: string,
+    pool: readonly string[],
+    selected: ReadonlySet<string> = new Set(),
+  ): Promise<string | null> {
     const controller = this.controller
     if (controller === undefined) throw new IterationDriverError('controller not open')
     const state = controller.state
     const tried = this.triedHandles(candidateId)
     const anyoneTried = new Set(Object.values(state.observations).map((o) => o.opaqueTaskId))
-    const fresh = pool.filter((handle) => !anyoneTried.has(handle))
-    const perCandidate = pool.filter((handle) => !tried.has(handle))
+    const fresh = pool.filter(
+      (handle) => !anyoneTried.has(handle) && !selected.has(`${candidateId}\0${handle}`),
+    )
+    const perCandidate = pool.filter(
+      (handle) => !tried.has(handle) && !selected.has(`${candidateId}\0${handle}`),
+    )
     const candidates = fresh.length > 0 ? fresh : perCandidate
     if (candidates.length === 0) return null
     const counter = this.nextRngCounter('task-sampler')
@@ -869,12 +1912,21 @@ export class IterationDriver {
     // Crash resume (specs/06 §12): a crash mid-saga leaves a nonterminal
     // evaluation action with its request durably reserved — complete it (the
     // saga is exactly-once by key) before any new decision is drawn.
+    const pendingByWave = new Map<string, string[]>()
+    const waveLess: string[] = []
     for (const action of Object.values(controller.state.actions)) {
       if (action.kind !== 'evaluation' || TERMINAL_ACTIONS.has(action.status)) continue
-      await controller.resumeEvaluation(action.actionId)
-      if (action.waveId !== null) {
-        await controller.commitWave(action.waveId).catch(() => undefined)
+      if (action.waveId === null) waveLess.push(action.actionId)
+      else {
+        const members = pendingByWave.get(action.waveId) ?? []
+        members.push(action.actionId)
+        pendingByWave.set(action.waveId, members)
       }
+    }
+    for (const actionId of waveLess) await controller.resumeEvaluation(actionId)
+    for (const [waveId, actionIds] of pendingByWave) {
+      await controller.resumeEvaluationWave(actionIds)
+      await controller.commitWave(waveId).catch(() => undefined)
     }
 
     await this.settleAbandonedIntents(searchState)
@@ -907,7 +1959,7 @@ export class IterationDriver {
 
       const expand = shouldExpand({
         completedTrials,
-        pendingEvaluations: 0, // serial driver: every wave commits before the next decision
+        pendingEvaluations: 0,
         admittedCandidates: admitted.length,
         kTarget: config.search.kTarget,
         alpha,
@@ -916,12 +1968,18 @@ export class IterationDriver {
       if (expand) {
         if (this.budgetWouldExhaust(this.proposalEstimate()))
           return { stopReason: 'BUDGET_EXHAUSTED', searchState }
-        const expansion = await this.expand(pool)
+        const expansion = await this.expand(pool, searchState.proposalRejections ?? [])
         searchState.expansionAttempts += 1
         searchState.rebuildRejections = [
           ...(searchState.rebuildRejections ?? []),
           ...expansion.rebuildRejections,
         ]
+        if (expansion.proposalRejection !== null) {
+          searchState.proposalRejections = mergeProposalRejections(
+            searchState.proposalRejections ?? [],
+            expansion.proposalRejection,
+          )
+        }
         if (expansion.admittedAny) {
           searchState.consecutiveExpansionFailures = 0
         } else {
@@ -936,28 +1994,51 @@ export class IterationDriver {
         continue
       }
 
-      const next = await this.pickEvaluation(pool)
-      if (next === null) return { stopReason: 'NO_ADMISSIBLE_TASK', searchState }
-      if (this.budgetWouldExhaust(this.trialEstimate()))
+      const waveSize = Math.min(
+        config.benchmark.harbor.concurrentTrials,
+        config.search.maxSolverTrials - completedTrials,
+      )
+      const selections: Array<{ candidateId: string; handle: string }> = []
+      const selected = new Set<string>()
+      for (let index = 0; index < waveSize; index += 1) {
+        const next = await this.pickEvaluation(pool, selected)
+        if (next === null) break
+        const key = `${next.candidateId}\0${next.handle}`
+        if (selected.has(key)) break
+        selected.add(key)
+        selections.push(next)
+      }
+      if (selections.length === 0) return { stopReason: 'NO_ADMISSIBLE_TASK', searchState }
+      const estimate = this.trialEstimate()
+      if (this.budgetWouldExhaust(estimate, selections.length))
         return { stopReason: 'BUDGET_EXHAUSTED', searchState }
-      // Serial search evaluations are single-decision waves: the action runs
-      // wave-less (reservation order IS the decision order), so no wave plan
-      // can outlive its reservation across a crash.
-      await controller.runEvaluation({
-        actionId: `eval-${shortId(next.candidateId)}-${next.handle}`,
-        candidateId: next.candidateId,
-        opaqueTaskId: next.handle,
-        attempt: 1,
-        split: 'dev-observed',
-        waveId: null,
-        estimate: this.trialEstimate(),
-      })
+      const waveNumber =
+        Object.keys(controller.state.waves).filter((id) => id.startsWith('search-')).length + 1
+      const waveId = `search-${waveNumber}`
+      await controller.planWave(
+        waveId,
+        'dev-observed',
+        selections.map((next) => `eval-${shortId(next.candidateId)}-${next.handle}`),
+      )
+      await controller.runEvaluationWave(
+        selections.map((next) => ({
+          actionId: `eval-${shortId(next.candidateId)}-${next.handle}`,
+          candidateId: next.candidateId,
+          opaqueTaskId: next.handle,
+          attempt: 1,
+          split: 'dev-observed' as const,
+          waveId,
+          estimate,
+        })),
+      )
+      await controller.commitWave(waveId)
     }
   }
 
   /** Pick (candidate, handle) for the next serial evaluation. */
   private async pickEvaluation(
     pool: readonly string[],
+    selected: ReadonlySet<string> = new Set(),
   ): Promise<{ candidateId: string; handle: string } | null> {
     const controller = this.controller
     if (controller === undefined) throw new IterationDriverError('controller not open')
@@ -974,14 +2055,17 @@ export class IterationDriver {
         this.triedHandles(candidateId).size < this.config.search.coldStartTrials,
     )
     if (cold !== undefined) {
-      const handle = await this.sampleTask(cold, pool)
+      const handle = await this.sampleTask(cold, pool, selected)
       if (handle !== null) {
         return { candidateId: cold, handle }
       }
     }
 
     const eligible = admitted.filter((candidateId) =>
-      pool.some((handle) => !this.triedHandles(candidateId).has(handle)),
+      pool.some(
+        (handle) =>
+          !this.triedHandles(candidateId).has(handle) && !selected.has(`${candidateId}\0${handle}`),
+      ),
     )
     if (eligible.length === 0) return null
     const counter = this.nextRngCounter('scheduler-thompson')
@@ -993,7 +2077,7 @@ export class IterationDriver {
       observations: Object.values(controller.state.observations),
     })
     await controller.recordRngDraw(draw.receipt)
-    const handle = await this.sampleTask(draw.winner, pool)
+    const handle = await this.sampleTask(draw.winner, pool, selected)
     if (handle === null) return null
     return { candidateId: draw.winner, handle }
   }
@@ -1006,7 +2090,12 @@ export class IterationDriver {
    */
   private async expand(
     pool: readonly string[],
-  ): Promise<{ admittedAny: boolean; rebuildRejections: RebuildRejection[] }> {
+    priorRejections: readonly ProposalRejectionRecord[],
+  ): Promise<{
+    admittedAny: boolean
+    rebuildRejections: RebuildRejection[]
+    proposalRejection: ProposalRejectionRecord | null
+  }> {
     const controller = this.controller
     if (controller === undefined) throw new IterationDriverError('controller not open')
     const state = controller.state
@@ -1026,15 +2115,16 @@ export class IterationDriver {
     const parentRecord = await this.loadRecord(parentId)
 
     // Evidence export: the frozen failure-pool trajectories, DEV_OBSERVED only.
-    const failureRefs = Object.values(state.observations)
+    const failureObservations = Object.values(state.observations)
       .filter(
         (observation) =>
           observation.outcome !== 'success' && pool.includes(observation.opaqueTaskId),
       )
       .sort((a, b) => (a.actionId < b.actionId ? -1 : 1))
+    const trajectoryRefs = failureObservations
       .map((observation) => state.actions[observation.actionId]?.artifacts[0])
       .filter((ref): ref is ObjectRef => ref !== undefined)
-    if (failureRefs.length === 0) {
+    if (trajectoryRefs.length === 0) {
       throw new IterationDriverError('failure pool has no stored trajectories to export')
     }
     const exportsRoot = join(this.runRoot, 'exports')
@@ -1051,16 +2141,41 @@ export class IterationDriver {
       count: this.canaryCount,
     })
     const store = await openObjectStore(join(this.runRoot, 'objects'))
-    const created = await createEvidenceExport({
-      exportsRoot,
-      store,
-      principal: `proposer:${actionId}`,
-      purpose: 'candidate-expansion',
-      allowedLabels: [...PROPOSER_READ_LABELS],
-      refs: failureRefs,
-      createdFromStateHash: `sha256:${stateHashOf(state)}`,
-      canaryTokens,
-    })
+    const normalizedTrialRefs = await Promise.all(
+      failureObservations.map((observation) =>
+        store.put(Buffer.from(`${canonicalJson(observation)}\n`, 'utf8'), {
+          mediaType: 'application/vnd.dsh-evolve-le.normalized-trial+json',
+          label: 'DEV_OBSERVED',
+        }),
+      ),
+    )
+    const failureRefs = [...trajectoryRefs, ...normalizedTrialRefs].sort((left, right) =>
+      left.digest < right.digest ? -1 : left.digest > right.digest ? 1 : 0,
+    )
+    const monitor = this.monitor
+    if (monitor === undefined) throw new IterationDriverError('information-flow monitor missing')
+    // Export canary union (ADR-046): proposer-scoped canaries PLUS every
+    // monitor token. A guard/sealed canary inside an observed trajectory or
+    // normalization means guarded bytes are about to reach the proposer —
+    // the export refuses with the typed canary error and the run aborts.
+    let created: Awaited<ReturnType<typeof createEvidenceExport>>
+    try {
+      created = await createEvidenceExport({
+        exportsRoot,
+        store,
+        principal: `proposer:${actionId}`,
+        purpose: 'candidate-expansion',
+        allowedLabels: [...PROPOSER_READ_LABELS],
+        refs: failureRefs,
+        createdFromStateHash: `sha256:${stateHashOf(state)}`,
+        canaryTokens: [...canaryTokens, ...monitor.tokens],
+      })
+    } catch (error) {
+      if (error instanceof EvidenceExportCanaryError) {
+        throw new SafetyAbort('evidence-export', error.hits)
+      }
+      throw error
+    }
 
     const catalog = buildArchiveCatalog(state, {
       createdFromStateHash: `sha256:${stateHashOf(state)}`,
@@ -1072,6 +2187,14 @@ export class IterationDriver {
         parentSourceHash: parentRecord.sourceDigest,
         exportId: created.exportId,
         width: this.config.search.proposalWidth,
+        ...(parentRecord.treeV2 === undefined
+          ? {}
+          : {
+              treeV2Parent: {
+                candidateDigest: parentRecord.sourceDigest,
+                mechanismOutcomeDigest: parentRecord.treeV2.mechanismOutcomeDigest,
+              },
+            }),
       },
       estimate: this.proposalEstimate(),
       // Networked routes get the raised one-shot budget (Gate 8); recorded
@@ -1082,9 +2205,24 @@ export class IterationDriver {
       exportDir: created.dir,
       catalog,
       canaryTokens,
+      // ADR-044: this run's prior rejection verdicts travel with the request
+      // and land as input/prior-rejections.json in the sandbox.
+      priorRejections,
     })
+    // Proposal-result scan (ADR-046): the serialized result (failure reasons,
+    // summary texts) must carry no monitor token. This catches the channel
+    // the export wall cannot see — e.g. a worker failure whose error text
+    // echoes guarded bytes — before any further expansion or paid trial.
+    const resultHits = monitor.scan(canonicalJson(result))
+    if (resultHits.length > 0) {
+      throw new SafetyAbort('proposal-result', resultHits)
+    }
     if (result.status !== 'COMMITTED' || result.summary.admitted.length === 0) {
-      return { admittedAny: false, rebuildRejections: [] }
+      return {
+        admittedAny: false,
+        rebuildRejections: [],
+        proposalRejection: proposalRejectionOf(result),
+      }
     }
 
     // Trusted rebuild of every admitted child → admission (specs/03 §2). A
@@ -1097,9 +2235,39 @@ export class IterationDriver {
     const rebuildRejections: RebuildRejection[] = []
     for (const verdict of result.summary.admitted) {
       const stored = await loadCandidateSource(candidatesRoot, verdict.sourceHash)
+      let treeV2ParentEvidence: BuildInput['treeV2ParentEvidence']
+      if (verdict.treeV2 !== undefined) {
+        if (parentRecord.treeV2 === undefined) {
+          rebuildRejections.push({
+            actionId,
+            candidateId: stored.candidateId,
+            stage: 'diffBoundary',
+            reason:
+              'tree-v2 child requires a parent tree-v2 admission record; legacy results cannot be inherited',
+          })
+          continue
+        }
+        if (
+          verdict.treeV2.requiredParentEvidence.mechanismOutcomeDigest !==
+          parentRecord.treeV2.mechanismOutcomeDigest
+        ) {
+          rebuildRejections.push({
+            actionId,
+            candidateId: stored.candidateId,
+            stage: 'diffBoundary',
+            reason: 'tree-v2 mechanismOutcomeDigest does not match the parent admission record',
+          })
+          continue
+        }
+        treeV2ParentEvidence = {
+          requiredParentEvidence: verdict.treeV2.requiredParentEvidence,
+          modeFingerprints: parentRecord.treeV2.modeFingerprints,
+        }
+      }
       const built = await this.buildCapsule(
         stored.treeDir,
         join(this.runRoot, parentRecord.stagedSourceDir),
+        treeV2ParentEvidence,
       )
       if (built.outcome !== 'admitted') {
         rebuildRejections.push({
@@ -1126,7 +2294,11 @@ export class IterationDriver {
       }
       admittedAny = true
     }
-    return { admittedAny, rebuildRejections }
+    return {
+      admittedAny,
+      rebuildRejections,
+      proposalRejection: proposalRejectionOf(result),
+    }
   }
 
   /**

@@ -6,8 +6,10 @@
  * development trials that entered utility, `P_eval` counts the current wave's
  * reserved evaluations, and `T` counts admitted candidates (baseline
  * included) plus the current wave's unique pending-children upper bound.
- * Proposal attempts are a separate counter and never enter `N`; `alpha` is
- * frozen at 0.6 for the run and its off-by-one semantics are pinned by tests.
+ * Proposal attempts are a separate counter and never enter `N`; `alpha`
+ * defaults to 0.6 and is pinned per profile before launch (ADR-045
+ * pre-registers 0.8 for the formal k80 profile — no mid-run change is ever
+ * legal), and its off-by-one semantics are pinned by tests.
  * @module @dsh-evolve-le/core/selection/ucbair
  */
 

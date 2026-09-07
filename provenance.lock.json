@@ -89,14 +89,22 @@
     "platform": "linux x64"
   },
   "dshPackages": {
-    "note": "Pinned @deepseek-ai/* package versions consumed by this repository. Each version is verified against the corresponding manifest in the locked deepseek-harness checkout (vendor/* and packages/boot/app-boot); @deepseek-ai/dsh-app-boot is not published at this version, so its boot sequence is reimplemented in packages/dsh-evolve-le/src/cordis/boot.ts against the checkout source.",
+    "note": "Pinned @deepseek-ai/* package versions consumed by this repository. Each version is verified against the corresponding manifest in the locked deepseek-harness checkout (vendor/* and packages/*/*). The native DSH agent/session/tool/skill closure is TCB-owned and content-addressed in capsule install-manifest; @deepseek-ai/dsh-app-boot is not published at this version, so its boot sequence is reimplemented in packages/dsh-evolve-le/src/cordis/boot.ts against the checkout source.",
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/cordis-plugin-loader": "1.0.2",
     "@deepseek-ai/cordis-plugin-include": "1.0.6",
     "@deepseek-ai/cordis-plugin-group": "1.0.1",
     "@deepseek-ai/cosmokit": "1.8.2",
     "@deepseek-ai/schemastery": "3.18.1",
-    "@deepseek-ai/dsh-app-boot": "0.1.0-rc.5"
+    "@deepseek-ai/dsh-app-boot": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-agent-loop": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-agent-default-model": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-agent-spine-demo": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-session": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-skill": "0.1.0-rc.5"
   },
   "modelCatalog": {
     "note": "Model routes are content-addressed here and in every run manifest; keys never carry credentials. The provider endpoint is recorded for provenance only; live secrets live outside the repo.",

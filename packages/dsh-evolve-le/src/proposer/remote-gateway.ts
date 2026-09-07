@@ -30,7 +30,15 @@ import { appendFile, chmod, mkdir, readFile, rm } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import { promptSha256 } from '../acp/recorded-replay.js'
-import { GATEWAY_VERSION, tokenCount, type GatewayBudget, type GatewayUsage } from './gateway.js'
+import type { RouteRetryPolicy } from '../config/run-config.js'
+import {
+  CANDIDATE_TEST_OUTPUT_CAP,
+  runCandidateTestSuite,
+  type CandidateTestRun,
+} from '../builder/candidate-test-runner.js'
+import { GATEWAY_VERSION, type GatewayBudget, type GatewayUsage } from './gateway.js'
+import { upstreamChatCompletion, type UpstreamAttempt } from './upstream.js'
+import type { NativeLlmToolSchema } from '../dsh/native-llm-adapter.js'
 
 export { GATEWAY_VERSION }
 
@@ -43,6 +51,8 @@ export interface RemoteRoutePlan {
   maxOutputTokens: number
   inputUsdPerMTok: number
   outputUsdPerMTok: number
+  /** ADR-033: frozen retry policy; part of the route lock. */
+  retry: RouteRetryPolicy
 }
 
 /** sha256 over the canonical plan; every receipt binds the run to it. */
@@ -57,6 +67,7 @@ export function remoteRoutePlanHash(plan: RemoteRoutePlan): string {
         maxOutputTokens: plan.maxOutputTokens,
         inputUsdPerMTok: plan.inputUsdPerMTok,
         outputUsdPerMTok: plan.outputUsdPerMTok,
+        retry: plan.retry,
       }),
       'utf8',
     )
@@ -64,7 +75,7 @@ export function remoteRoutePlanHash(plan: RemoteRoutePlan): string {
 }
 
 export interface RemoteReceiptOk {
-  schemaVersion: 2
+  schemaVersion: 3
   gatewayVersion: string
   requestId: string
   route: string
@@ -76,10 +87,12 @@ export interface RemoteReceiptOk {
   costUsdMicros: number
   ok: true
   modelReportedUsage: boolean
+  /** ADR-033: every upstream attempt of this request, in order. */
+  attempts: UpstreamAttempt[]
 }
 
 export interface RemoteReceiptError {
-  schemaVersion: 2
+  schemaVersion: 3
   gatewayVersion: string
   requestId: string
   route: string
@@ -89,6 +102,8 @@ export interface RemoteReceiptError {
   error: string
   httpStatus?: number
   timedOut?: true
+  /** ADR-033: every upstream attempt of this request, in order. */
+  attempts: UpstreamAttempt[]
 }
 
 export type RemoteReceipt = RemoteReceiptOk | RemoteReceiptError
@@ -105,10 +120,53 @@ export interface RemoteProxy {
 
 export const DEFAULT_REMOTE_REQUEST_TIMEOUT_MS = 120_000
 
+/**
+ * ADR-033: the worst-case wall clock of one request's retry loop — every
+ * attempt at the full per-attempt budget plus all inter-attempt backoffs.
+ * The remote runner derives the sandbox worker's socket-client timeout from
+ * this value + margin, so the client always outlasts the proxy's retries.
+ */
+export function retryWorstCaseMs(
+  retry: RouteRetryPolicy,
+  requestTimeoutMs: number,
+): number {
+  return retry.maxAttempts * requestTimeoutMs + retry.backoffMs.reduce((sum, ms) => sum + ms, 0)
+}
+
 interface CompleteRequest {
   sections: { name: string; order: number; text: string }[]
   userText: string
+  messages?: { role: string; content: unknown }[]
+  tools?: NativeLlmToolSchema[]
 }
+
+/**
+ * ADR-038: `candidate-tests` request — run the stage-6 typeLintUnit suite
+ * over one child's merged parent+child view. Consumes no model-receipt
+ * sequence and writes no receipts; the reply lands in the worker transcript
+ * as the proposal_finish tool error it is.
+ */
+interface CandidateTestsRequest {
+  type: 'candidate-tests'
+  childName: string
+  files: Record<string, string>
+}
+
+/** ADR-038 caps: a merged child view is a handful of small source files. */
+const MAX_CANDIDATE_TEST_FILES = 500
+const MAX_CANDIDATE_TEST_BYTES = 1024 * 1024
+/** Same safe-directory pattern the tree-v2 finalizer enforces for child names. */
+const CANDIDATE_TEST_CHILD_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+/**
+ * ADR-038: controller-side runner for `candidate-tests` requests. Injected
+ * for contract tests; the default is the real stage-6 suite over a staged
+ * merged view.
+ */
+export type CandidateTestRunner = (options: {
+  childName: string
+  files: Record<string, string>
+}) => Promise<CandidateTestRun>
 
 /**
  * Open the TCB proxy on a Unix socket. One line in, one line out; requests
@@ -122,11 +180,37 @@ export function openRemoteModelProxy(options: {
   credential: string
   budget?: GatewayBudget
   requestTimeoutMs?: number
+  /**
+   * Wall-clock budget for one request's whole retry loop (ADR-033). Defaults
+   * to the plan's worst case — maxAttempts × requestTimeoutMs + Σ backoff —
+   * which is what the remote runner's socket-client timeout is derived from.
+   */
+  retryTotalBudgetMs?: number
   /** Socket file mode — the sandbox worker (a different uid) must connect. */
   socketMode?: number
+  /**
+   * ADR-038: controller-staged parent source view (path → utf8 content, the
+   * same files parent-files.json names). Every parent-file byte in a
+   * `candidate-tests` merged view is verified against this BEFORE anything
+   * runs — the model cannot smuggle parent-file edits into the test run.
+   * Requests are refused while it is absent.
+   */
+  parentSourceFiles?: Readonly<Record<string, string>>
+  /**
+   * ADR-038: parent capsule directory whose `node_modules/` the real runner
+   * symlinks into the staged tree (the child's closure is by contract the
+   * parent's). Required on live routes with the default runner.
+   */
+  candidateDependencyRoot?: string
+  /** ADR-038: runner override for contract tests; defaults to the real suite. */
+  candidateTestRunner?: CandidateTestRunner
+  /** ADR-038: max `candidate-tests` runs per proxy lifetime. */
+  maxCandidateTestRuns?: number
 }): RemoteProxy {
   const routeHash = remoteRoutePlanHash(options.plan)
   const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REMOTE_REQUEST_TIMEOUT_MS
+  const retryTotalBudgetMs =
+    options.retryTotalBudgetMs ?? retryWorstCaseMs(options.plan.retry, requestTimeoutMs)
   const usage: GatewayUsage = {
     requests: 0,
     promptTokens: 0,
@@ -135,6 +219,21 @@ export function openRemoteModelProxy(options: {
     costUsdMicros: 0,
   }
   let sequence = 0
+  // ADR-038: candidate-tests runs never touch the model receipt sequence —
+  // verifyRemoteReceipts asserts req-1..req-N with no gaps. Test runs get
+  // their own counter, reply ids and budget.
+  let testSequence = 0
+  let testRuns = 0
+  const candidateTestRunner =
+    options.candidateTestRunner ??
+    ((request) =>
+      runCandidateTestSuite({
+        ...request,
+        ...(options.candidateDependencyRoot === undefined
+          ? {}
+          : { dependencyRoot: options.candidateDependencyRoot }),
+      }))
+  const maxCandidateTestRuns = options.maxCandidateTestRuns ?? 12
   let closed = false
   let receiptsChain: Promise<void> = Promise.resolve()
 
@@ -149,8 +248,9 @@ export function openRemoteModelProxy(options: {
     requestId: string,
     promptHash: string | null,
     error: string,
+    attempts: UpstreamAttempt[],
   ): RemoteReceiptError => ({
-    schemaVersion: 2,
+    schemaVersion: 3,
     gatewayVersion: GATEWAY_VERSION,
     requestId,
     route: options.plan.routeId,
@@ -158,6 +258,7 @@ export function openRemoteModelProxy(options: {
     promptSha256: promptHash,
     ok: false,
     error,
+    attempts,
   })
 
   const sockets = new Set<Socket>()
@@ -180,24 +281,36 @@ export function openRemoteModelProxy(options: {
   })
 
   const handle = async (line: string, socket: Socket): Promise<void> => {
-    let request: CompleteRequest
+    let parsed: { type?: string } & CompleteRequest
     try {
-      const parsed = JSON.parse(line) as { type?: string } & CompleteRequest
-      if (parsed['type'] !== 'complete') throw new Error(`unknown request type`)
-      request = parsed
+      parsed = JSON.parse(line) as { type?: string } & CompleteRequest
     } catch (error) {
       reply(socket, { v: 1, type: 'error', message: `bad request: ${(error as Error).message}` })
       return
     }
+    if (parsed['type'] === 'candidate-tests') {
+      await handleCandidateTests(parsed as unknown as CandidateTestsRequest, socket)
+      return
+    }
+    if (parsed['type'] !== 'complete') {
+      reply(socket, { v: 1, type: 'error', message: `bad request: unknown request type` })
+      return
+    }
+    const request = parsed
     sequence += 1
     const requestId = `req-${sequence}`
-    const promptHash = promptSha256({ sections: request.sections, userText: request.userText })
+    const promptHash = promptSha256({
+      sections: request.sections,
+      userText: request.userText,
+      ...(request.messages === undefined ? {} : { messages: request.messages }),
+      ...(request.tools === undefined ? {} : { tools: request.tools }),
+    })
     const fail = (receipt: RemoteReceiptError, message: string): void => {
       appendReceipt(receipt)
       reply(socket, { v: 1, type: 'error', requestId, message })
     }
     if (closed) {
-      fail(errorReceipt(requestId, promptHash, 'gateway is closed'), 'gateway is closed')
+      fail(errorReceipt(requestId, promptHash, 'gateway is closed', []), 'gateway is closed')
       return
     }
     if (usage.requests >= (options.budget?.maxRequests ?? Number.POSITIVE_INFINITY)) {
@@ -206,145 +319,247 @@ export function openRemoteModelProxy(options: {
           requestId,
           promptHash,
           `budget stop: ${usage.requests}/${String(options.budget?.maxRequests)} requests used`,
+          [],
         ),
         `budget stop: ${usage.requests}/${String(options.budget?.maxRequests)} requests used`,
       )
       return
     }
 
-    const messages = [
-      ...[...request.sections]
-        .sort((a, b) => a.order - b.order)
-        .map((section) => ({ role: 'system', content: section.text })),
-      { role: 'user', content: request.userText },
-    ]
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), requestTimeoutMs)
-    try {
-      const response = await fetch(`${options.plan.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          // The credential exists ONLY here: never in a receipt, log or file.
-          authorization: `Bearer ${options.credential}`,
+    // Upstream call, budget stops and receipt policy live here; the locked
+    // request shape, credential handling and the ADR-033 retry loop live in
+    // upstream.ts (shared with the solve gateway since ADR-030).
+    const result = await upstreamChatCompletion({
+      plan: options.plan,
+      credential: options.credential,
+      sections: request.sections,
+      userText: request.userText,
+      ...(request.messages === undefined ? {} : { messages: request.messages }),
+      ...(request.tools === undefined ? {} : { tools: request.tools }),
+      requestTimeoutMs,
+      retryTotalBudgetMs,
+    })
+    if (!result.ok) {
+      fail(
+        {
+          ...errorReceipt(requestId, promptHash, result.error, result.attempts),
+          ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+          ...(result.timedOut !== undefined ? { timedOut: result.timedOut } : {}),
         },
-        body: JSON.stringify({
-          model: options.plan.model,
-          messages,
-          temperature: options.plan.temperature,
-          max_tokens: options.plan.maxOutputTokens,
-        }),
-        signal: controller.signal,
-      })
-      if (!response.ok) {
-        fail(
-          {
-            ...errorReceipt(requestId, promptHash, `upstream ${String(response.status)}`),
-            httpStatus: response.status,
-          },
-          `upstream ${String(response.status)}`,
-        )
-        return
-      }
-      const payload = (await response.json()) as {
-        choices?: { message?: { content?: unknown } }[]
-        usage?: { prompt_tokens?: unknown; completion_tokens?: unknown }
-      }
-      const content = payload.choices?.[0]?.message?.content
-      if (typeof content !== 'string') {
-        fail(
-          errorReceipt(requestId, promptHash, 'upstream returned no message content'),
-          'upstream returned no message content',
-        )
-        return
-      }
-      if (content.trim() === '') {
-        // Reasoning models can spend the entire max_tokens budget on
-        // reasoning_content and return an empty answer — that request is a
-        // failed turn, never a receipt-worthy response.
-        fail(
-          errorReceipt(
-            requestId,
-            promptHash,
-            'upstream returned empty content (finish_reason length?)',
-          ),
-          'upstream returned empty content (finish_reason length?)',
-        )
-        return
-      }
-      const reportedUsage = payload.usage
-      const modelReported =
-        typeof reportedUsage?.prompt_tokens === 'number' &&
-        typeof reportedUsage?.completion_tokens === 'number'
-      const promptTokens = modelReported
-        ? (reportedUsage!.prompt_tokens as number)
-        : tokenCount(
-            JSON.stringify({
-              system: [...request.sections]
-                .sort((a, b) => a.order - b.order)
-                .map((section) => ({ name: section.name, text: section.text })),
-              user: request.userText,
-            }),
-          )
-      const completionTokens = modelReported
-        ? (reportedUsage!.completion_tokens as number)
-        : tokenCount(content)
-      const costUsdMicros = Math.round(
-        promptTokens * options.plan.inputUsdPerMTok +
-          completionTokens * options.plan.outputUsdPerMTok,
+        result.error,
       )
-      const totalAfter = usage.totalTokens + promptTokens + completionTokens
-      const costAfter = usage.costUsdMicros + costUsdMicros
-      if (
-        totalAfter > (options.budget?.maxTotalTokens ?? Number.POSITIVE_INFINITY) ||
-        costAfter > (options.budget?.maxCostUsdMicros ?? Number.POSITIVE_INFINITY)
-      ) {
-        fail(
-          errorReceipt(
-            requestId,
-            promptHash,
-            `budget stop: ${String(totalAfter)} tokens / ${String(costAfter)} µUSD would exceed the cap`,
-          ),
-          'budget stop: tokens or cost would exceed the cap',
+      return
+    }
+    const totalAfter = usage.totalTokens + result.promptTokens + result.completionTokens
+    const costAfter = usage.costUsdMicros + result.costUsdMicros
+    if (
+      totalAfter > (options.budget?.maxTotalTokens ?? Number.POSITIVE_INFINITY) ||
+      costAfter > (options.budget?.maxCostUsdMicros ?? Number.POSITIVE_INFINITY)
+    ) {
+      fail(
+        errorReceipt(
+          requestId,
+          promptHash,
+          `budget stop: ${String(totalAfter)} tokens / ${String(costAfter)} µUSD would exceed the cap`,
+          result.attempts,
+        ),
+        'budget stop: tokens or cost would exceed the cap',
+      )
+      return
+    }
+    usage.requests += 1
+    usage.promptTokens += result.promptTokens
+    usage.completionTokens += result.completionTokens
+    usage.totalTokens = totalAfter
+    usage.costUsdMicros = costAfter
+    appendReceipt({
+      schemaVersion: 3,
+      gatewayVersion: GATEWAY_VERSION,
+      requestId,
+      route: options.plan.routeId,
+      routeHash,
+      promptSha256: promptHash,
+      responseSha256:
+        request.messages === undefined
+          ? sha256Hex(result.content)
+          : sha256Hex(JSON.stringify({ content: result.content, toolCalls: result.toolCalls })),
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      costUsdMicros: result.costUsdMicros,
+      ok: true,
+      modelReportedUsage: result.modelReportedUsage,
+      attempts: result.attempts,
+    })
+    reply(socket, {
+      v: 1,
+      type: 'ok',
+      requestId,
+      promptSha256: promptHash,
+      responseText: result.content,
+      ...(result.toolCalls.length === 0 ? {} : { toolCalls: result.toolCalls }),
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      responseSha256:
+        request.messages === undefined
+          ? sha256Hex(result.content)
+          : sha256Hex(JSON.stringify({ content: result.content, toolCalls: result.toolCalls })),
+    })
+  }
+
+  /**
+   * ADR-038: verify a merged child view against the staged parent view, then
+   * run the stage-6 suite. Refusals reply as `result ok:false` — the worker
+   * surfaces the text as a proposal_finish tool error, uniform for the model.
+   */
+  const handleCandidateTests = async (
+    request: CandidateTestsRequest,
+    socket: Socket,
+  ): Promise<void> => {
+    testSequence += 1
+    const testRunId = `test-${String(testSequence)}`
+    const refuse = (output: string): void => {
+      reply(socket, { v: 1, type: 'result', testRunId, ok: false, output })
+    }
+    if (closed) {
+      refuse('candidate-tests refused: gateway is closed')
+      return
+    }
+    if (options.parentSourceFiles === undefined) {
+      refuse('candidate-tests refused: the controller staged no parent source view for this proxy')
+      return
+    }
+    // ADR-038: the real runner must symlink a node_modules into the staged
+    // tree or vitest collects zero tests and the reply is always "failed".
+    if (options.candidateTestRunner === undefined && options.candidateDependencyRoot === undefined) {
+      refuse(
+        'candidate-tests refused: no candidate dependency root for the real test runner (pass candidateDependencyRoot or an injected candidateTestRunner)',
+      )
+      return
+    }
+    if (testRuns >= maxCandidateTestRuns) {
+      refuse(
+        `candidate-tests refused: budget stop (${String(testRuns)}/${String(maxCandidateTestRuns)} runs used)`,
+      )
+      return
+    }
+    if (
+      typeof request.childName !== 'string' ||
+      !CANDIDATE_TEST_CHILD_NAME.test(request.childName)
+    ) {
+      refuse('candidate-tests refused: childName is not a safe directory name')
+      return
+    }
+    const files = request.files
+    if (files === null || typeof files !== 'object' || Array.isArray(files)) {
+      refuse('candidate-tests refused: files must be an object')
+      return
+    }
+    const entries = Object.entries(files)
+    if (entries.length > MAX_CANDIDATE_TEST_FILES) {
+      refuse(
+        `candidate-tests refused: ${String(entries.length)} files exceeds the ${String(
+          MAX_CANDIDATE_TEST_FILES,
+        )}-file cap`,
+      )
+      return
+    }
+    let totalBytes = 0
+    for (const [path, content] of entries) {
+      if (typeof content !== 'string') {
+        refuse(`candidate-tests refused: file ${path} content is not a string`)
+        return
+      }
+      if (path === '' || path.startsWith('/') || path.split('/').includes('..')) {
+        refuse(`candidate-tests refused: file path ${path} is not a safe relative path`)
+        return
+      }
+      totalBytes += Buffer.byteLength(content, 'utf8')
+      if (totalBytes > MAX_CANDIDATE_TEST_BYTES) {
+        refuse(
+          `candidate-tests refused: merged view exceeds the ${String(
+            MAX_CANDIDATE_TEST_BYTES,
+          )}-byte cap`,
         )
         return
       }
-      usage.requests += 1
-      usage.promptTokens += promptTokens
-      usage.completionTokens += completionTokens
-      usage.totalTokens = totalAfter
-      usage.costUsdMicros = costAfter
-      appendReceipt({
-        schemaVersion: 2,
-        gatewayVersion: GATEWAY_VERSION,
-        requestId,
-        route: options.plan.routeId,
-        routeHash,
-        promptSha256: promptHash,
-        responseSha256: sha256Hex(content),
-        promptTokens,
-        completionTokens,
-        costUsdMicros,
-        ok: true,
-        modelReportedUsage: modelReported,
+    }
+    // A parent file may differ from the staged parent view only when the
+    // child's intent declares it in runtime.modeComponents (the projection
+    // contract the worker's finalizer already enforced) — plus
+    // candidate.json, which is always the child's own identity document.
+    // Everything else must be byte-identical: this keeps the test run honest,
+    // the model edits only what the contract lets it edit. The controller
+    // re-verifies the per-mode byte rules authoritatively at diffBoundary.
+    let allowedParentChanges: Set<string>
+    try {
+      const intentRaw = JSON.parse(files['candidate.json'] ?? '') as Record<string, unknown>
+      const rawRuntime = intentRaw['runtime']
+      const rawModeComponents =
+        rawRuntime !== null && typeof rawRuntime === 'object' && !Array.isArray(rawRuntime)
+          ? (rawRuntime as Record<string, unknown>)['modeComponents']
+          : undefined
+      if (
+        rawModeComponents === null ||
+        typeof rawModeComponents !== 'object' ||
+        Array.isArray(rawModeComponents)
+      ) {
+        throw new Error('no runtime.modeComponents object')
+      }
+      allowedParentChanges = new Set<string>()
+      for (const entries of Object.values(rawModeComponents as Record<string, unknown>)) {
+        if (!Array.isArray(entries)) throw new Error('modeComponents entries must be arrays')
+        for (const entry of entries as unknown[]) {
+          if (typeof entry !== 'string') throw new Error('modeComponents entries must be strings')
+          allowedParentChanges.add(entry)
+        }
+      }
+      allowedParentChanges.add('candidate.json')
+    } catch (error) {
+      refuse(
+        `candidate-tests refused: merged view candidate.json does not declare runtime.modeComponents (${error instanceof Error ? error.message : String(error)})`,
+      )
+      return
+    }
+    for (const [path, parentContent] of Object.entries(options.parentSourceFiles)) {
+      const sent = files[path]
+      if (sent === undefined) {
+        refuse(`candidate-tests refused: merged view is missing parent file ${path}`)
+        return
+      }
+      if (sent !== parentContent && !allowedParentChanges.has(path)) {
+        refuse(
+          `candidate-tests refused: parent file ${path} bytes differ from the staged parent view (only runtime.modeComponents files and candidate.json may change)`,
+        )
+        return
+      }
+    }
+    testRuns += 1
+    try {
+      const result = await candidateTestRunner({
+        childName: request.childName,
+        files: files as Record<string, string>,
+        // ADR-039: the staged parent view travels into the runner (real or
+        // injected) so the boundary can compare mounted surfaces per the
+        // declared modeContract.
+        ...(options.parentSourceFiles === undefined
+          ? {}
+          : { parentFiles: { ...options.parentSourceFiles } }),
       })
       reply(socket, {
         v: 1,
-        type: 'ok',
-        requestId,
-        responseText: content,
-        promptTokens,
-        completionTokens,
+        type: 'result',
+        testRunId,
+        ok: result.ok,
+        output: result.output.slice(0, CANDIDATE_TEST_OUTPUT_CAP),
       })
     } catch (error) {
-      const aborted = (error as Error).name === 'AbortError'
-      const message = aborted
-        ? `request timed out after ${String(requestTimeoutMs)}ms`
-        : `network failure: ${(error as Error).message}`
-      const receipt = errorReceipt(requestId, promptHash, message)
-      fail(aborted ? { ...receipt, timedOut: true } : receipt, message)
-    } finally {
-      clearTimeout(timer)
+      reply(socket, {
+        v: 1,
+        type: 'result',
+        testRunId,
+        ok: false,
+        output: `candidate-tests failed: ${error instanceof Error ? error.message : String(error)}`,
+      })
     }
   }
 
@@ -399,6 +614,17 @@ export interface RemoteReceiptVerification {
   usage: GatewayUsage
 }
 
+interface NativeProposalTranscript {
+  protocol?: string
+  audits?: unknown
+}
+
+interface NativeProposalAuditRecord {
+  requestId?: unknown
+  promptSha256?: unknown
+  responseSha256?: unknown
+}
+
 /**
  * Anchor a finished sandbox's transcript to the proxy receipt chain: every
  * model turn in the transcript must correspond, in order, to a successful
@@ -435,39 +661,80 @@ export async function verifyRemoteReceipts(options: {
       )
     }
   })
-  const turns = (await readFileLines(options.transcriptPath))
-    .filter((line) => line !== '')
-    .map(
-      (line) =>
-        JSON.parse(line) as {
-          kind?: string
-          requestId?: string
-          promptSha256?: string
-          responseText?: string
-        },
-    )
-    .filter((record) => record.kind === 'turn')
-  if (turns.length !== okReceipts.length) {
-    problems.push(
-      `transcript has ${String(turns.length)} model turns but ${String(okReceipts.length)} successful receipts`,
-    )
+  const transcriptLines = (await readFileLines(options.transcriptPath)).filter(
+    (line) => line !== '',
+  )
+  const firstTranscript = transcriptLines[0]
+  let nativeTranscript: NativeProposalTranscript | undefined
+  if (firstTranscript !== undefined) {
+    const parsed = JSON.parse(firstTranscript) as NativeProposalTranscript & { kind?: string }
+    if (parsed.protocol === 'dsh-evolve-le/native-proposal/v1') nativeTranscript = parsed
   }
-  for (const [index, turn] of turns.entries()) {
-    const receipt = okReceipts[index]
-    if (receipt === undefined) break
-    if (turn.requestId !== receipt.requestId) {
+
+  if (nativeTranscript !== undefined) {
+    if (transcriptLines.length !== 1) {
+      problems.push('native proposal transcript must contain exactly one JSON document')
+    }
+    const audits = Array.isArray(nativeTranscript.audits)
+      ? (nativeTranscript.audits as NativeProposalAuditRecord[])
+      : []
+    if (!Array.isArray(nativeTranscript.audits)) {
+      problems.push('native proposal transcript is missing its gateway audits')
+    }
+    if (audits.length !== okReceipts.length) {
       problems.push(
-        `turn ${String(index + 1)} requestId ${String(turn.requestId)} ≠ ${receipt.requestId}`,
+        `native transcript has ${String(audits.length)} gateway audits but ${String(okReceipts.length)} successful receipts`,
       )
     }
-    if (turn.promptSha256 !== receipt.promptSha256) {
-      problems.push(`turn ${String(index + 1)} promptSha256 does not match the receipt`)
+    for (const [index, audit] of audits.entries()) {
+      const receipt = okReceipts[index]
+      if (receipt === undefined) break
+      if (audit.requestId !== receipt.requestId) {
+        problems.push(
+          `native audit ${String(index + 1)} requestId ${String(audit.requestId)} ≠ ${receipt.requestId}`,
+        )
+      }
+      if (audit.promptSha256 !== receipt.promptSha256) {
+        problems.push(`native audit ${String(index + 1)} promptSha256 does not match the receipt`)
+      }
+      if (audit.responseSha256 !== receipt.responseSha256) {
+        problems.push(`native audit ${String(index + 1)} responseSha256 does not match the receipt`)
+      }
     }
-    if (
-      typeof turn.responseText === 'string' &&
-      sha256Hex(turn.responseText) !== receipt.responseSha256
-    ) {
-      problems.push(`turn ${String(index + 1)} responseSha256 does not match the receipt`)
+  } else {
+    const turns = transcriptLines
+      .map(
+        (line) =>
+          JSON.parse(line) as {
+            kind?: string
+            requestId?: string
+            promptSha256?: string
+            responseText?: string
+          },
+      )
+      .filter((record) => record.kind === 'turn')
+    if (turns.length !== okReceipts.length) {
+      problems.push(
+        `transcript has ${String(turns.length)} model turns but ${String(okReceipts.length)} successful receipts`,
+      )
+    }
+    for (const [index, turn] of turns.entries()) {
+      const receipt = okReceipts[index]
+      if (receipt === undefined) break
+      if (turn.requestId !== receipt.requestId) {
+        problems.push(
+          `turn ${String(index + 1)} requestId ${String(turn.requestId)} ≠ ${receipt.requestId}`,
+        )
+      }
+      if (turn.promptSha256 !== receipt.promptSha256) {
+        problems.push(`turn ${String(index + 1)} promptSha256 does not match the receipt`)
+      }
+      if (
+        typeof turn.responseText === 'string' &&
+        sha256Hex(turn.responseText) !== receipt.responseSha256
+      ) {
+        problems.push(`turn ${String(index + 1)} responseSha256 does not match the receipt`)
+      }
     }
   }
   const usage: GatewayUsage = {

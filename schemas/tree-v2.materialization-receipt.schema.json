@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schema/tree-v2/materialization-receipt/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "protocol",
+    "kind",
+    "parentCandidateDigest",
+    "candidateDigest",
+    "candidateIntentDigest",
+    "sourceDigest",
+    "capabilityCatalogDigest",
+    "receiptDigest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "protocol": { "const": "dsh-self-evolving-candidate-tree-v2" },
+    "kind": { "const": "materialization-receipt" },
+    "parentCandidateDigest": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/digest" }]
+    },
+    "candidateDigest": { "$ref": "#/$defs/digest" },
+    "candidateIntentDigest": { "$ref": "#/$defs/digest" },
+    "sourceDigest": { "$ref": "#/$defs/digest" },
+    "capabilityCatalogDigest": { "$ref": "#/$defs/digest" },
+    "receiptDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": { "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" } }
+}

@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schema/tree-v2/candidate-intent/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "protocol",
+    "kind",
+    "candidate",
+    "parent",
+    "modeContract",
+    "runtime",
+    "tests",
+    "receiptDigest"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "minLength": 1 },
+    "schemaVersion": { "const": 2 },
+    "protocol": { "const": "dsh-self-evolving-candidate-tree-v2" },
+    "kind": { "const": "candidate-intent" },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "entry"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "entry": { "const": "src/index.ts" }
+      }
+    },
+    "parent": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["candidateDigest", "sourceDigest"],
+          "properties": {
+            "candidateDigest": { "$ref": "#/$defs/digest" },
+            "sourceDigest": { "$ref": "#/$defs/digest" }
+          }
+        }
+      ]
+    },
+    "modeContract": { "$ref": "#/$defs/modeContract" },
+    "requiredParentEvidence": { "$ref": "#/$defs/parentEvidence" },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modeComponents", "modeSurfaces", "capabilities"],
+      "properties": {
+        "modeComponents": {
+          "description": "Per-mode production modules whose bytes define the mode. Every listed path must already exist in the PARENT tree (the staged parent-files.json): these are the parent files whose bytes this child changes in target modes and preserves byte-identically in preserved modes. A module this child newly adds must NOT be listed here — it is established by the added-file diff and named in tests.mechanism.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["solve", "propose"],
+          "properties": {
+            "solve": { "$ref": "#/$defs/componentPaths" },
+            "propose": { "$ref": "#/$defs/componentPaths" }
+          }
+        },
+        "modeSurfaces": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["solve", "propose"],
+          "properties": {
+            "solve": { "$ref": "#/$defs/modeSurfaces" },
+            "propose": { "$ref": "#/$defs/modeSurfaces" }
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "system-prompt",
+              "tools",
+              "skills",
+              "agent-events",
+              "session-events",
+              "workflow"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "mechanism", "preservation"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "mechanism": { "$ref": "#/$defs/mechanismPaths" },
+        "preservation": { "$ref": "#/$defs/testPaths" }
+      }
+    },
+    "receiptDigest": { "$ref": "#/$defs/digest" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "parent": { "type": "null" } }
+      },
+      "then": true,
+      "else": { "required": ["requiredParentEvidence"] }
+    },
+    {
+      "if": {
+        "required": ["requiredParentEvidence"]
+      },
+      "then": {
+        "properties": { "parent": { "type": "object" } }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "componentPaths": {
+      "description": "Production modules (src/*.ts) that already exist in the parent tree and whose bytes this child changes in this mode. Newly added child modules must not be listed here.",
+      "type": "array",
+      "items": { "type": "string", "pattern": "^src/.+\\.ts$" },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "mechanismPaths": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^tests/.+\\.spec\\.ts$" },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "testPaths": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^tests/.+\\.spec\\.ts$" },
+      "uniqueItems": true
+    },
+    "modeContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetModes", "preservedModes"],
+      "properties": {
+        "targetModes": {
+          "type": "array",
+          "items": { "enum": ["solve", "propose"] },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "preservedModes": {
+          "type": "array",
+          "items": { "enum": ["solve", "propose"] },
+          "uniqueItems": true
+        }
+      }
+    },
+    "names": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "modeSurfaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promptSections",
+        "newToolNames",
+        "newSkillNames",
+        "agentEventNames",
+        "sessionEventNames",
+        "workflowNames"
+      ],
+      "properties": {
+        "promptSections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/promptSection" },
+          "uniqueItems": true
+        },
+        "newToolNames": { "$ref": "#/$defs/names" },
+        "newSkillNames": { "$ref": "#/$defs/names" },
+        "agentEventNames": { "$ref": "#/$defs/names" },
+        "sessionEventNames": { "$ref": "#/$defs/names" },
+        "workflowNames": { "$ref": "#/$defs/names" }
+      }
+    },
+    "promptSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "order"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^candidate:[a-z0-9][a-z0-9-]*$" },
+        "order": { "type": "integer", "minimum": 0, "maximum": 10000 }
+      }
+    },
+    "parentEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analysisDigest",
+        "mechanismOutcomeDigest",
+        "normalizedTrialDigest",
+        "trajectoryDigest"
+      ],
+      "properties": {
+        "analysisDigest": { "$ref": "#/$defs/digest" },
+        "mechanismOutcomeDigest": { "$ref": "#/$defs/digest" },
+        "normalizedTrialDigest": { "$ref": "#/$defs/digest" },
+        "trajectoryDigest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

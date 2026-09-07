@@ -16,17 +16,17 @@
  * ```
  *
  * The worker runs as `nobody` (uid 65534) under `setpriv --clear-groups`
- * inside a network namespace (`unshare --net`), with a stripped environment
+ * inside a network namespace (`unshare --net`) when available, with a stripped environment
  * and a wall-clock watchdog. `input/capsule` stays worker-writable only
  * because the Cordis include plugin may flush its tree file beside the boot
  * config; the capsule tree digest is re-verified after the run excluding
  * exactly that overlay, so any other drift fails closed. A host that offers
- * neither uid drop nor network namespace fails closed — a proposal is never
- * accepted from an unenforced boundary.
+ * cannot execute a non-root worker fails closed; the network namespace is an
+ * additional hardening layer, not a substitute for the uid boundary.
  * @module @dsh-evolve-le/core/proposer/sandbox
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { chmod, chown, cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
@@ -40,7 +40,9 @@ import { openModelGateway } from './gateway.js'
 import { buildProposalInstruction, createRecordedProposerPolicy } from './policy.js'
 import { openProposerTools } from './tools.js'
 import type { GatewayUsage } from './gateway.js'
-import type { ProposalOutput } from './protocol.js'
+import type { ArchiveCatalog } from './catalog.js'
+import type { ProposalOutput, TreeV2ProposalParent } from './protocol.js'
+import { buildPriorRejectionsDoc, type ProposalRejectionRecord } from './feedback.js'
 
 export const SANDBOX_VERSION = 'dsh-evolve-le/proposal-sandbox/v1'
 
@@ -62,6 +64,8 @@ export interface SandboxAchievement {
   kind: 'uid-netns' | 'netns' | 'uid'
   uid: number | null
   detail: string
+  /** How the worker-writable trees were handed to the isolated uid. */
+  handoff?: 'chown' | 'mode'
 }
 
 export interface WorkerResultDoc {
@@ -78,6 +82,8 @@ export interface WorkerResultDoc {
   turns?: number
   usage?: GatewayUsage
   proposal?: ProposalOutput
+  runtime?: 'recorded-loop' | 'native-dsh'
+  native?: { eventCount: number; toolCalls: number; transcriptPath: string }
 }
 
 export interface ProposalSandboxOutcome {
@@ -103,6 +109,7 @@ export interface SupervisorManifest {
   sandbox: SandboxAchievement
   parentSourceHash: string
   width: number
+  treeV2Parent?: TreeV2ProposalParent
   capsuleDigest: string
   capsuleFileCount: number
   /**
@@ -135,11 +142,53 @@ const WORKER_RUNTIME_FILES = [
   'bin/proposer-worker.js',
   'proposer/gateway.js',
   'proposer/remote-model.js',
+  'proposer/remote-tests.js',
   'proposer/tools.js',
   'proposer/policy.js',
   'proposer/agent-loop.js',
   'proposer/protocol.js',
+  // ADR-044: the TCB prompt texts the worker assembles (moved out of
+  // bin/proposer-worker so tests can import them without executing main()).
+  'proposer/prompt-text.js',
+  // TCB receipt finalization (ADR-034) and its only runtime dependency; the
+  // capsule runner tree ships both (builder/capsule.ts), this copy keeps the
+  // sandbox's worker closure current with the controller lib.
+  'tree-v2/finalize-bundle.js',
+  'state/canonical.js',
+  'dsh/native-composition.js',
+  'dsh/native-llm-adapter.js',
+  'dsh/native-proposal.js',
+  'dsh/native-proposal-runner.js',
 ] as const
+
+let uidDropSupport: boolean | undefined
+
+/** Probe the operation we will actually use, not just the binary's presence. */
+function probeUidDrop(): boolean {
+  if (uidDropSupport !== undefined) return uidDropSupport
+  uidDropSupport =
+    existsSync('/usr/bin/setpriv') &&
+    spawnSync(
+      '/usr/bin/setpriv',
+      [`--reuid=${WORKER_UID}`, `--regid=${WORKER_UID}`, '--clear-groups', 'true'],
+      { stdio: 'ignore', timeout: 10_000 },
+    ).status === 0
+  return uidDropSupport
+}
+
+/**
+ * State the one prerequisite that cannot be emulated by a permissions-only
+ * handoff: the worker must genuinely execute under a non-root host uid.
+ */
+export function proposalWorkerIdentityAvailable(): { ok: boolean; detail: string } {
+  if (probeUidDrop()) {
+    return { ok: true, detail: `setpriv can execute as uid ${String(WORKER_UID)}` }
+  }
+  return {
+    ok: false,
+    detail: 'setpriv uid drop is unavailable; refusing to launch a proposal worker as root',
+  }
+}
 
 async function walk(
   root: string,
@@ -160,14 +209,30 @@ async function sealReadOnly(root: string, dirMode = 0o555, fileMode = 0o444): Pr
   })
 }
 
-/** Hand a tree to the worker uid (recursive chown) and open it for writing. */
-async function handToWorker(root: string): Promise<void> {
-  await chown(root, WORKER_UID, WORKER_UID)
-  await chmod(root, 0o755)
-  await walk(root, async (path, entry) => {
-    await chown(path, WORKER_UID, WORKER_UID)
-    await chmod(path, entry.isDirectory ? 0o755 : 0o644)
-  })
+/**
+ * Hand a tree to the worker uid and open it for writing. Some container
+ * filesystems reject ownership changes with EINVAL even for root. In that
+ * case, permissions are widened only on the already-isolated worker trees;
+ * the uid/network boundary and post-run capsule digest still remain enforced.
+ */
+async function handToWorker(root: string): Promise<'chown' | 'mode'> {
+  try {
+    await chown(root, WORKER_UID, WORKER_UID)
+    await chmod(root, 0o755)
+    await walk(root, async (path, entry) => {
+      await chown(path, WORKER_UID, WORKER_UID)
+      await chmod(path, entry.isDirectory ? 0o755 : 0o644)
+    })
+    return 'chown'
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== 'EINVAL' && code !== 'EPERM' && code !== 'ENOTSUP') throw error
+    await chmod(root, 0o777)
+    await walk(root, async (path, entry) => {
+      await chmod(path, entry.isDirectory ? 0o777 : 0o666)
+    })
+    return 'mode'
+  }
 }
 
 /**
@@ -190,24 +255,21 @@ async function ensureTraversable(from: string): Promise<void> {
 
 /** Detect the strongest OS boundary this host can give the worker. */
 function achieveSandbox(): SandboxAchievement {
-  const setpriv = existsSync('/usr/bin/setpriv')
+  const setpriv = proposalWorkerIdentityAvailable().ok
   const netns = probeNetworkNamespace()
-  if (setpriv && netns) {
+  if (!setpriv) {
+    throw new SandboxError(
+      'host cannot execute the proposal worker as a non-root uid; refusing a root-worker fallback',
+    )
+  }
+  if (netns) {
     return {
       kind: 'uid-netns',
       uid: WORKER_UID,
       detail: `setpriv --reuid=${WORKER_UID} --regid=${WORKER_UID} --clear-groups + unshare --net, stripped env, wall-clock watchdog`,
     }
   }
-  if (netns) {
-    return { kind: 'netns', uid: null, detail: 'unshare --net only (no uid drop available)' }
-  }
-  if (setpriv) {
-    return { kind: 'uid', uid: WORKER_UID, detail: `setpriv --reuid=${WORKER_UID} only` }
-  }
-  throw new SandboxError(
-    'host provides neither setpriv nor a network namespace; refusing to run a proposal without an OS boundary',
-  )
+  return { kind: 'uid', uid: WORKER_UID, detail: `setpriv --reuid=${WORKER_UID} only` }
 }
 
 /**
@@ -231,6 +293,10 @@ export interface RemoteSandboxModel {
   receiptsPath: string
   /** Worker-side socket timeout; must exceed the proxy's request timeout. */
   clientTimeoutMs?: number
+  /** Frozen provider/model identity used by the native DSH adapter. */
+  provider: string
+  model: string
+  maxTokens?: number
 }
 
 export interface RunProposalSandboxOptions {
@@ -243,6 +309,13 @@ export interface RunProposalSandboxOptions {
   parentTreeDir: string
   parentSourceHash: string
   width: number
+  /** Trusted admission facts; presence selects v2 proposal output. */
+  treeV2Parent?: TreeV2ProposalParent
+  /** Archive catalog staged into the sandbox input (ADR-034); required for v2. */
+  catalog?: ArchiveCatalog
+  /** This run's prior rejected children + reasons (ADR-044); staged as
+   * input/prior-rejections.json when non-empty. */
+  priorRejections?: readonly ProposalRejectionRecord[]
   maxTurns?: number
   timeoutMs?: number
   /** Networked route (Gate 8); default is the recorded deterministic policy. */
@@ -290,24 +363,80 @@ export async function runProposalSandbox(
   ) as { name: string }
   const capsuleManifest = JSON.parse(await readFile(join(capsuleDir, 'manifest.json'), 'utf8')) as {
     identity: { candidateId: string }
+    runtime?: { nativeDsh?: unknown }
+  }
+  if (options.model !== undefined && capsuleManifest.runtime?.nativeDsh === undefined) {
+    throw new SandboxError(
+      'remote proposal requires a packed native DSH runtime closure; refusing compatibility-loop downgrade',
+    )
   }
   const candidateManifest = JSON.parse(
     await readFile(join(capsuleDir, 'candidate', 'candidate.json'), 'utf8'),
-  ) as { runtime?: { promptSections?: { propose?: { name: string }[] } } }
-  const declaredProposeSections = (candidateManifest.runtime?.promptSections?.propose ?? []).map(
-    (section) => section.name,
-  )
+  ) as {
+    schemaVersion?: number
+    runtime?: {
+      promptSections?: { propose?: { name: string }[] }
+      modeSurfaces?: { propose?: { promptSections?: { name: string }[] } }
+    }
+  }
+  const isTreeV2Parent = candidateManifest.schemaVersion === 2
+  if (isTreeV2Parent !== (options.treeV2Parent !== undefined)) {
+    throw new SandboxError(
+      isTreeV2Parent
+        ? 'tree-v2 parent is missing trusted proposal evidence'
+        : 'legacy parent cannot be paired with tree-v2 proposal evidence',
+    )
+  }
+  const declaredProposeSections = (
+    isTreeV2Parent
+      ? (candidateManifest.runtime?.modeSurfaces?.propose?.promptSections ?? [])
+      : (candidateManifest.runtime?.promptSections?.propose ?? [])
+  ).map((section) => section.name)
   await writeFile(
     join(capsuleDir, 'cordis.propose.yml'),
-    `${bootConfig(candidatePkg.name ?? '', capsuleManifest.identity.candidateId, 'propose')}\n`,
+    `${bootConfig(
+      candidatePkg.name ?? '',
+      capsuleManifest.identity.candidateId,
+      'propose',
+      capsuleManifest.runtime?.nativeDsh === undefined ? undefined : {},
+    )}\n`,
     'utf8',
   )
 
   // Export view (controller-selected) and the canonical parent tree.
   await cp(options.exportDir, join(inputRoot, 'export'), { recursive: true })
+  // Archive catalog (ADR-034): one dev-observed source of truth shared by the
+  // model's donor selection and the TCB donor validation. A v2 proposal
+  // without it cannot finalize, so its absence fails closed at staging time.
+  if (options.treeV2Parent !== undefined && options.catalog === undefined) {
+    throw new SandboxError('tree-v2 proposal requires the staged archive catalog')
+  }
+  if (options.catalog !== undefined) {
+    await writeFile(
+      join(inputRoot, 'archive-catalog.json'),
+      `${JSON.stringify(options.catalog, null, 2)}\n`,
+      'utf8',
+    )
+  }
+  // ADR-044: this run's prior rejection verdicts, staged like the catalog —
+  // controller-owned input, deterministic from search-state at request time.
+  if (options.priorRejections !== undefined && options.priorRejections.length > 0) {
+    await writeFile(
+      join(inputRoot, 'prior-rejections.json'),
+      `${JSON.stringify(buildPriorRejectionsDoc(options.priorRejections), null, 2)}\n`,
+      'utf8',
+    )
+  }
   const parentSource = await captureCanonicalSource(options.parentTreeDir)
   if (parentSource.sha256 !== options.parentSourceHash.replace(/^sha256:/, '')) {
     throw new SandboxError('parent tree does not hash to the declared parentSourceHash')
+  }
+  if (
+    options.treeV2Parent !== undefined &&
+    (options.treeV2Parent.candidateDigest !== options.parentSourceHash ||
+      !/^sha256:[a-f0-9]{64}$/.test(options.treeV2Parent.mechanismOutcomeDigest))
+  ) {
+    throw new SandboxError('tree-v2 parent evidence is malformed or bound to another parent')
   }
   await mkdir(join(inputRoot, 'parent'), { recursive: true })
   for (const file of parentSource.files) {
@@ -355,8 +484,20 @@ export async function runProposalSandbox(
         schemaVersion: 1 as const,
         parentSourceHash: options.parentSourceHash,
         width: options.width,
+        ...(options.treeV2Parent === undefined ? {} : { treeV2Parent: options.treeV2Parent }),
         ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {}),
         ...(options.model !== undefined ? { modelSocket: options.model.socketPath } : {}),
+        ...(options.model === undefined || capsuleManifest.runtime?.nativeDsh === undefined
+          ? {}
+          : {
+              nativeDsh: {
+                provider: options.model.provider,
+                model: options.model.model,
+                ...(options.model.maxTokens === undefined
+                  ? {}
+                  : { maxTokens: options.model.maxTokens }),
+              },
+            }),
         ...(options.model?.clientTimeoutMs !== undefined
           ? { modelClientTimeoutMs: options.model.clientTimeoutMs }
           : {}),
@@ -375,15 +516,21 @@ export async function runProposalSandbox(
   await ensureTraversable(dirname(sandboxRoot))
   await chmod(sandboxRoot, 0o755)
   await sealReadOnly(inputRoot)
-  await handToWorker(capsuleDir)
-  await handToWorker(workRoot)
+  const capsuleHandoff = await handToWorker(capsuleDir)
+  const workHandoff = await handToWorker(workRoot)
   const capsuleBefore = await capsuleDigestExcludingOverlay(capsuleDir)
+  const handoff = capsuleHandoff === 'chown' && workHandoff === 'chown' ? 'chown' : 'mode'
+  sandbox.handoff = handoff
+  if (handoff === 'mode') {
+    sandbox.detail += '; worker-tree ownership unavailable, equivalent mode handoff recorded'
+  }
   const supervisorManifest: SupervisorManifest = {
     schemaVersion: 1,
     sandboxVersion: SANDBOX_VERSION,
     sandbox,
     parentSourceHash: options.parentSourceHash,
     width: options.width,
+    ...(options.treeV2Parent === undefined ? {} : { treeV2Parent: options.treeV2Parent }),
     capsuleDigest: capsuleBefore.digest,
     capsuleFileCount: capsuleBefore.fileCount,
     model:
@@ -513,6 +660,7 @@ export async function verifyProposalSandboxReplay(
     parentSourceHash: string
     width: number
     maxTurns?: number
+    treeV2Parent?: TreeV2ProposalParent
     declaredProposeSections: string[]
   }
   const sectionsDoc = JSON.parse(await readFile(join(workRoot, 'sections.json'), 'utf8')) as {
@@ -525,7 +673,10 @@ export async function verifyProposalSandboxReplay(
 
   await mkdir(join(options.replayDir, 'children'), { recursive: true })
   const gateway = openModelGateway({
-    model: createRecordedProposerPolicy({ width: config.width }),
+    model: createRecordedProposerPolicy({
+      width: config.width,
+      ...(config.treeV2Parent === undefined ? {} : { treeV2Parent: config.treeV2Parent }),
+    }),
     receiptsPath: join(options.replayDir, 'gateway-receipts.jsonl'),
   })
   await runProposerAgentLoop({
@@ -538,6 +689,7 @@ export async function verifyProposalSandboxReplay(
     instruction: buildProposalInstruction({
       parentSourceHash: config.parentSourceHash,
       width: config.width,
+      ...(config.treeV2Parent === undefined ? {} : { treeV2Parent: config.treeV2Parent }),
     }),
     transcriptPath: join(options.replayDir, 'transcript.jsonl'),
     proposalPath: join(options.replayDir, 'proposal.json'),

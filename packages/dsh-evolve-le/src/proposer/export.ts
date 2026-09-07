@@ -15,7 +15,7 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { base32Lower } from '../candidate/canonical.js'
-import { canaryFingerprint, scanForCanary } from './canary.js'
+import { canaryFingerprint, scanForCanary, type CanaryHit } from './canary.js'
 import {
   validateRef,
   type ObjectLabel,
@@ -32,6 +32,22 @@ export class EvidenceExportError extends Error {
   constructor(message: string) {
     super(`evidence-export: ${message}`)
     this.name = 'EvidenceExportError'
+  }
+}
+
+/**
+ * Canary refusal (specs/05 §10, ADR-046): a guarded token appeared in the
+ * selected bytes. A typed subclass so the driver can distinguish the
+ * safety-abort surface from ordinary export failures, carrying the structured
+ * hits (fingerprints only) for the information-flow monitor receipt.
+ */
+export class EvidenceExportCanaryError extends EvidenceExportError {
+  constructor(
+    message: string,
+    readonly hits: CanaryHit[],
+  ) {
+    super(message)
+    this.name = 'EvidenceExportCanaryError'
   }
 }
 
@@ -144,8 +160,9 @@ export async function createEvidenceExport(
     const bytes = await store.read(ref)
     const hits = scanForCanary(bytes.toString('utf8'), canaryTokens)
     if (hits.length > 0) {
-      throw new EvidenceExportError(
+      throw new EvidenceExportCanaryError(
         `canary fingerprint ${hits[0]!.tokenFingerprint.slice(0, 12)} present in object ${ref.digest.slice(0, 12)} — refusing to export`,
+        hits,
       )
     }
   }
@@ -199,8 +216,9 @@ export async function createEvidenceExport(
       }
       const postCopy = scanForCanary(copied.toString('utf8'), canaryTokens)
       if (postCopy.length > 0) {
-        throw new EvidenceExportError(
+        throw new EvidenceExportCanaryError(
           `canary appeared in the materialized copy of ${ref.digest.slice(0, 12)}`,
+          postCopy,
         )
       }
       await chmod(target, 0o444)

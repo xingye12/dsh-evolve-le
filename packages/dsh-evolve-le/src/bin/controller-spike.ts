@@ -101,30 +101,32 @@ async function main(argv: string[]): Promise<number> {
   await service.changePhase('CALIBRATED', 'controller-spike')
   await service.changePhase('SEARCHING', 'controller-spike')
   await service.planWave('w1', 'dev-observed', ['a1', 'a2'])
-  await service.runEvaluation({
-    actionId: 'a1',
-    waveId: 'w1',
-    candidateId: 'cand-1',
-    opaqueTaskId: 'task-1',
-    attempt: 1,
-    split: 'dev-observed',
-    estimate: [
-      { dimension: 'usd', amount: 500_000 },
-      { dimension: 'task-trials', amount: 1 },
-    ],
-  })
-  await service.runEvaluation({
-    actionId: 'a2',
-    waveId: 'w1',
-    candidateId: 'cand-2',
-    opaqueTaskId: 'task-2',
-    attempt: 1,
-    split: 'dev-observed',
-    estimate: [
-      { dimension: 'usd', amount: 500_000 },
-      { dimension: 'task-trials', amount: 1 },
-    ],
-  })
+  await service.runEvaluationWave([
+    {
+      actionId: 'a1',
+      waveId: 'w1',
+      candidateId: 'cand-1',
+      opaqueTaskId: 'task-1',
+      attempt: 1,
+      split: 'dev-observed',
+      estimate: [
+        { dimension: 'usd', amount: 500_000 },
+        { dimension: 'task-trials', amount: 1 },
+      ],
+    },
+    {
+      actionId: 'a2',
+      waveId: 'w1',
+      candidateId: 'cand-2',
+      opaqueTaskId: 'task-2',
+      attempt: 1,
+      split: 'dev-observed',
+      estimate: [
+        { dimension: 'usd', amount: 500_000 },
+        { dimension: 'task-trials', amount: 1 },
+      ],
+    },
+  ])
   await service.commitWave('w1')
 
   // Unload: dispose() awaits the service's async flush disposer.

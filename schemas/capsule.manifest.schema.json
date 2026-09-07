@@ -57,6 +57,29 @@
         "kind": { "enum": ["pinned-closure", "install-manifest"] },
         "digest": { "$ref": "#/$defs/sha256Hex" },
         "detail": { "type": "string", "minLength": 1 },
+        "nativeDsh": {
+          "type": "object",
+          "properties": {
+            "protocol": { "const": "dsh-evolve-le/native-dsh/v1" },
+            "packages": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "prefixItems": [
+                  { "type": "string", "pattern": "^@deepseek-ai/dsh-[a-z0-9-]+$" },
+                  { "type": "string", "const": "0.1.0-rc.5" }
+                ],
+                "minItems": 2,
+                "maxItems": 2,
+                "items": false
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": ["protocol", "packages"],
+          "additionalProperties": false
+        },
         "nodeRuntime": {
           "type": "object",
           "description": "The pinned node interpreter embedded at runtime/node and exec'd by the ACP entrypoint. TB task images ship no node, so the capsule carries its own (specs/02 §12). Optional only because pre-Gate-8-fix capsules predate it; every capsule built after dsh-evolve-le-builder-0.0.2 records it.",

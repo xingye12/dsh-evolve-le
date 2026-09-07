@@ -7,6 +7,9 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process'
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /** Sandbox kind actually achieved for a run. */
 export interface SandboxInfo {
@@ -57,26 +60,41 @@ export function runSandboxed(
   const useNamespace = probeNetworkNamespace()
   const argv = useNamespace ? ['--net', command, ...args] : args
   return new Promise((resolvePromise) => {
+    // The pinned capsule Node has a runtime-specific stdio quirk: when its
+    // stdout is a Node-created pipe it can exit successfully without flushing
+    // the pipe. File-backed stdio preserves the same offline boundary while
+    // making the one-shot JSON protocol deterministic for every runtime.
+    const outputDir = mkdtempSync(join(tmpdir(), 'dsh-sandbox-output-'))
+    const stdoutPath = join(outputDir, 'stdout')
+    const stderrPath = join(outputDir, 'stderr')
+    const stdoutFd = openSync(stdoutPath, 'w+')
+    const stderrFd = openSync(stderrPath, 'w+')
+    let descriptorsClosed = false
+    let settled = false
+    const closeDescriptors = (): void => {
+      if (descriptorsClosed) return
+      descriptorsClosed = true
+      closeSync(stdoutFd)
+      closeSync(stderrFd)
+    }
     const child = spawn(useNamespace ? 'unshare' : command, argv, {
       cwd: options.cwd,
       env: SANDBOX_ENV,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', stdoutFd, stderrFd],
     })
-    let stdout = ''
-    let stderr = ''
     let timedOut = false
     const timer = setTimeout(() => {
       timedOut = true
       child.kill('SIGKILL')
     }, options.timeoutMs)
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8')
-    })
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf8')
-    })
     child.on('error', (error) => {
+      if (settled) return
+      settled = true
       clearTimeout(timer)
+      closeDescriptors()
+      const stdout = readFileSync(stdoutPath, 'utf8')
+      const stderr = readFileSync(stderrPath, 'utf8')
+      rmSync(outputDir, { recursive: true, force: true })
       resolvePromise({
         code: null,
         stdout,
@@ -86,7 +104,13 @@ export function runSandboxed(
       })
     })
     child.on('close', (code) => {
+      if (settled) return
+      settled = true
       clearTimeout(timer)
+      closeDescriptors()
+      const stdout = readFileSync(stdoutPath, 'utf8')
+      const stderr = readFileSync(stderrPath, 'utf8')
+      rmSync(outputDir, { recursive: true, force: true })
       resolvePromise({
         code,
         stdout,
@@ -118,6 +142,30 @@ export function sandboxedCommand(
   return probeNetworkNamespace()
     ? { command: 'unshare', args: ['--net', command, ...args] }
     : { command, args }
+}
+
+/**
+ * Wrap an interactive JSONL command with the same offline boundary as
+ * {@link sandboxedCommand}. A PTY is required for the pinned Node runtime's
+ * pipe-flush behavior; terminal echo and CRLF translation are disabled so the
+ * stream remains transparent to ACP.
+ */
+export function sandboxedInteractiveCommand(
+  command: string,
+  args: string[],
+): { command: string; args: string[] } {
+  const sandbox = sandboxedCommand(command, args)
+  const target = [sandbox.command, ...sandbox.args]
+  // Node 24 in the pinned toolchain does not reliably flush stdout when it is
+  // attached to a pipe created by another Node process. `script` gives the
+  // child a PTY while retaining a normal pipe to the ACP driver. Disable local
+  // echo and CRLF translation so the PTY remains a transparent JSONL stream.
+  const shellCommand = `stty -echo -onlcr; exec ${target.map(shellQuote).join(' ')}`
+  return { command: '/usr/bin/script', args: ['-qefc', shellCommand, '/dev/null'] }
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`
 }
 
 /** The stripped environment sandboxed children run with. */

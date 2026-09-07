@@ -165,6 +165,20 @@ Successful status is `STABLE_ITERATION_VERIFIED`. It is an engineering lifecycle
 
 Gate 7 produces `OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`; it does not require benchmark improvement.
 
+### tree-v2 protocol upgrade acceptance
+
+- candidate identity is a multi-file Cordis component with a `ctx.plugin()` root and candidate-owned
+  mechanism/preservation tests;
+- all six strategy surfaces are executable, bounded, declared per mode, Loader-visible and
+  effect-owned on unload; the capability catalog equals their exact declared union;
+- v2 proposal admission resolves four named parent digests and rejects legacy bare-hash substitution;
+- trusted protocol selection keeps legacy lineages replayable and requires v2 output after a tree-v2
+  parent admission; the choice and parent mechanism digest are durable request/sandbox facts;
+- target/preserved modes pass production-byte and isolated Loader-fingerprint checks;
+- the eight strict schemas, canonical receipt digests and proposal-to-admission cross-links validate;
+- a v1 migration receipt sets `resultsInherited: false`; the new identity is rebuilt, readmitted and
+  reevaluated before it can receive any lifecycle status based on results.
+
 ## 10. Gate 8 — Optional continuous benchmark profiles
 
 Gate 8 is post-release and never blocks v0.1:

@@ -35,12 +35,16 @@ export const RECORDED_TURNS: readonly RecordedTurn[] = []
 export function replayKey(options: {
   sections: readonly { name: string; order: number; text: string }[]
   userText: string
+  messages?: readonly { role: string; content: unknown }[]
+  tools?: readonly { name: string; description: string; parameters: Record<string, unknown> }[]
 }): string {
   const document = {
     system: [...options.sections]
       .sort((a, b) => a.order - b.order)
       .map((section) => ({ name: section.name, text: section.text })),
     user: options.userText,
+    ...(options.messages === undefined ? {} : { messages: options.messages }),
+    ...(options.tools === undefined ? {} : { tools: options.tools }),
   }
   return JSON.stringify(document)
 }
@@ -49,6 +53,8 @@ export function replayKey(options: {
 export function promptSha256(options: {
   sections: readonly { name: string; order: number; text: string }[]
   userText: string
+  messages?: readonly { role: string; content: unknown }[]
+  tools?: readonly { name: string; description: string; parameters: Record<string, unknown> }[]
 }): string {
   return createHash('sha256').update(replayKey(options), 'utf8').digest('hex')
 }

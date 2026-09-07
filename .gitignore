@@ -12,6 +12,8 @@ node_modules/
 **/lib/
 **/.tsbuildinfo
 **/*.tsbuildinfo
+# Local native DSH closure lock (catalog paths are host-specific).
+native-dsh.lock.json
 
 # Evidence and run artifacts (created in later gates).
 # Frozen calibration evidence (split commitment, budget model, samples) IS
@@ -39,6 +41,12 @@ evidence/gate8/*
 !evidence/gate8/smoke/
 !evidence/gate8/smoke/STATUS.json
 !evidence/gate8/smoke/real-model-proposal.json
+!evidence/gate8/solve-smoke/
+evidence/gate8/solve-smoke/*
+!evidence/gate8/solve-smoke/STATUS.json
+!evidence/gate8/solve-smoke/live-solve-trial.json
+!evidence/gate8/solve-smoke/artifacts/
+!evidence/gate8/solve-smoke/artifacts/**
 !evidence/gate8/pilot/
 evidence/gate8/pilot/*
 !evidence/gate8/pilot/STATUS.json
@@ -61,6 +69,30 @@ evidence/gate8/pilot/run/controller/*
 # the children the model wrote) stays tracked.
 evidence/gate8/pilot/run/controller/sandboxes/*/input/capsule/
 evidence/gate8/pilot/run/controller/sandboxes/*/input/capsule/**
+!evidence/gate8/live-pilot/
+evidence/gate8/live-pilot/*
+!evidence/gate8/live-pilot/STATUS.json
+!evidence/gate8/live-pilot/live-pilot-run.json
+!evidence/gate8/live-pilot/jobs/
+!evidence/gate8/live-pilot/jobs/**
+!evidence/gate8/live-pilot/jobs/**/*.log
+!evidence/gate8/live-pilot/run/
+evidence/gate8/live-pilot/run/*
+!evidence/gate8/live-pilot/run/*.json
+!evidence/gate8/live-pilot/run/*.jsonl
+!evidence/gate8/live-pilot/run/solve-gateway/
+evidence/gate8/live-pilot/run/solve-gateway/*
+!evidence/gate8/live-pilot/run/solve-gateway/receipts/
+!evidence/gate8/live-pilot/run/solve-gateway/receipts/**
+!evidence/gate8/live-pilot/run/capsules/
+!evidence/gate8/live-pilot/run/capsules/**
+!evidence/gate8/live-pilot/run/controller/
+evidence/gate8/live-pilot/run/controller/*
+!evidence/gate8/live-pilot/run/controller/sandboxes/
+!evidence/gate8/live-pilot/run/controller/sandboxes/**
+# Same staging exclusion as the recorded pilot (see above).
+evidence/gate8/live-pilot/run/controller/sandboxes/*/input/capsule/
+evidence/gate8/live-pilot/run/controller/sandboxes/*/input/capsule/**
 !evidence/gate4/
 evidence/gate4/*
 !evidence/gate4/STATUS.json
@@ -97,6 +129,10 @@ runs/
 
 # ZCode session/plan artifacts (not part of the project).
 .zcode/
+
+# Host-side scratch: run roots, verifier-image staging, native DSH catalog,
+# the sealed split store (0600, outside the evidence tree — never tracked).
+scratch/
 
 # Gate 7 release artifacts (content-addressed into evidence/gate7 instead).
 release/

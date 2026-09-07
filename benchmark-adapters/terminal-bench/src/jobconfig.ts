@@ -35,6 +35,48 @@ export const INFRA_MAX_RETRIES = 1
  */
 export const AGENT_SETUP_TIMEOUT_MULTIPLIER = 5
 
+/**
+ * Agent-phase timeout multiplier (paid-smoke attempts 2 and 4): Terminal-Bench
+ * tasks pin `timeout_sec = 900`, which harbor enforces with a hard kill that
+ * turns the trial into an AgentTimeoutError exception and discards the agent's
+ * usage. A live solve trial spends its wall clock on network model turns the
+ * replay capsule never had, so 900 s is not a capability budget — it is an
+ * infra ceiling misread as an agent death. The multiplier applies uniformly to
+ * every trial of every run (baseline and children alike), so candidate
+ * comparisons keep their internal validity. The live capsule receives each
+ * task's resulting effective agent timeout in JobConfig and derives its own
+ * earlier deadline with a fixed teardown reserve. Verifier timeouts stay at
+ * the task's canonical value (only the agent phase is multiplied).
+ *
+ * Why 3× and not 2× (attempt 4 finding): the graceful end is not the last
+ * event. After the capsule's wall clock fires, the session/prompt reply must
+ * travel back, harbor's runner writes acp-summary.json in its finally, the
+ * runner exits, and only then does the docker exec return — measured ≈ 2.5-3
+ * minutes in total, and the capsule's clock also starts later than harbor's
+ * (runner venv startup + initialize/new_session handshake). With 2× the
+ * nominal 60 s margin was therefore negative: both attempt-4 trials were
+ * killed at exactly 1800.0 s, one of them AFTER solving its task (verifier
+ * reward 1.0), with the usage update (191 301 tokens, $0.049) never reaching
+ * the result. 3× (2700 s) leaves ~15 minutes for the whole teardown chain.
+ */
+export const AGENT_TIMEOUT_MULTIPLIER = 3
+
+/**
+ * Environment-build timeout multiplier (K=10 live pilot attempt 1): the
+ * environment phase runs `docker compose up --wait` — which pulls the task
+ * image when it is not local. Terminal-Bench tasks default `build_timeout_sec`
+ * to 600 s, and harbor multiplies it by this value only
+ * (`trial.py::_compute_environment_build_timeout_sec`); without it, a cold
+ * pull under load dies as EnvironmentStartTimeoutError at exactly 600.0 s.
+ * Attempt 1's second discovery trial died this way on
+ * `alexgshaw/build-cython-ext:20251031` — harbor's one infra retry re-failed
+ * (the pull was still in flight), and the pilot's pool cannot freeze
+ * infra-dead (ADR-028). 5× (3000 s) matches the ACP bootstrap headroom and
+ * covers a cold multi-GB pull; it only widens a wall clock the trial never
+ * reaches when the image is already local (a warm start needs seconds).
+ */
+export const ENVIRONMENT_BUILD_TIMEOUT_MULTIPLIER = 5
+
 export interface JobPlanInput {
   jobName: string
   jobsDir: string
@@ -72,6 +114,8 @@ export function buildJobConfig(input: JobPlanInput): JobPlan {
     // include-list is sourced from the normalizer's pre-registered set so the
     // plan and the observation classification can never drift apart.
     agent_setup_timeout_multiplier: AGENT_SETUP_TIMEOUT_MULTIPLIER,
+    agent_timeout_multiplier: AGENT_TIMEOUT_MULTIPLIER,
+    environment_build_timeout_multiplier: ENVIRONMENT_BUILD_TIMEOUT_MULTIPLIER,
     retry: {
       max_retries: INFRA_MAX_RETRIES,
       include_exceptions: [...INFRA_RETRYABLE_EXCEPTIONS].sort(),

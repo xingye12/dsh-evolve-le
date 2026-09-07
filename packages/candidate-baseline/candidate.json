@@ -4,17 +4,19 @@
   "canonicalParent": null,
   "donorCandidates": [],
   "proposal": {
-    "hypothesis": "Baseline two-mode candidate: registers only a stable identity prompt section, establishing the admission-pipeline floor without behavioral delta.",
+    "hypothesis": "Baseline two-mode DSH candidate: registers a stable identity prompt section plus bounded candidate-owned tool and skill strategy surfaces.",
     "evidenceRefs": ["evidence://gate0/loader-spike.json"],
     "targetFailureModes": [],
-    "expectedBehaviorChange": "None beyond a stable candidate:-prefixed prompt section in each mode.",
+    "expectedBehaviorChange": "Expose the stable prompt section plus candidate-owned DSH tool and skill strategy in both modes.",
     "regressionRisks": [],
-    "touchedSurfaces": ["system-prompt"]
+    "touchedSurfaces": ["system-prompt", "tools", "skills"],
+    "strategySurfaces": ["system-prompt", "tools", "skills"]
   },
   "runtime": {
-    "requiredServices": ["systemPrompt"],
+    "requiredServices": ["systemPrompt", "tools", "skills"],
     "optionalServices": [],
-    "newToolNames": [],
+    "newToolNames": ["candidate_strategy_snapshot"],
+    "newSkillNames": ["candidate-strategy-review"],
     "supportsModes": ["solve", "propose"],
     "promptSections": {
       "solve": [
@@ -33,8 +35,8 @@
   },
   "tests": {
     "mechanismAssertions": [
-      "In solve mode the candidate registers exactly one section named candidate:identity.",
-      "In propose mode the candidate registers exactly one section named candidate:proposal-policy."
+      "In solve mode the candidate registers exactly one section named candidate:identity and the declared candidate-owned tool and skill.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy and the declared candidate-owned tool and skill."
     ],
     "preservationAssertions": [
       "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."

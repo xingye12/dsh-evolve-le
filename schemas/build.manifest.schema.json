@@ -198,6 +198,57 @@
       "required": ["node", "pnpm", "typescript", "dependencyClosureSha256", "tsconfigSha256"],
       "additionalProperties": false
     },
+    "treeV2": {
+      "type": "object",
+      "properties": {
+        "protocol": { "const": "dsh-self-evolving-candidate-tree-v2" },
+        "modeContract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["targetModes", "preservedModes"],
+          "properties": {
+            "targetModes": {
+              "type": "array",
+              "items": { "enum": ["solve", "propose"] },
+              "uniqueItems": true,
+              "minItems": 1
+            },
+            "preservedModes": {
+              "type": "array",
+              "items": { "enum": ["solve", "propose"] },
+              "uniqueItems": true
+            }
+          }
+        },
+        "requiredParentEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "analysisDigest",
+            "mechanismOutcomeDigest",
+            "normalizedTrialDigest",
+            "trajectoryDigest"
+          ],
+          "properties": {
+            "analysisDigest": { "$ref": "#/$defs/sha256Ref" },
+            "mechanismOutcomeDigest": { "$ref": "#/$defs/sha256Ref" },
+            "normalizedTrialDigest": { "$ref": "#/$defs/sha256Ref" },
+            "trajectoryDigest": { "$ref": "#/$defs/sha256Ref" }
+          }
+        },
+        "modeFingerprints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["solve", "propose"],
+          "properties": {
+            "solve": { "$ref": "#/$defs/sha256Ref" },
+            "propose": { "$ref": "#/$defs/sha256Ref" }
+          }
+        }
+      },
+      "required": ["protocol", "modeContract", "modeFingerprints"],
+      "additionalProperties": false
+    },
     "receipts": {
       "type": "object",
       "propertyNames": {

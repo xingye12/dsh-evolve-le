@@ -118,6 +118,22 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "strategySurfaces": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "system-prompt",
+              "tools",
+              "skills",
+              "agent-events",
+              "session-events",
+              "workflow"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Candidate-owned DSH strategy surfaces materialized by this proposal."
         }
       },
       "required": [
@@ -154,6 +170,15 @@
             "$ref": "#/$defs/toolName"
           },
           "uniqueItems": true
+        },
+        "newSkillNames": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^candidate-[a-z0-9][a-z0-9-]*$"
+          },
+          "uniqueItems": true,
+          "description": "Candidate-owned DSH skills registered through ctx.skills."
         },
         "supportsModes": {
           "const": ["solve", "propose"],

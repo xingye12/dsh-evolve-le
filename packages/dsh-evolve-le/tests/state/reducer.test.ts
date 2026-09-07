@@ -474,3 +474,44 @@ describe('seeded property: arbitrary valid sequences fold deterministically', ()
     expect(canonicalHash({ a: 1 })).toHaveLength(64)
   })
 })
+
+describe('NO_DEVELOPMENT_IMPROVEMENT phase (ADR-047)', () => {
+  it('is a legal early terminal from DRAFT', async () => {
+    const { scenario, cleanup } = await openScenario('dsh-red-nodev-draft-')
+    await scenario.emit('run.phase.changed', {
+      to: 'NO_DEVELOPMENT_IMPROVEMENT',
+      reason: 'baseline won the tournament',
+    })
+    const state = replayEvents((await scenario.state()) as never, scenario.reducerConfig)
+    expect(state.phase).toBe('NO_DEVELOPMENT_IMPROVEMENT')
+    await scenario.close()
+    await cleanup()
+  })
+
+  it('is a legal edge from SEARCHING', async () => {
+    const { scenario, cleanup } = await searchingScenario('dsh-red-nodev-search-')
+    await scenario.emit('run.phase.changed', {
+      to: 'NO_DEVELOPMENT_IMPROVEMENT',
+      reason: 'winner delta <= 0',
+    })
+    const state = replayEvents((await scenario.state()) as never, scenario.reducerConfig)
+    expect(state.phase).toBe('NO_DEVELOPMENT_IMPROVEMENT')
+    await scenario.close()
+    await cleanup()
+  })
+
+  it('is terminal: a resume can never re-enter search', async () => {
+    const { scenario, cleanup } = await searchingScenario('dsh-red-nodev-terminal-')
+    await scenario.emit('run.phase.changed', {
+      to: 'NO_DEVELOPMENT_IMPROVEMENT',
+      reason: 'no improvement',
+    })
+    await scenario.emit('run.phase.changed', { to: 'SEARCHING', reason: 're-enter' })
+    const state = await scenario.state()
+    expect(() => replayEvents(state as never, scenario.reducerConfig)).toThrow(
+      /not a legal edge/,
+    )
+    await scenario.close()
+    await cleanup()
+  })
+})

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schema/tree-v2/migration-receipt/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "protocol",
+    "kind",
+    "legacyCandidateDigest",
+    "treeV2CandidateDigest",
+    "sourceDigest",
+    "resultsInherited",
+    "requiredActions",
+    "receiptDigest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "protocol": { "const": "dsh-self-evolving-candidate-tree-v2" },
+    "kind": { "const": "migration-receipt" },
+    "legacyCandidateDigest": { "$ref": "#/$defs/digest" },
+    "treeV2CandidateDigest": { "$ref": "#/$defs/digest" },
+    "sourceDigest": { "$ref": "#/$defs/digest" },
+    "resultsInherited": { "const": false },
+    "requiredActions": {
+      "type": "array",
+      "items": { "enum": ["rebuild", "readmit", "reevaluate"] },
+      "uniqueItems": true,
+      "minItems": 3
+    },
+    "receiptDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": { "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" } }
+}

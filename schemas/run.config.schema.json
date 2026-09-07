@@ -20,8 +20,13 @@
     },
     "profile": {
       "type": "string",
-      "enum": ["stable-demo"],
-      "description": "stable-demo proves stable iteration only; formal profiles arrive with later gates and their own configs."
+      "enum": ["stable-demo", "terminal-bench-formal"],
+      "description": "stable-demo proves stable iteration only and never enters the champion tournament; terminal-bench-formal runs the full ADR-045..049 protocol (benchmark baseline, tournament + champion lock, sealed pre-registration)."
+    },
+    "candidateProtocol": {
+      "type": "string",
+      "enum": ["legacy-v1", "tree-v2"],
+      "description": "Candidate lineage contract. tree-v2 creates a non-inheriting migration receipt before fresh evaluation."
     },
     "masterSeed": {
       "$ref": "#/$defs/masterSeed",
@@ -36,12 +41,21 @@
       "items": {
         "$ref": "#/$defs/modelRoute"
       },
-      "description": "Frozen route table; route identity (including the compatible Zen/high/1M/32k route) is content-hashed into the run manifest and every gateway receipt."
+      "description": "Frozen route table; route identity (including the compatible Zen/high/1M/131k route) is content-hashed into the run manifest and every gateway receipt."
     },
     "proposerRoute": {
       "type": "string",
       "minLength": 1,
       "description": "The model route id the proposal sandbox runs behind."
+    },
+    "solverRoute": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional live model route id for SOLVE trials (ADR-030). Absent means every solve trial runs the recorded-replay capsule (Gate 8 behavior). Must reference a zen-compatible networked route and be paired with budget.solverTokens; the derived track (self iff it equals proposerRoute, specs/00 §4) and route hash freeze into the run manifest."
+    },
+    "nativeDsh": {
+      "$ref": "#/$defs/nativeDsh",
+      "description": "Trusted prebuilt DSH catalog and preflight closure hash. The built-in iteration builder requires this lock and rechecks it for every candidate admission."
     },
     "benchmark": {
       "$ref": "#/$defs/benchmark"
@@ -60,6 +74,7 @@
     "schemaVersion",
     "runId",
     "profile",
+    "candidateProtocol",
     "masterSeed",
     "search",
     "modelRoutes",
@@ -75,6 +90,23 @@
       "minLength": 16,
       "maxLength": 256,
       "description": "High-entropy secret kept out of evidence; only sha256(seed||dataset||protocol) commitments are recorded."
+    },
+    "nativeDsh": {
+      "type": "object",
+      "properties": {
+        "catalogRoot": {
+          "type": "string",
+          "pattern": "^/.*$",
+          "description": "Absolute path to the vetted, prebuilt DSH source catalog. It is TCB configuration, never candidate input."
+        },
+        "dependencyClosureSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the effective native DSH dependency closure assembled by preflight."
+        }
+      },
+      "required": ["catalogRoot", "dependencyClosureSha256"],
+      "additionalProperties": false
     },
     "search": {
       "type": "object",
@@ -112,7 +144,7 @@
         "maxSolverTrials": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 200,
+          "maximum": 1000,
           "description": "Hard cap on completed development agent-task trials for this profile. The stable demo (specs/07 §7) allows at most 15; Gate 8 benchmark profiles (specs/07 §10, e.g. pilot K=10, formal K=80) pre-register their own larger caps that must still fund discovery plus every admitted child's q0 cold starts (semantic check in run-config.ts)."
         },
         "maxDiscoveryTrials": {
@@ -132,6 +164,69 @@
           "minimum": 1,
           "maximum": 10,
           "description": "Frozen NO_ADMISSIBLE_CHILD guard (specs/03 §7); default 3."
+        },
+        "benchmarkBaseline": {
+          "type": "object",
+          "properties": {
+            "taskCount": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 49,
+              "description": "Observed tasks in the frozen benchmark baseline matrix (specs/04 §4.2, ADR-042); bounded by the development split. ADR-049: the maximum is 49 — the formal K=80 matrix is the full ≤1800s-eligible development population (39 observed + 10 guard); a larger matrix is a schema violation."
+            },
+            "attemptsPerTask": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "description": "Baseline attempts per task (specs/04 §4.2 requires at least 2 for the formal K=80 matrix; K=10 pre-registers 1)."
+            },
+            "batchSize": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 24,
+              "description": "Wave-scheduling batch width; a partial final batch is legal (ADR-042)."
+            }
+          },
+          "required": ["taskCount", "attemptsPerTask", "batchSize"],
+          "additionalProperties": false,
+          "description": "Pre-registered benchmark baseline freeze (specs/04 §4.2, ADR-042): when present the driver replaces stable-demo discovery (specs/04 §4.1) with the full matrix — the first taskCount observed handles in frozen ceremony order, attemptsPerTask attempts each — and freezes the pool of zero-success tasks only after every matrix trial produced a real outcome. Absent = stable-demo discovery."
+        },
+        "tournament": {
+          "type": "object",
+          "properties": {
+            "minEligibilityTrials": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 400,
+              "description": "Minimum committed observations per eligible node (specs/03 §11, default 12)."
+            },
+            "coverageAttemptsPerTask": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4,
+              "description": "Tournament coverage attempts per development task (specs/03 §11, default 1)."
+            },
+            "maxTrials": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 400,
+              "description": "Tournament trial budget (ADR-047: 360 for the formal run; top-up + coverage must both fit or the run stops NO_DEVELOPMENT_IMPROVEMENT)."
+            },
+            "bootstrapResamples": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 1000000,
+              "description": "Cluster-bootstrap resamples for the 90% LCB (ADR-047: fixed seed, at least 100000)."
+            }
+          },
+          "required": [
+            "minEligibilityTrials",
+            "coverageAttemptsPerTask",
+            "maxTrials",
+            "bootstrapResamples"
+          ],
+          "additionalProperties": false,
+          "description": "Champion tournament envelope (ADR-047). Optional for stable-demo (which never enters the tournament); required by the terminal-bench-formal profile (semantic check in run-config.ts)."
         }
       },
       "required": [
@@ -158,7 +253,7 @@
         "provider": {
           "type": "string",
           "enum": ["zen-compatible", "recorded"],
-          "description": "zen-compatible preserves the DeepSeek Zen-compatible Chat Completions route shape (high reasoning, 1M context, 32k output)."
+          "description": "zen-compatible preserves the DeepSeek Zen-compatible Chat Completions route shape (high reasoning, 1M context, 131k output)."
         },
         "contextWindowTokens": {
           "type": "integer",
@@ -199,6 +294,29 @@
           "minimum": 0,
           "maximum": 2,
           "description": "Sampling temperature locked by the TCB proxy on every outbound request."
+        },
+        "retry": {
+          "type": "object",
+          "properties": {
+            "maxAttempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8,
+              "description": "Total attempts including the first (ADR-033); 1 disables retrying. Required for zen-compatible routes and frozen into the route plan hash."
+            },
+            "backoffMs": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 60000
+              },
+              "description": "Delay before attempt i+1; length must equal maxAttempts - 1."
+            }
+          },
+          "required": ["maxAttempts", "backoffMs"],
+          "additionalProperties": false,
+          "description": "ADR-033 frozen retry policy: how many attempts one chat completion gets and the inter-attempt delays. Retryable classes are fixed by the shared upstream core (5xx, network failure), not by this document."
         }
       },
       "required": [
@@ -218,6 +336,11 @@
           "type": "string",
           "const": "terminal-bench-2-1"
         },
+        "maxAgentTimeoutSec": {
+          "type": "integer",
+          "const": 1800,
+          "description": "Only tasks whose Terminal-Bench [agent].timeout_sec is at most 1800 seconds are eligible for K=10, K=80, and final evaluation."
+        },
         "tasksRoot": {
           "type": "string",
           "minLength": 1,
@@ -228,13 +351,19 @@
           "minLength": 1,
           "description": "Lineage-root candidate package the trusted builder admits."
         },
+        "legacyBaselineSourceDir": {
+          "type": "string",
+          "pattern": "^/.*$",
+          "description": "Legacy-v1 source identity bound by the tree-v2 migration receipt; required only when candidateProtocol is tree-v2."
+        },
         "harbor": {
           "type": "object",
           "properties": {
             "bin": { "type": "string", "minLength": 1 },
             "version": { "type": "string", "minLength": 1 },
             "jobsRoot": { "type": "string", "pattern": "^/.*$" },
-            "concurrentTrials": { "type": "integer", "minimum": 1, "maximum": 8 }
+            "concurrentTrials": { "type": "integer", "minimum": 1, "maximum": 8 },
+            "prefetchImages": { "type": "boolean" }
           },
           "required": ["bin", "version", "jobsRoot", "concurrentTrials"],
           "additionalProperties": false
@@ -247,9 +376,26 @@
           },
           "required": ["host", "port"],
           "additionalProperties": false
+        },
+        "trialContainerProxy": {
+          "type": "object",
+          "properties": {
+            "httpProxy": { "type": "string", "minLength": 1 },
+            "noProxy": { "type": "string", "minLength": 1 }
+          },
+          "required": ["httpProxy", "noProxy"],
+          "additionalProperties": false,
+          "description": "ADR-028 second amendment: optional HTTP proxy injected into every trial container's environment (jobconfig env lever) so the pre-launch ACP apt bootstrap can use the host's fast egress path. No credentials; recorded verbatim in every job plan YAML."
         }
       },
-      "required": ["provider", "tasksRoot", "baselineSourceDir", "harbor", "artifactEndpoint"],
+      "required": [
+        "provider",
+        "maxAgentTimeoutSec",
+        "tasksRoot",
+        "baselineSourceDir",
+        "harbor",
+        "artifactEndpoint"
+      ],
       "additionalProperties": false
     },
     "budget": {
@@ -272,11 +418,16 @@
           "type": "integer",
           "minimum": 1
         },
+        "solverTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total live-solver token budget across the run (ADR-030); required iff solverRoute is set. Reserved per trial before launch and settled from the gateway receipt chain — never from agent self-reporting."
+        },
         "wallClockMinutes": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 960,
-          "description": "16h acceptance ceiling (specs/07 §1); advisory for stable-demo, hard for formal profiles."
+          "maximum": 2880,
+          "description": "The wall-clock objective is 16h for the formal protocol (specs/00 §6.3), NOT a system invariant for every config. The 48h bound admits pre-registered rehearsal profiles whose live trials cannot fit 16h (ADR-030 K=10 live pilot: ~50 live Harbor trials at minutes-to-half-an-hour each) — the deviation must be recorded in the run's STATUS preRegistration. ADR-045 explicitly amends the formal K=80 objective to 30h (1800 minutes) with full disclosure: the mandatory trial floor (98 baseline + 240 cold starts + tournament + sealed) cannot fit 16h at the observed 1447s/trial-slot pace."
         }
       },
       "required": ["usd", "proposerTokens", "proposalCalls", "taskTrials", "wallClockMinutes"],

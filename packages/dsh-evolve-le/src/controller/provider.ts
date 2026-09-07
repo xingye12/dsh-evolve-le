@@ -21,6 +21,11 @@ export interface ProviderTerminal {
   /** Trusted cost receipt; null when the provider cannot attribute cost. */
   costUsdMicros: number | null
   durationMs: number | null
+  /**
+   * Live-solver token usage (ADR-030): total tokens from the receipt-verified
+   * chain, null for replay trials. Settles against `budget.solverTokens`.
+   */
+  solverTokens?: number | null
   /** Raw trajectory bytes; the controller stores them content-addressed. */
   trajectory: Buffer
 }
@@ -56,6 +61,8 @@ export interface ScriptedResult {
   costUsdMicros?: number | null
   durationMs?: number | null
   trajectory?: Buffer
+  /** Live-solver tokens for the terminal fact (default null = replay). */
+  solverTokens?: number | null
   /** Stay RUNNING forever (used to exercise nonterminal recovery). */
   neverTerminal?: boolean
 }
@@ -87,10 +94,26 @@ export class FakeProvider implements BenchmarkProvider {
     return this
   }
 
+  /**
+   * Script every unscripted key with the given prefix (tournament waves,
+   * whose member order is a deterministic draw the test should not have to
+   * re-derive). Exact scripts always win over a prefix match.
+   */
+  scriptPrefix(prefix: string, result: ScriptedResult): this {
+    this.scriptedPrefixes.push({ prefix, result })
+    for (const job of this.jobs.values()) {
+      if (!this.scriptedKeys.has(job.key) && job.key.startsWith(prefix)) job.result = result
+    }
+    return this
+  }
+
   private readonly scriptedKeys = new Map<string, ScriptedResult>()
+  private readonly scriptedPrefixes: Array<{ prefix: string; result: ScriptedResult }> = []
 
   private resultFor(key: string): ScriptedResult {
-    return this.scriptedKeys.get(key) ?? this.defaultResult
+    const exact = this.scriptedKeys.get(key)
+    if (exact !== undefined) return exact
+    return this.scriptedPrefixes.find((entry) => key.startsWith(entry.prefix))?.result ?? this.defaultResult
   }
 
   private statusOf(result: ScriptedResult): ProviderJobStatus {
@@ -143,6 +166,7 @@ export class FakeProvider implements BenchmarkProvider {
       outcome: result.outcome,
       costUsdMicros: result.costUsdMicros ?? null,
       durationMs: result.durationMs ?? null,
+      solverTokens: result.solverTokens ?? null,
       trajectory:
         result.trajectory ??
         Buffer.from(

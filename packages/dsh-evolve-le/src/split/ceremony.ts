@@ -27,7 +27,48 @@ import { permutationOf } from '../state/rng.js'
 
 export const SPLIT_PROTOCOL = 'dsh-evolve-le/split-ceremony/v1'
 
+export interface SplitCounts {
+  observed: number
+  guard: number
+  sealed: number
+}
+
 export const SPLIT_COUNTS = { observed: 48, guard: 12, sealed: 29 } as const
+
+/**
+ * Scale the pinned 89-task allocation for an explicitly filtered population.
+ * Largest-remainder rounding keeps the proportions deterministic while
+ * ensuring every eligible task belongs to exactly one split.
+ */
+export function splitCountsForPopulation(total: number): SplitCounts {
+  if (!Number.isSafeInteger(total) || total < 3) {
+    throw new Error(`split: population must contain at least 3 tasks (got ${String(total)})`)
+  }
+  if (total === SPLIT_COUNTS.observed + SPLIT_COUNTS.guard + SPLIT_COUNTS.sealed) {
+    return { ...SPLIT_COUNTS }
+  }
+  const weights = [SPLIT_COUNTS.observed, SPLIT_COUNTS.guard, SPLIT_COUNTS.sealed]
+  const raw = weights.map((weight) => (weight * total) / 89)
+  const counts = raw.map((value) => Math.floor(value))
+  let remainder = total - counts.reduce((sum, value) => sum + value, 0)
+  const order = raw
+    .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
+    .sort((left, right) => right.fraction - left.fraction || left.index - right.index)
+  for (const item of order) {
+    if (remainder === 0) break
+    counts[item.index] = (counts[item.index] ?? 0) + 1
+    remainder -= 1
+  }
+  // Keep every split non-empty for concealment and downstream protocol use.
+  for (let index = 0; index < counts.length; index += 1) {
+    if ((counts[index] ?? 0) > 0) continue
+    const donor = counts.findIndex((value) => value > 1)
+    if (donor < 0) throw new Error(`split: cannot form three non-empty splits from ${total} tasks`)
+    counts[donor] = (counts[donor] ?? 0) - 1
+    counts[index] = 1
+  }
+  return { observed: counts[0]!, guard: counts[1]!, sealed: counts[2]! }
+}
 
 export interface SplitCeremonyInput {
   runId: string
@@ -36,7 +77,7 @@ export interface SplitCeremonyInput {
   handles: readonly string[]
   /** Optional public-metadata strata (handle → stratum key). */
   strata?: ReadonlyMap<string, string>
-  counts?: typeof SPLIT_COUNTS
+  counts?: SplitCounts
 }
 
 /** Controller-visible ceremony receipt — no sealed or guard identity. */
@@ -61,6 +102,8 @@ export interface SealedSplitStore {
   guardMap: Record<string, string>
   guardHandles: string[]
   sealedHandles: string[]
+  /** Opaque sealed id (`sealed-NN`, sorted-handle order) → real handle (ADR-048). */
+  sealedMap: Record<string, string>
 }
 
 export function runSplitCeremony(input: SplitCeremonyInput): {
@@ -109,6 +152,12 @@ export function runSplitCeremony(input: SplitCeremonyInput): {
   guard.forEach((handle, index) => {
     guardMap[`guard-${String(index + 1).padStart(2, '0')}`] = handle
   })
+  // ADR-048: the same opaque-id convention names the sealed cells; the plan
+  // document carries `sealed-NN` and only this store resolves them.
+  const sealedMap: Record<string, string> = {}
+  sealed.forEach((handle, index) => {
+    sealedMap[`sealed-${String(index + 1).padStart(2, '0')}`] = handle
+  })
 
   const ceremony: SplitCeremony = {
     schemaVersion: 1,
@@ -130,6 +179,7 @@ export function runSplitCeremony(input: SplitCeremonyInput): {
       guardMap,
       guardHandles: guard,
       sealedHandles: sealed,
+      sealedMap,
     },
   }
 }

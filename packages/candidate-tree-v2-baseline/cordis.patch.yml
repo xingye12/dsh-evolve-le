@@ -1,0 +1,7 @@
+# Tree-v2 migration-root baseline bundle patch (specs/02 §3,
+# docs/tree-v2-implementation-spec.md): exactly one insert row with the
+# scanner-mandated id, installing the candidate plugin into the controller's
+# composition. Everything else in the composition is TCB-owned.
+- insert:
+    - id: self-evolving-candidate
+      name: '@dsh-evolve-le/candidate-tree-v2-baseline'

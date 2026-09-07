@@ -14,7 +14,8 @@
  * @module @dsh-evolve-le/core/cordis/boot
  */
 
-import { dirname, isAbsolute, resolve } from 'node:path'
+import { isAbsolute, dirname, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import Loader, { type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -44,6 +45,17 @@ export interface BootLoaderOptions {
   prepare?: (ctx: Context) => Promise<void> | void
   /** Reuse an existing root context instead of creating one; the caller owns its lifetime. */
   context?: Context
+  /**
+   * Installed-host base URL for BARE plugin specifiers in the config tree
+   * (e.g. `pathToFileURL('/opt/capsule/node_modules/').href`). Mirrors the
+   * `bareModuleBaseUrl` parameter of upstream `boot`/`mountRootInclude`
+   * (`deepseek-harness/packages/boot/app-boot/src/index.ts`): bare names then
+   * resolve against that package tree instead of the config directory, which
+   * is what a closed runtime needs when the config file lives outside the
+   * installed tree. Relative specifiers always resolve against the config
+   * directory, exactly as upstream.
+   */
+  bareModuleBaseUrl?: string
 }
 
 /**
@@ -67,7 +79,7 @@ export async function bootLoader(
     const loaderFiber = await ctx.plugin(Loader)
     await options.prepare?.(ctx)
     stage = 'plugin tree failed to load'
-    await mountRootInclude(ctx, absolute, options.patches)
+    await mountRootInclude(ctx, absolute, options.patches, options.bareModuleBaseUrl)
     await ctx.get('loader')?.await()
     await assertEntriesActivated(ctx, 'dsh-evolve-le:boot')
     return { ctx, loaderFiber }
@@ -87,13 +99,38 @@ export async function bootLoader(
 /**
  * Mount the config file as the root Include entry with `cordis:group` beside
  * it, mirroring upstream `mountRootInclude` (pinned id `include`).
+ *
+ * When `bareModuleBaseUrl` is given, the root tree's `import` is overridden
+ * exactly as upstream's `HostResolvedRootInclude` does — with one deliberate
+ * divergence: upstream delegates bare names to `ctx.loader.internal`, which
+ * requires the optional `node-addon-require-builtin` peer (or
+ * `--expose-internals`). The capsule ships neither, so this override resolves
+ * bare names through `createRequire(bareModuleBaseUrl)` instead — the same
+ * node_modules walk the internal loader would perform, without the addon.
+ * Nested include/group trees keep the stock resolution: their `ctx.baseUrl`
+ * is the including file's directory, so relative specifiers still resolve
+ * beside their own config file.
  */
 async function mountRootInclude(
   ctx: Context,
   absoluteConfigPath: string,
   patches: readonly PatchOptions[] = [],
+  bareModuleBaseUrl?: string,
 ): Promise<void> {
-  ctx.loader.builtins.include = Include
+  ctx.loader.builtins.include =
+    bareModuleBaseUrl === undefined
+      ? Include
+      : class HostResolvedRootInclude extends Include {
+          override async import(name: string, getOuterStack?: () => string[]): Promise<unknown> {
+            if (name.startsWith('.') || name.startsWith('cordis:')) {
+              return super.import(name, getOuterStack)
+            }
+            const specifier = isAbsolute(name) ? pathToFileURL(name).href : name
+            if (specifier !== name) return super.import(specifier, getOuterStack)
+            const require = createRequire(bareModuleBaseUrl)
+            return require(name) as unknown
+          }
+        }
   ctx.loader.builtins.group = Group
   const rootInclude: EntryOptions = {
     id: 'include',

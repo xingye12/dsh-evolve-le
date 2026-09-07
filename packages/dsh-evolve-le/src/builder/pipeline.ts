@@ -21,7 +21,25 @@ import { diffCanonicalSources } from '../candidate/diff.js'
 import { scanCanonicalSource, defaultScanPolicy } from '../candidate/scan.js'
 import { runAcpSession } from '../acp/driver.js'
 import { computeTreeDigest, TREE_DIGEST_ALGO } from '../digest.js'
+import { nativeDshClosurePresent } from '../dsh/native-composition.js'
 import { repoRoot, validateManifest } from '../schema.js'
+import {
+  assertTreeV2CandidateTree,
+  assertTreeV2Child,
+  assertTreeV2RuntimeModeContract,
+  finalizeTreeV2Receipt,
+  treeV2Digest,
+  treeV2RuntimeFingerprint,
+  type TreeV2CandidateIntent,
+  type TreeV2RequiredParentEvidence,
+} from '../tree-v2/contract.js'
+import {
+  assertTreeV2ReceiptDocument,
+  type TreeV2AdmissionReceipt,
+  type TreeV2CapabilityCatalogReceipt,
+  type TreeV2MaterializationReceipt,
+  type TreeV2MechanismOutcomeReceipt,
+} from '../tree-v2/receipts.js'
 import {
   assembleCapsule,
   bootConfig,
@@ -32,9 +50,15 @@ import {
 } from './capsule.js'
 import { doubleCompile } from './compile.js'
 import { toolchainFingerprints } from './pins.js'
-import { describeSandbox, runSandboxed, sandboxedCommand, sandboxEnvironment } from './sandbox.js'
+import {
+  describeSandbox,
+  runSandboxed,
+  sandboxedInteractiveCommand,
+  sandboxEnvironment,
+} from './sandbox.js'
 import { assembleOfflineNodeModules, captureStagedSource, stageDeclaredSource } from './staging.js'
 import { materializeNodeRuntime } from './pinned-runtime.js'
+import { runCandidateTests, runOxlint } from './type-lint-unit.js'
 
 /** The canonical stage order; receipts always list exactly these ten. */
 export const STAGE_ORDER = [
@@ -72,6 +96,31 @@ export interface BuildInput {
    * hash to the declared parent digest or admission fails closed.
    */
   parentTreeDir?: string
+  /**
+   * Builder-owned, prebuilt DSH workspace used to compose a native capsule.
+   * Omit it to build the explicitly non-native compatibility closure.
+   */
+  nativeDshCatalogRoot?: string
+  /**
+   * Run-manifest lock for the native closure. A mismatch means the upstream
+   * catalog changed after preflight, so admission fails before compilation.
+   */
+  expectedDependencyClosureSha256?: string
+  /**
+   * Trusted parent evidence for a tree-v2 child. It comes only from the
+   * parent admission record, never from the child source tree or proposer.
+   */
+  treeV2ParentEvidence?: {
+    requiredParentEvidence: TreeV2RequiredParentEvidence
+    modeFingerprints: Record<'solve' | 'propose', string>
+  }
+}
+
+export interface TreeV2BuildReceipts {
+  mechanismOutcome: TreeV2MechanismOutcomeReceipt
+  capabilityCatalog: TreeV2CapabilityCatalogReceipt
+  materialization: TreeV2MaterializationReceipt
+  admission: TreeV2AdmissionReceipt
 }
 
 export interface BuildResult {
@@ -94,8 +143,14 @@ export interface BuildResult {
     capsuleTar: string
     capsuleArchive: string
     buildManifestPath: string
+    treeV2ReceiptsDir?: string
   }
   manifest: Record<string, unknown>
+  treeV2?: {
+    protocol: 'dsh-self-evolving-candidate-tree-v2'
+    modeFingerprints: Record<'solve' | 'propose', string>
+    receipts: TreeV2BuildReceipts
+  }
 }
 
 /**
@@ -126,9 +181,70 @@ function sameSequence(actual: string[], expected: string[]): boolean {
 
 interface ProbeReport {
   sections: { afterBoot: string[]; afterUnload: string[] }
+  strategy?: {
+    toolsAfterBoot?: string[]
+    toolsAfterUnload?: string[]
+    skillsAfterBoot?: string[]
+    skillsAfterUnload?: string[]
+    agentEventsAfterBoot?: string[]
+    agentEventsAfterUnload?: string[]
+    sessionEventsAfterBoot?: string[]
+    sessionEventsAfterUnload?: string[]
+    workflowsAfterBoot?: string[]
+    workflowsAfterUnload?: string[]
+  }
   quiescent: boolean
   error?: string
   timings: { bootMs: number; unloadMs: number }
+}
+
+/** Report produced by the native AgentLoop admission turn inside a capsule. */
+interface NativeTurnProbeReport {
+  nativeComposition: boolean
+  turn?: {
+    assistantText: string
+    eventCount: number
+    toolTraceEventCount: number
+    toolCallEventCount: number
+    toolResultEventCount: number
+  }
+  quiescent: boolean
+  error?: string
+  timings: { bootMs: number; turnMs?: number; unloadMs: number }
+}
+
+/** Report produced by the native proposal tool loop inside a capsule. */
+interface NativeProposalProbeReport {
+  nativeComposition: boolean
+  proposal?: {
+    childCount: number
+    eventCount: number
+    toolTraceEventCount: number
+    toolCallEventCount: number
+    toolResultEventCount: number
+    backendWrites: string[]
+  }
+  quiescent: boolean
+  error?: string
+  timings: { bootMs: number; proposalMs?: number; unloadMs: number }
+}
+
+/** Report produced by the native ACP solve bridge inside a capsule. */
+interface NativeSolveProbeReport {
+  nativeComposition: boolean
+  solve?: {
+    completionCount: number
+    eventCount: number
+    toolCallEventCount: number
+    toolResultEventCount: number
+    terminalCalls: string[]
+    readPaths: string[]
+    writes: string[]
+    assistantChunks: string[]
+  }
+  quiescent: boolean
+  error?: string
+  timings: { bootMs: number; solveMs?: number; unloadMs: number }
 }
 
 /** One declared prompt section (candidate.json runtime.promptSections). */
@@ -143,8 +259,15 @@ function declaredSections(
   mode: 'solve' | 'propose',
 ): DeclaredSection[] {
   const runtime = manifest?.['runtime'] as
-    { promptSections?: Record<string, DeclaredSection[]> } | undefined
-  const list = runtime?.promptSections?.[mode]
+    | {
+        promptSections?: Record<string, DeclaredSection[]>
+        modeSurfaces?: Record<string, { promptSections?: DeclaredSection[] }>
+      }
+    | undefined
+  const list =
+    manifest?.['schemaVersion'] === 2
+      ? runtime?.modeSurfaces?.[mode]?.promptSections
+      : runtime?.promptSections?.[mode]
   if (!Array.isArray(list)) return []
   return [...list]
     .filter((section) => section !== null && typeof section === 'object')
@@ -158,6 +281,20 @@ function expectedSectionNames(
   mode: 'solve' | 'propose',
 ): string[] {
   return declaredSections(manifest, mode).map((section) => section.name)
+}
+
+function expectedStrategyNames(
+  manifest: Record<string, unknown> | undefined,
+  key: 'newToolNames' | 'newSkillNames' | 'agentEventNames' | 'sessionEventNames' | 'workflowNames',
+  mode: 'solve' | 'propose',
+): string[] {
+  const runtime = manifest?.['runtime'] as Record<string, unknown> | undefined
+  const modeSurfaces = runtime?.['modeSurfaces'] as
+    Record<string, Record<string, unknown>> | undefined
+  const names = manifest?.['schemaVersion'] === 2 ? modeSurfaces?.[mode]?.[key] : runtime?.[key]
+  return Array.isArray(names)
+    ? names.filter((name): name is string => typeof name === 'string')
+    : []
 }
 
 /**
@@ -243,6 +380,7 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
   let candidateManifest: Record<string, unknown> | undefined
   let canonicalParent: string | null = null
   let candidatePackage = ''
+  let treeV2Intent: TreeV2CandidateIntent | undefined
   if (failed === undefined && source !== undefined) {
     const manifestFile = source.files.find((file) => file.path === 'candidate.json')
     const packageFile = source.files.find((file) => file.path === 'package.json')
@@ -266,10 +404,16 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
               .slice(0, 1000)}`,
           )
         } else {
-          canonicalParent = (candidateManifest.canonicalParent as string | null) ?? null
+          if (candidateManifest.schemaVersion === 2) {
+            treeV2Intent = candidateManifest as unknown as TreeV2CandidateIntent
+            assertTreeV2CandidateTree(source, treeV2Intent)
+            canonicalParent = treeV2Intent.parent?.sourceDigest ?? null
+          } else {
+            canonicalParent = (candidateManifest.canonicalParent as string | null) ?? null
+          }
           receipts.schema = {
             status: 'pass',
-            detail: `candidate.json and package.json validate; package ${candidatePackage}`,
+            detail: `candidate.json and package.json validate${treeV2Intent === undefined ? '' : ' as tree-v2'}; package ${candidatePackage}`,
           }
         }
       } catch (error) {
@@ -310,22 +454,54 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
             `supplied parent tree hashes to sha256:${parentSource.sha256}, candidate.json declares ${canonicalParent}`,
           )
         } else {
-          const preservation = checkSectionPreservation(parentSource, candidateManifest)
-          if (preservation !== undefined) {
-            failStage('diffBoundary', preservation)
-          } else {
-            const diff = diffCanonicalSources(parentSource, childSource)
-            parentDiff = {
-              parent: canonicalParent,
-              diffHash: diff.diffHash,
-              filesChanged: diff.filesChanged,
-              linesAdded: diff.linesAdded,
-              linesRemoved: diff.linesRemoved,
-              differingFiles: diff.differingFiles,
+          if (treeV2Intent !== undefined) {
+            const parentEvidence = input.treeV2ParentEvidence
+            if (parentEvidence === undefined) {
+              failStage(
+                'diffBoundary',
+                'tree-v2 child requires trusted parent evidence and mode fingerprints',
+              )
+            } else if (
+              treeV2Digest(parentEvidence.requiredParentEvidence) !==
+              treeV2Digest(treeV2Intent.requiredParentEvidence)
+            ) {
+              failStage(
+                'diffBoundary',
+                'tree-v2 requiredParentEvidence does not match the trusted parent admission record',
+              )
+            } else {
+              const diff = assertTreeV2Child(parentSource, childSource, treeV2Intent)
+              parentDiff = {
+                parent: canonicalParent,
+                diffHash: diff.diffHash,
+                filesChanged: diff.filesChanged,
+                linesAdded: diff.linesAdded,
+                linesRemoved: diff.linesRemoved,
+                differingFiles: diff.differingFiles,
+              }
+              receipts.diffBoundary = {
+                status: 'pass',
+                detail: `tree-v2 parent ${canonicalParent.slice(0, 16)}… verified; multi-file component, candidate tests, named evidence, and byte-preserved modes pass; ${diff.filesChanged} files +${diff.linesAdded}/-${diff.linesRemoved}`,
+              }
             }
-            receipts.diffBoundary = {
-              status: 'pass',
-              detail: `parent ${canonicalParent.slice(0, 16)}… verified by re-capture; ${diff.filesChanged} files +${diff.linesAdded}/-${diff.linesRemoved} within the pre-registered boundary; parent sections preserved`,
+          } else {
+            const preservation = checkSectionPreservation(parentSource, candidateManifest)
+            if (preservation !== undefined) {
+              failStage('diffBoundary', preservation)
+            } else {
+              const diff = diffCanonicalSources(parentSource, childSource)
+              parentDiff = {
+                parent: canonicalParent,
+                diffHash: diff.diffHash,
+                filesChanged: diff.filesChanged,
+                linesAdded: diff.linesAdded,
+                linesRemoved: diff.linesRemoved,
+                differingFiles: diff.differingFiles,
+              }
+              receipts.diffBoundary = {
+                status: 'pass',
+                detail: `parent ${canonicalParent.slice(0, 16)}… verified by re-capture; ${diff.filesChanged} files +${diff.linesAdded}/-${diff.linesRemoved} within the pre-registered boundary; parent sections preserved`,
+              }
             }
           }
         }
@@ -361,21 +537,37 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
   let compiledDir = ''
   if (failed === undefined && source !== undefined) {
     try {
-      closure = await assembleOfflineNodeModules(treeDir)
+      closure = await assembleOfflineNodeModules(
+        treeDir,
+        input.nativeDshCatalogRoot === undefined
+          ? undefined
+          : { nativeDshCatalogRoot: input.nativeDshCatalogRoot },
+      )
+      if (
+        input.expectedDependencyClosureSha256 !== undefined &&
+        closure.digest !== input.expectedDependencyClosureSha256
+      ) {
+        failStage(
+          'reproducibleBuild',
+          `native DSH closure drift: assembled ${closure.digest}, expected ${input.expectedDependencyClosureSha256}`,
+        )
+      }
       const toolchain = await toolchainFingerprints()
-      const compile = await doubleCompile({
-        workRoot,
-        tscBin: toolchain.typescriptBin,
-        timeoutMs: 180_000,
-      })
-      compileTsconfigSha256 = compile.tsconfigSha256
-      if (!compile.ok) {
-        failStage('reproducibleBuild', compile.detail)
-      } else {
-        compiledDir = join(workRoot, 'compile-1')
-        receipts.reproducibleBuild = {
-          status: 'pass',
-          detail: `${compile.detail}; closure ${closure.packages.length} packages (${closure.fileCount} files), tsc ${toolchain.typescript}`,
+      if (failed === undefined) {
+        const compile = await doubleCompile({
+          workRoot,
+          tscBin: toolchain.typescriptBin,
+          timeoutMs: 180_000,
+        })
+        compileTsconfigSha256 = compile.tsconfigSha256
+        if (!compile.ok) {
+          failStage('reproducibleBuild', compile.detail)
+        } else {
+          compiledDir = join(workRoot, 'compile-1')
+          receipts.reproducibleBuild = {
+            status: 'pass',
+            detail: `${compile.detail}; closure ${closure.packages.length} packages (${closure.fileCount} files), tsc ${toolchain.typescript}`,
+          }
         }
       }
     } catch (error) {
@@ -392,20 +584,18 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
         (candidateManifest.tests as { mechanismAssertions?: unknown[] })?.mechanismAssertions,
       ) &&
       (candidateManifest.tests as { mechanismAssertions: unknown[] }).mechanismAssertions.length > 0
-    if (declaresAssertions === true && !hasTests) {
+    if ((treeV2Intent !== undefined || declaresAssertions === true) && !hasTests) {
       failStage(
         'typeLintUnit',
         'candidate.json declares mechanism assertions but the source ships no tests/',
       )
     } else {
-      // oxlint ships a Node CLI; run it by absolute interpreter path so the
+      // oxlint ships a Node CLI; it runs by absolute interpreter path so the
       // sandbox's stripped PATH cannot break resolution. Lint only the
       // candidate's own code — never the TCB-assembled dependency closure.
-      const lintTargets = [join(treeDir, 'src'), ...(hasTests ? [join(treeDir, 'tests')] : [])]
-      const lint = await runSandboxed(process.execPath, [oxlintCli(), ...lintTargets], {
-        cwd: repoRoot,
-        timeoutMs: 60_000,
-      })
+      // (ADR-038: the stage-6 toolchain lives in type-lint-unit.ts so the
+      // proposal-gateway `candidate-tests` handler runs the same checks.)
+      const lint = await runOxlint(treeDir, hasTests)
       if (lint.code !== 0) {
         failStage(
           'typeLintUnit',
@@ -435,6 +625,37 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
     | { tarSha256: string; archiveSha256: string; sbomSha256: string; provenanceSha256: string }
     | undefined
   let bootSolve: ProbeReport | undefined
+  const expectedSolveTools = expectedStrategyNames(candidateManifest, 'newToolNames', 'solve')
+  const expectedSolveSkills = expectedStrategyNames(candidateManifest, 'newSkillNames', 'solve')
+  const expectedSolveAgentEvents = expectedStrategyNames(
+    candidateManifest,
+    'agentEventNames',
+    'solve',
+  )
+  const expectedSolveSessionEvents = expectedStrategyNames(
+    candidateManifest,
+    'sessionEventNames',
+    'solve',
+  )
+  const expectedSolveWorkflows = expectedStrategyNames(candidateManifest, 'workflowNames', 'solve')
+  const expectedProposeTools = expectedStrategyNames(candidateManifest, 'newToolNames', 'propose')
+  const expectedProposeSkills = expectedStrategyNames(candidateManifest, 'newSkillNames', 'propose')
+  const expectedProposeAgentEvents = expectedStrategyNames(
+    candidateManifest,
+    'agentEventNames',
+    'propose',
+  )
+  const expectedProposeSessionEvents = expectedStrategyNames(
+    candidateManifest,
+    'sessionEventNames',
+    'propose',
+  )
+  const expectedProposeWorkflows = expectedStrategyNames(
+    candidateManifest,
+    'workflowNames',
+    'propose',
+  )
+  let treeV2ModeFingerprints: Record<'solve' | 'propose', string> | undefined
   if (failed === undefined && source !== undefined && closure !== undefined) {
     // The capsule embeds its own pinned node interpreter (specs/02 §12): the
     // TB task images ship no node, so a missing or drifted reference is
@@ -483,7 +704,7 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
       )
       const expectedSolve = expectedSectionNames(candidateManifest, 'solve')
       const expectedPropose = expectedSectionNames(candidateManifest, 'propose')
-      if (expectedSolve.length === 0) {
+      if (treeV2Intent === undefined && expectedSolve.length === 0) {
         failStage('loaderBoot', 'candidate.json declares no solve promptSections to verify')
       } else if (solveRun.report.error !== undefined) {
         failStage(
@@ -495,9 +716,34 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
           'loaderBoot',
           `solve-mode sections ${JSON.stringify(solveRun.report.sections.afterBoot)} != declared ${JSON.stringify(expectedSolve)}`,
         )
-      } else if (expectedPropose.length === 0) {
+      } else if (
+        !sameSequence(solveRun.report.strategy?.toolsAfterBoot ?? [], expectedSolveTools) ||
+        !sameSequence(solveRun.report.strategy?.skillsAfterBoot ?? [], expectedSolveSkills) ||
+        !sameSequence(
+          solveRun.report.strategy?.agentEventsAfterBoot ?? [],
+          expectedSolveAgentEvents,
+        ) ||
+        !sameSequence(
+          solveRun.report.strategy?.sessionEventsAfterBoot ?? [],
+          expectedSolveSessionEvents,
+        ) ||
+        !sameSequence(solveRun.report.strategy?.workflowsAfterBoot ?? [], expectedSolveWorkflows)
+      ) {
+        failStage(
+          'loaderBoot',
+          `solve-mode strategy ${JSON.stringify(solveRun.report.strategy)} != declared tools=${JSON.stringify(expectedSolveTools)} skills=${JSON.stringify(expectedSolveSkills)}`,
+        )
+      } else if (treeV2Intent === undefined && expectedPropose.length === 0) {
         failStage('loaderBoot', 'candidate.json declares no propose promptSections to verify')
       } else {
+        if (treeV2Intent !== undefined) {
+          treeV2ModeFingerprints = {
+            // ADR-039: mask this candidate's own id out of section text —
+            // identity is fixed content, not an evolvable mechanism.
+            solve: treeV2RuntimeFingerprint(solveRun.report, 'solve', { candidateId }),
+            propose: '',
+          }
+        }
         receipts.loaderBoot = {
           status: 'pass',
           detail: `packed capsule booted through the real Loader in an isolated one-shot process; sections ${JSON.stringify(solveRun.report.sections.afterBoot)}; boot ${Math.round(solveRun.report.timings.bootMs)}ms`,
@@ -517,26 +763,39 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
           'unloadInvariant',
           `sections survived unload: ${bootSolve.sections.afterUnload.join(',')}`,
         )
+      } else if (
+        (bootSolve.strategy?.toolsAfterUnload?.length ?? 0) !== 0 ||
+        (bootSolve.strategy?.skillsAfterUnload?.length ?? 0) !== 0 ||
+        (bootSolve.strategy?.agentEventsAfterUnload?.length ?? 0) !== 0 ||
+        (bootSolve.strategy?.sessionEventsAfterUnload?.length ?? 0) !== 0 ||
+        (bootSolve.strategy?.workflowsAfterUnload?.length ?? 0) !== 0
+      ) {
+        failStage(
+          'unloadInvariant',
+          `strategy registrations survived unload: ${JSON.stringify(bootSolve.strategy)}`,
+        )
       } else {
         receipts.unloadInvariant = {
           status: 'pass',
           detail:
-            'Cordis inventory and process handles returned to baseline; candidate sections removed',
+            'Cordis inventory and process handles returned to baseline; candidate prompt, tool and skill registrations removed',
         }
       }
     }
 
-    // stage 9: mock replay. Two rounds through the real Loader: the propose
-    // overlay probe (mode dispatch + section lifecycle) and a full Agent
-    // Client Protocol round (initialize → session/new → session/prompt) over
-    // @agentclientprotocol/sdk 0.25.1, the wire surface of the locked DSH
-    // bridge. The replay turn is deterministic — the candidate's composed
-    // sections stream back as agent_message_chunk updates; recorded-LLM
-    // replay lands with the staged DSH production closure (Gate 2 runner).
+    // stage 9: replay and native AgentLoop proof. The propose overlay checks
+    // mode dispatch + lifecycle. Native capsules additionally execute one
+    // deterministic offline turn through ctx.agents.create(), then ACP checks
+    // the locked wire surface. This is a composition proof, not an evaluation.
     if (failed === undefined) {
       await writeFile(
         join(capsuleDir, 'cordis.propose.yml'),
-        bootConfig(candidatePackage, candidateId, 'propose'),
+        bootConfig(
+          candidatePackage,
+          candidateId,
+          'propose',
+          nativeDshClosurePresent(installManifest.entries) ? {} : undefined,
+        ),
         'utf8',
       )
       const proposeRun = await runProbe(capsuleDir, 'cordis.propose.yml', 60_000)
@@ -561,14 +820,202 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
             'mockReplay',
             `propose-mode sections ${JSON.stringify(sections.afterBoot)} != declared ${JSON.stringify(expectedSectionNames(candidateManifest, 'propose'))}`,
           )
-        } else if (!proposeRun.report.quiescent || sections.afterUnload.length !== 0) {
+        } else if (
+          !sameSequence(proposeRun.report.strategy?.toolsAfterBoot ?? [], expectedProposeTools) ||
+          !sameSequence(proposeRun.report.strategy?.skillsAfterBoot ?? [], expectedProposeSkills) ||
+          !sameSequence(
+            proposeRun.report.strategy?.agentEventsAfterBoot ?? [],
+            expectedProposeAgentEvents,
+          ) ||
+          !sameSequence(
+            proposeRun.report.strategy?.sessionEventsAfterBoot ?? [],
+            expectedProposeSessionEvents,
+          ) ||
+          !sameSequence(
+            proposeRun.report.strategy?.workflowsAfterBoot ?? [],
+            expectedProposeWorkflows,
+          )
+        ) {
+          failStage(
+            'mockReplay',
+            `propose-mode strategy ${JSON.stringify(proposeRun.report.strategy)} != declared tools=${JSON.stringify(expectedProposeTools)} skills=${JSON.stringify(expectedProposeSkills)}`,
+          )
+        } else if (
+          !proposeRun.report.quiescent ||
+          sections.afterUnload.length !== 0 ||
+          (proposeRun.report.strategy?.toolsAfterUnload?.length ?? 0) !== 0 ||
+          (proposeRun.report.strategy?.skillsAfterUnload?.length ?? 0) !== 0 ||
+          (proposeRun.report.strategy?.agentEventsAfterUnload?.length ?? 0) !== 0 ||
+          (proposeRun.report.strategy?.sessionEventsAfterUnload?.length ?? 0) !== 0 ||
+          (proposeRun.report.strategy?.workflowsAfterUnload?.length ?? 0) !== 0
+        ) {
           failStage('mockReplay', 'propose-mode unload did not return to baseline')
+        } else if (treeV2Intent !== undefined && treeV2ModeFingerprints !== undefined) {
+          // Every tree-v2 build — root or child — records the propose-mode
+          // Loader fingerprint: the build manifest schema requires both mode
+          // fingerprints, and the migration root's fingerprints are what a
+          // later child's runtime mode contract is checked against.
+          treeV2ModeFingerprints.propose = treeV2RuntimeFingerprint(proposeRun.report, 'propose', { candidateId })
+          if (treeV2Intent.parent !== null) {
+            try {
+              assertTreeV2RuntimeModeContract(
+                treeV2Intent.modeContract,
+                input.treeV2ParentEvidence!.modeFingerprints,
+                treeV2ModeFingerprints,
+              )
+            } catch (error) {
+              failStage('mockReplay', error instanceof Error ? error.message : String(error))
+            }
+          }
+        }
+      }
+      let nativeTurnDetail = ''
+      if (failed === undefined && nativeDshClosurePresent(installManifest.entries)) {
+        const nativeTurn = await runNativeTurnProbe(capsuleDir, 'cordis.yml', 60_000)
+        if (nativeTurn.report === undefined) {
+          failStage('mockReplay', `native AgentLoop probe failed: ${nativeTurn.stderrOrError}`)
+        } else {
+          await writeFile(
+            join(workRoot, 'native-turn-solve.json'),
+            `${JSON.stringify(nativeTurn.raw, null, 2)}\n`,
+            'utf8',
+          )
+          if (nativeTurn.report.error !== undefined) {
+            failStage(
+              'mockReplay',
+              `native AgentLoop turn failed: ${nativeTurn.report.error.slice(0, 1000)}`,
+            )
+          } else if (!nativeTurn.report.nativeComposition) {
+            failStage('mockReplay', 'native capsule boot did not mount ctx.agents.create()')
+          } else if (!nativeTurn.report.quiescent) {
+            failStage('mockReplay', 'native AgentLoop turn did not return to the pre-boot baseline')
+          } else if (
+            nativeTurn.report.turn === undefined ||
+            nativeTurn.report.turn.eventCount === 0
+          ) {
+            failStage('mockReplay', 'native AgentLoop turn emitted no attributable session events')
+          } else if (
+            nativeTurn.report.turn.toolCallEventCount !== 1 ||
+            nativeTurn.report.turn.toolResultEventCount !== 1
+          ) {
+            failStage(
+              'mockReplay',
+              'native AgentLoop did not complete the candidate strategy tool dispatch',
+            )
+          } else {
+            nativeTurnDetail =
+              `; native ctx.agents.create() turn emitted ${nativeTurn.report.turn.eventCount} session events` +
+              ` and one candidate strategy tool call/result in ${Math.round(nativeTurn.report.timings.turnMs ?? 0)}ms with clean unload`
+          }
+        }
+      }
+      let nativeProposalDetail = ''
+      if (failed === undefined && nativeDshClosurePresent(installManifest.entries)) {
+        const nativeProposal = await runNativeProposalProbe(
+          capsuleDir,
+          'cordis.propose.yml',
+          60_000,
+        )
+        if (nativeProposal.report === undefined) {
+          failStage(
+            'mockReplay',
+            `native proposal AgentLoop probe failed: ${nativeProposal.stderrOrError}`,
+          )
+        } else {
+          await writeFile(
+            join(workRoot, 'native-proposal.json'),
+            `${JSON.stringify(nativeProposal.raw, null, 2)}\n`,
+            'utf8',
+          )
+          if (nativeProposal.report.error !== undefined) {
+            failStage(
+              'mockReplay',
+              `native proposal AgentLoop turn failed: ${nativeProposal.report.error.slice(0, 1000)}`,
+            )
+          } else if (!nativeProposal.report.nativeComposition) {
+            failStage(
+              'mockReplay',
+              'native proposal capsule boot did not mount ctx.agents.create()',
+            )
+          } else if (!nativeProposal.report.quiescent) {
+            failStage(
+              'mockReplay',
+              'native proposal AgentLoop did not return to the pre-boot baseline',
+            )
+          } else if (
+            nativeProposal.report.proposal === undefined ||
+            nativeProposal.report.proposal.eventCount === 0
+          ) {
+            failStage(
+              'mockReplay',
+              'native proposal AgentLoop emitted no attributable session events',
+            )
+          } else if (
+            nativeProposal.report.proposal.toolCallEventCount !== 3 ||
+            nativeProposal.report.proposal.toolResultEventCount !== 3 ||
+            nativeProposal.report.proposal.backendWrites.length !== 1
+          ) {
+            failStage(
+              'mockReplay',
+              'native proposal AgentLoop did not complete bounded list/write/finish tool dispatch',
+            )
+          } else {
+            nativeProposalDetail =
+              `; native proposal ctx.agents.create() emitted ${nativeProposal.report.proposal.eventCount} session events` +
+              ` and bounded list/write/finish tool calls in ${Math.round(nativeProposal.report.timings.proposalMs ?? 0)}ms with clean unload`
+          }
+        }
+      }
+      let nativeSolveDetail = ''
+      if (failed === undefined && nativeDshClosurePresent(installManifest.entries)) {
+        const nativeSolve = await runNativeSolveProbe(capsuleDir, 'cordis.yml', 60_000)
+        if (nativeSolve.report === undefined) {
+          failStage('mockReplay', `native ACP solve probe failed: ${nativeSolve.stderrOrError}`)
+        } else {
+          await writeFile(
+            join(workRoot, 'native-solve.json'),
+            `${JSON.stringify(nativeSolve.raw, null, 2)}\n`,
+            'utf8',
+          )
+          const solve = nativeSolve.report.solve
+          if (nativeSolve.report.error !== undefined) {
+            failStage(
+              'mockReplay',
+              `native ACP solve turn failed: ${nativeSolve.report.error.slice(0, 1000)}`,
+            )
+          } else if (!nativeSolve.report.nativeComposition) {
+            failStage(
+              'mockReplay',
+              'native ACP solve capsule boot did not mount ctx.agents.create()',
+            )
+          } else if (!nativeSolve.report.quiescent) {
+            failStage('mockReplay', 'native ACP solve did not return to the pre-boot baseline')
+          } else if (solve === undefined || solve.eventCount === 0) {
+            failStage('mockReplay', 'native ACP solve emitted no attributable session events')
+          } else if (
+            solve.completionCount !== 4 ||
+            solve.toolCallEventCount !== 3 ||
+            solve.toolResultEventCount !== 3 ||
+            solve.terminalCalls.length !== 1 ||
+            solve.readPaths.length !== 1 ||
+            solve.writes.length !== 1 ||
+            solve.assistantChunks.length === 0
+          ) {
+            failStage(
+              'mockReplay',
+              'native ACP solve did not complete bounded exec/read/write tool dispatch',
+            )
+          } else {
+            nativeSolveDetail =
+              `; native ACP ctx.agents.create() solve emitted ${solve.eventCount} session events` +
+              ` and bounded exec/read/write tool calls in ${Math.round(nativeSolve.report.timings.solveMs ?? 0)}ms with clean unload`
+          }
         }
       }
       if (failed === undefined) {
         // Same rule as runProbe: the ACP round must run on the embedded
         // runtime the task containers will exec, not on the host interpreter.
-        const argv = sandboxedCommand(join(capsuleDir, 'runtime/node'), [
+        const argv = sandboxedInteractiveCommand(join(capsuleDir, 'runtime/node'), [
           join(capsuleDir, 'runner/bin/acp-boot.js'),
           'cordis.yml',
         ])
@@ -619,7 +1066,10 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
           receipts.mockReplay = {
             status: 'pass',
             detail:
-              'ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2)',
+              'ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2)' +
+              nativeTurnDetail +
+              nativeProposalDetail +
+              nativeSolveDetail,
           }
         }
       }
@@ -715,6 +1165,18 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
           },
         }
       : {}),
+    ...(treeV2Intent !== undefined && treeV2ModeFingerprints !== undefined
+      ? {
+          treeV2: {
+            protocol: treeV2Intent.protocol,
+            modeContract: treeV2Intent.modeContract,
+            ...(treeV2Intent.requiredParentEvidence === undefined
+              ? {}
+              : { requiredParentEvidence: treeV2Intent.requiredParentEvidence }),
+            modeFingerprints: treeV2ModeFingerprints,
+          },
+        }
+      : {}),
     receipts,
     builder: {
       builtAt: new Date().toISOString(),
@@ -733,6 +1195,79 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
   const buildManifestPath = join(workRoot, 'build-manifest.json')
   await writeFile(buildManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
+  let treeV2BuildReceipts: TreeV2BuildReceipts | undefined
+  if (
+    outcome === 'admitted' &&
+    treeV2Intent !== undefined &&
+    treeV2ModeFingerprints !== undefined
+  ) {
+    const capabilityCatalog = finalizeTreeV2Receipt({
+      schemaVersion: 2,
+      protocol: treeV2Intent.protocol,
+      kind: 'capability-catalog' as const,
+      candidateDigest: sourceDigest,
+      capabilities: [...treeV2Intent.runtime.capabilities].sort(),
+    })
+    const materialization = finalizeTreeV2Receipt({
+      schemaVersion: 2,
+      protocol: treeV2Intent.protocol,
+      kind: 'materialization-receipt' as const,
+      parentCandidateDigest: treeV2Intent.parent?.candidateDigest ?? null,
+      candidateDigest: sourceDigest,
+      candidateIntentDigest: treeV2Intent.receiptDigest,
+      sourceDigest,
+      capabilityCatalogDigest: capabilityCatalog.receiptDigest,
+    })
+    const mechanismOutcome = finalizeTreeV2Receipt({
+      schemaVersion: 2,
+      protocol: treeV2Intent.protocol,
+      kind: 'mechanism-outcome' as const,
+      candidateIntentDigest: treeV2Intent.receiptDigest,
+      mechanismTestDigest: treeV2Digest({
+        command: treeV2Intent.tests.command,
+        tests: [...treeV2Intent.tests.mechanism].sort(),
+        receipt: receipts.typeLintUnit,
+      }),
+      outcome: 'passed' as const,
+    })
+    const admission = finalizeTreeV2Receipt({
+      schemaVersion: 2,
+      protocol: treeV2Intent.protocol,
+      kind: 'admission-receipt' as const,
+      candidateDigest: sourceDigest,
+      buildDigest: treeV2Digest(manifest),
+      materializationDigest: materialization.receiptDigest,
+      capabilityCatalogDigest: capabilityCatalog.receiptDigest,
+      modeFingerprints: treeV2ModeFingerprints,
+      admitted: true as const,
+    })
+    assertTreeV2ReceiptDocument('mechanism-outcome', mechanismOutcome)
+    assertTreeV2ReceiptDocument('capability-catalog', capabilityCatalog)
+    assertTreeV2ReceiptDocument('materialization-receipt', materialization)
+    assertTreeV2ReceiptDocument('admission-receipt', admission)
+    treeV2BuildReceipts = {
+      mechanismOutcome,
+      capabilityCatalog,
+      materialization,
+      admission,
+    }
+    const receiptDir = join(workRoot, 'tree-v2-receipts')
+    await mkdir(receiptDir, { recursive: true })
+    const receiptFiles = {
+      'mechanism-outcome': mechanismOutcome,
+      'capability-catalog': capabilityCatalog,
+      'materialization-receipt': materialization,
+      'admission-receipt': admission,
+    }
+    for (const [name, receipt] of Object.entries(receiptFiles)) {
+      await writeFile(
+        join(receiptDir, `${name}.json`),
+        `${JSON.stringify(receipt, null, 2)}\n`,
+        'utf8',
+      )
+    }
+  }
+
   return {
     candidateId: manifest.candidateId as string,
     sourceDigest,
@@ -741,6 +1276,17 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
     receipts,
     ...(bundleStats !== undefined ? { bundle: bundleStats } : {}),
     ...(capsuleStats !== undefined ? { capsule: capsuleStats } : {}),
+    ...(treeV2Intent !== undefined &&
+    treeV2ModeFingerprints !== undefined &&
+    treeV2BuildReceipts !== undefined
+      ? {
+          treeV2: {
+            protocol: treeV2Intent.protocol,
+            modeFingerprints: treeV2ModeFingerprints,
+            receipts: treeV2BuildReceipts,
+          },
+        }
+      : {}),
     artifacts: {
       workRoot,
       treeDir,
@@ -748,6 +1294,9 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
       capsuleTar: join(workRoot, 'capsule.tar'),
       capsuleArchive: join(workRoot, 'capsule.tar.gz'),
       buildManifestPath,
+      ...(treeV2BuildReceipts === undefined
+        ? {}
+        : { treeV2ReceiptsDir: join(workRoot, 'tree-v2-receipts') }),
     },
     manifest,
   }
@@ -757,6 +1306,24 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
 
 interface ProbeRun {
   report: ProbeReport | undefined
+  raw: unknown
+  stderrOrError: string
+}
+
+interface NativeTurnProbeRun {
+  report: NativeTurnProbeReport | undefined
+  raw: unknown
+  stderrOrError: string
+}
+
+interface NativeProposalProbeRun {
+  report: NativeProposalProbeReport | undefined
+  raw: unknown
+  stderrOrError: string
+}
+
+interface NativeSolveProbeRun {
+  report: NativeSolveProbeReport | undefined
   raw: unknown
   stderrOrError: string
 }
@@ -793,56 +1360,98 @@ async function runProbe(
   }
 }
 
-/** Run the candidate-owned tests from the frozen staging tree via the repo's vitest. */
-async function runCandidateTests(workRoot: string, treeDir: string): Promise<string | undefined> {
-  await writeFile(
-    join(treeDir, 'vitest.config.mjs'),
-    `export default ${JSON.stringify({
-      cache: false,
-      test: {
-        environment: 'node',
-        include: ['tests/**/*.spec.ts'],
-        testTimeout: 30000,
-        fileParallelism: false,
-      },
-    })}\n`,
-    'utf8',
+/** Execute the native AgentLoop proof through the capsule's own Node binary. */
+async function runNativeTurnProbe(
+  capsuleDir: string,
+  configName: string,
+  timeoutMs: number,
+): Promise<NativeTurnProbeRun> {
+  const run = await runSandboxed(
+    join(capsuleDir, 'runtime/node'),
+    [join(capsuleDir, 'runner/bin/native-turn-probe.js'), configName],
+    { cwd: capsuleDir, timeoutMs },
   )
-  // The candidate's own tsconfig.json is identity material only (specs/02
-  // §11): replace the working copy with a self-contained builder-generated
-  // config so no tool ever executes proposer-authored compiler options. The
-  // canonical bytes are unaffected — they were captured in stage 1.
-  await writeFile(
-    join(treeDir, 'tsconfig.json'),
-    `${JSON.stringify(
-      {
-        compilerOptions: {
-          module: 'nodenext',
-          moduleResolution: 'nodenext',
-          target: 'es2023',
-          lib: ['es2023'],
-          types: [],
-          strict: true,
-          verbatimModuleSyntax: true,
-          noEmit: true,
-          skipLibCheck: true,
-        },
-        include: ['src', 'tests'],
-      },
-      null,
-      2,
-    )}\n`,
-    'utf8',
-  )
-  const vitestBin = join(repoRoot, 'node_modules/vitest/vitest.mjs')
-  const run = await runSandboxed(process.execPath, [vitestBin, 'run', '--root', treeDir], {
-    cwd: workRoot,
-    timeoutMs: 180_000,
-  })
-  if (run.code === 0) return undefined
-  return `${run.stdout.trim()}\n${run.stderr.trim()}`.slice(0, 2000)
+  let report: NativeTurnProbeReport | undefined
+  try {
+    report = JSON.parse(run.stdout) as NativeTurnProbeReport
+  } catch {
+    // fall through: report stays undefined
+  }
+  return {
+    report,
+    raw: report ?? {
+      unparsed: run.stdout.slice(0, 4000),
+      stderr: run.stderr.slice(0, 4000),
+      code: run.code,
+      timedOut: run.timedOut,
+    },
+    stderrOrError: run.timedOut
+      ? `native AgentLoop probe timed out after ${timeoutMs}ms`
+      : run.stderr.slice(0, 2000) || `exit ${run.code}`,
+  }
 }
 
-function oxlintCli(): string {
-  return join(repoRoot, 'node_modules/oxlint/bin/oxlint')
+/** Execute the native proposal tool-loop proof through the capsule runtime. */
+async function runNativeProposalProbe(
+  capsuleDir: string,
+  configName: string,
+  timeoutMs: number,
+): Promise<NativeProposalProbeRun> {
+  const run = await runSandboxed(
+    join(capsuleDir, 'runtime/node'),
+    [join(capsuleDir, 'runner/bin/native-proposal-probe.js'), configName],
+    { cwd: capsuleDir, timeoutMs },
+  )
+  let report: NativeProposalProbeReport | undefined
+  try {
+    report = JSON.parse(run.stdout) as NativeProposalProbeReport
+  } catch {
+    // fall through: report stays undefined
+  }
+  return {
+    report,
+    raw: report ?? {
+      unparsed: run.stdout.slice(0, 4000),
+      stderr: run.stderr.slice(0, 4000),
+      code: run.code,
+      timedOut: run.timedOut,
+    },
+    stderrOrError: run.timedOut
+      ? `native proposal AgentLoop probe timed out after ${timeoutMs}ms`
+      : run.stderr.slice(0, 2000) || `exit ${run.code}`,
+  }
 }
+
+/** Execute the native ACP solve proof through the capsule's own Node runtime. */
+async function runNativeSolveProbe(
+  capsuleDir: string,
+  configName: string,
+  timeoutMs: number,
+): Promise<NativeSolveProbeRun> {
+  const run = await runSandboxed(
+    join(capsuleDir, 'runtime/node'),
+    [join(capsuleDir, 'runner/bin/native-solve-probe.js'), configName],
+    { cwd: capsuleDir, timeoutMs },
+  )
+  let report: NativeSolveProbeReport | undefined
+  try {
+    report = JSON.parse(run.stdout) as NativeSolveProbeReport
+  } catch {
+    // fall through: report stays undefined
+  }
+  return {
+    report,
+    raw: report ?? {
+      unparsed: run.stdout.slice(0, 4000),
+      stderr: run.stderr.slice(0, 4000),
+      code: run.code,
+      timedOut: run.timedOut,
+    },
+    stderrOrError: run.timedOut
+      ? `native ACP solve probe timed out after ${timeoutMs}ms`
+      : run.stderr.slice(0, 2000) || `exit ${run.code}`,
+  }
+}
+
+// (stage 6's oxlint + candidate-test toolchain was extracted to
+// type-lint-unit.ts by ADR-038 so the proposal gateway runs the same checks)

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schema/tree-v2/analysis/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "protocol",
+    "kind",
+    "parentCandidateDigest",
+    "findings",
+    "evidenceDigests",
+    "receiptDigest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "protocol": { "const": "dsh-self-evolving-candidate-tree-v2" },
+    "kind": { "const": "analysis" },
+    "parentCandidateDigest": { "$ref": "#/$defs/digest" },
+    "findings": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "evidenceDigests": { "$ref": "#/$defs/digests" },
+    "receiptDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "digests": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/digest" },
+      "uniqueItems": true,
+      "minItems": 1
+    }
+  }
+}
