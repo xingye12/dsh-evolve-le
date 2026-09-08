@@ -1,0 +1,45 @@
+# systemd unit supervising the formal tree-v2 K=80 run (record-tree-v2-k80-formal-live).
+#
+# Why systemd: the host has rebooted three times in ~26h (2026-09-07 07:37,
+# 18:34, 2026-09-08 09:00) and launch attempt 2 died silently at the end of the
+# verifier-image phase (external SIGKILL-like kill, no log line, zero paid
+# calls — see PROJECT_STATUS.md "Phase 5 gate" record). A ~50h paid run needs
+# boot persistence and restart-on-failure; Restart=on-failure is safe because
+# the record script is idempotent and resumes from the run root checkpoint
+# (a crash mid-run never re-runs completed trials; pre-init phases are free).
+#
+# Exit 0 = run completed (all passed or an honest terminal verdict) → no
+# restart. Only non-zero exits (crashes, kills, failed gates) restart.
+# StartLimit caps pathological restart loops; a failed unit is a visible
+# fail-closed state, never a silent one.
+#
+# Install:
+#   ln -s /root/vibe/dsh/dsh-evolve-le/docs/runbook/dsh-k80-formal.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now dsh-k80-formal
+# After the run reaches a terminal state: systemctl disable dsh-k80-formal
+# (a stale unit would relaunch the script on the next boot).
+
+[Unit]
+Description=DSH tree-v2 K=80 formal run (record-tree-v2-k80-formal-live)
+After=docker.service containerd.service
+Wants=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/vibe/dsh/dsh-evolve-le
+# TCB-only environment; the model credential lives in the 0600 key file and is
+# never passed through the unit, systemd's journal, or the append log.
+Environment=DSH_TREE_V2_LIVE_CONFIRM=confirm
+Environment=TREE_V2_TRIAL_CONTAINER_PROXY=http://172.17.0.1:17897
+Environment=TMPDIR=/root/vibe/dsh/scratch/tmp
+ExecStartPre=/bin/mkdir -p /root/vibe/dsh/scratch/tmp
+ExecStart=/root/.nvm/versions/node/v24.14.0/bin/node --import tsx/esm scripts/record-tree-v2-k80-formal-live.ts
+Restart=on-failure
+RestartSec=30
+StartLimitIntervalSec=3600
+StartLimitBurst=10
+StandardOutput=append:/root/vibe/dsh/scratch/formal-launch.log
+StandardError=append:/root/vibe/dsh/scratch/formal-launch.log
+
+[Install]
+WantedBy=multi-user.target

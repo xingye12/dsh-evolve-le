@@ -190,6 +190,24 @@ ceremony 生成，重跑字节一致）。修复：baseline id 改为与 builder
 candidateIdFromDigest），并用彩排 run root 的已准入 baseline id
 `c_wjkdctjplj4qemzjzpr6ifcyni` 端到端验证一致。修复提交后以同一预注册数字
 重启（RUN_ID/MASTER_SEED/profile/信封全部不变，规则 7/9 无任何放宽）。
+**第二次启动尝试（2026-09-08 00:57，诚实记录）**：脚本通过 steps 0–4（付费门、
+提取、split 39/10/23、sealed store 0600、sealed plan 预推导）并完成 49 dev
+verifier 镜像（receipt 01:09）；23 sealed 镜像中最后一个完成于 **01:43:45**
+（docker image CreatedAt），随后脚本在「sealed 准备返回 → init 首行日志」的
+极窄窗口内**无声死亡**（stderr 已重定向，日志无任何错误文本 → 不可捕获的
+外部 kill，SIGKILL 类）。**死于 init 之前：零付费 trial、零模型调用、零
+harbor job**。死因证据链不可完全还原：该次 boot 的 kernel log 已随
+2026-09-08 09:00 的 WSL2 重启丢失，OOM-killer 与外部 kill 无法区分（镜像
+构建期是本次 run 唯一的高内存窗口，最大 balloon 7776MB）。同日事实：机器
+26h 内 3 次重启（09-07 07:37、09-07 18:34、09-08 09:00），fwd forwarder
+容器带 restart 策略随 dockerd 自愈（09:00 后 egress 复检 401=可达）。
+**第三次启动尝试（2026-09-08 09:12，同一命令同一预注册数字）**：72 个
+verifier 镜像全部已缓存，高内存构建窗口不再出现；detached 重启（setsid
+nohup + disown，k10 同款），进程存活确认（node 14834）。**持久化监督为
+未决提议**：`docs/runbook/dsh-k80-formal.service`（systemd Restart=on-failure
++ boot 自启，~50h 付费 run 针对重启频发的对策）已写好但**未安装**——需要
+用户明确授权 systemd 持久化机制后才会 enable；在授权前 run 只受 detached
+进程保护，再次重启会再次中断（脚本 resume 幂等，可人工重启续跑）。
 
 **Phase 4 已实现，门通过（2026-09-08 凌晨）**：schema taskCount 48→49；
 `--profile` CLI flag + `terminal-bench-formal`；k80 profile 改为正式形态
