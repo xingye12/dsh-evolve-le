@@ -1,7 +1,96 @@
 # Project status
 
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
-**更新时间：2026-09-07（Asia/Shanghai）**
+**更新时间：2026-09-08（Asia/Shanghai）**
+
+## 2026-09-08 正式 K=80 `NO_ADMISSIBLE_CHILD` 复盘与 raw-child 修复
+
+正式 run `scratch/dsh-tree-v2-k80-formal/runs/tree-v2-k80-formal/` 的权威
+`drive-report.json` 已记录 `STOPPED:NO_ADMISSIBLE_CHILD`：search trial=98（即 49×2
+baseline）、admitted non-baseline=18、expansionAttempts=13、连续 expansion failure=3/3；未进入
+tournament、candidate lock 或 sealed reveal，故仍为 **`NO_SEALED_RESULTS`**。
+
+复盘 `search-state.json`、proposal sandbox 原始子树和 transcript 后确认：17 个逐子代拒绝中 16 个是
+`import/unresolved`。根因不是 benchmark trial，而是 proposer 工具的树语义不一致：`proposal_finish`
+把 `parentSourceFiles + raw child files` 的合并视图交给 stage-6 测试，随后 controller 却只扫描 raw
+child tree。模型把子代当 patch 写入时，合并测试会绿，而继承的 `src/mechanisms/*`、测试或 `tsconfig.json`
+未落入 raw tree，最终在 admission 被拒；第 13 次扩张的两个子代正是该路径，触发协议冻结的 3 次连续
+失败上限。
+
+修复（TCB，契约测试先行）：
+
+- `writeChildFile` 对每个 child 的首次写入先从受信任的 `input/parent-files.json` 物化完整父源树；这不消耗
+  proposer 的 model-write/file cap 或 access-log 配额，模型仅覆盖修改/新增文件。
+- `finalizeProposal` 在任何 candidate-test（含 recorded route）之前检查 raw child 是否含全部父文件；缺失时返回
+  可修复的 tool error，且不启动合并测试。提示词同步为“完整父树已由 TCB 初始化”。
+- 回归测试覆盖首次写入的完整物化，以及删除 `tsconfig.json` 时在测试运行前的拒绝；定向 41/41 通过，
+  `tsc --noEmit`、Prettier、diff check 通过；全量 `pnpm test`、lint、format、build 均成功。
+
+**续跑判定：不可在该 formal run 原地继续。** 它已按冻结的 `maxConsecutiveExpansionFailures=3` 达到
+`NO_ADMISSIBLE_CHILD`，specs/03 要求不得再调用 proposer；本修复也改变了 proposer TCB/worker runtime，不能
+改写旧 run 的冻结 manifest、journal 或证据树。specs/06 要求新 runtime 使用新 run directory，旧 run 保留。
+新正式 run 允许跨 run 内容寻址去重 immutable objects，但 specs/04 §4.4 只允许复用**同一 manifest**的 baseline
+结果，且 trial identity 包含 run 与 protocol hash；因此旧的 98 个 baseline verdict 不可作为新正式 run 的
+baseline evidence。可复用的是镜像、CAS objects 和经重新验证的候选/构建缓存，不能复用旧 trial 记分。
+
+**record 脚本证据门 FAILED（诚实记录，三类根因已逐一定位）**：正式 run 的 k80-formal-run.json
+`failures` 非空、allPassed=false、scratch 按失败策略保留，evidence 已落盘
+`evidence/tree-v2/k80-formal/`：
+
+1. `trialCountWithinThePreRegisteredEnvelope`：trials=98 discovery=98 admittedNonBaseline=18
+   → ordinary = 98 − 98 − 18×3 = **−54 < 0**。机制：98 baseline 完成后 UCB-Air 扩张门
+   `98^0.8 ≈ 39 ≥ admitted(19)` 持续判 expand，13 次扩张全部发生在首个 evaluation wave 之前
+   （16/17 `import/unresolved` + 1 `secret/aws-key` 设计内拒绝），3 次连续失败触发冻结上限——
+   18 个 admitted 节点**零冷启动 trial**，违反「每个 admitted 节点带 q0 cold-start trials」的
+   预注册记账不变式；检查按 ADR-042/049 信封 fail closed（非检查 bug，不放松）。
+2. 13 个 baseline trial 的 `trajectoryNonEmpty` + `receiptChainVerifies` 失败：全部
+   `NonZeroAgentExitCodeError` 死于 **agent setup**（ACP 容器内 apt-get 安装 python3/pip），
+   9/13 含 egress 代理 **502**（`http://security.ubuntu.com`、`http://archive.ubuntu.com` →
+   `502 Bad Gateway [IP: 172.17.0.1 17897]`），4/13 无 502 字样但同一条 setup 命令 exit 100。
+   分布 10:46、11:03、16:21-16:50、17:14-17:16 CST 多个窗口（a1/a2 混合：qemu-alpine-ssh a1+a2、
+   qemu-startup a1×2、guard-03 a2、guard-09 a1 等）。agent 未启动 → 无 trajectory、无 receipts；
+   按 rule 7 记失败、不重试（infra 归因但非预注册可重试类）。时间线注：17:14 窗口 = a2 首波
+   （12 个 setup 失败里的多数）。
+3. `noGuardTaskNameInAnyArtifact`=60 + `noSealedTaskNameInAnyArtifact`=23：证据制品携带
+   guard/sealed 真名——`image-prefetch.json`（按任务命名镜像：9 guard + 22 sealed）、run 文档
+   自身 tasks 列表（9 guard）、guard trial 自身的 `trial-result.json` 与 object 副本（`task_name`
+   含真名；guardHandles 无 `terminal-bench/` 前缀使 `includes()` 子串命中）。concealment
+   （ADR-046 消毒）未覆盖这些制品副本。**sealed 名只出现在证据树**（`evidence/*` gitignore、
+   不入 git；driver 全程只见 opaque id，从未进入 proposer/selector/archive；正式揭盲机制未触发，
+   仍为 NO_SEALED_RESULTS）——本条目是 rule 5 相关的一次披露与 record 脚本拷贝集缺陷，不是搜索
+   过程泄漏。
+
+**正式 run 总账**：~$60/$500、35320s（09:12→19:00:37）、98 trials（85 有 receipts + 13 setup
+失败）、0 tournament / 0 sealed、RUNNER 正常退出（record FAILED）。raw-child 修复（ADR-050）已
+落工作树并全量验证（41/41 定向 + 全量 pnpm test/lint/format/build 绿）。
+
+**repair-1 正式 run（ADR-051 预注册，用户补授权继续）**：`tree-v2-k80-formal-repair-1` 于
+2026-09-08 **19:35:50 CST** 由 30 分钟监督 cron 的 auto-resume 启动——当时 record 脚本已被改为
+repair-1 常量（并发 12、batchSize 12、新 RUN_ID/MASTER_SEED），**该启动没有先验用户授权**
+（cron 是按已停止的 formal run 挂的 resume 指令；脚本里的「user-authorized」注释失实，已改正）。
+用户于 ~19:55 CST 审查运行状态后**授权继续**，并以 ADR-051 作为事后预注册（信封、预算、K=80
+协议全部不变，仅波宽 8→12 + schema/CLI 上限同步放宽）。监督教训：auto-resume 指令必须校验 run
+身份（RUN_ID/MASTER_SEED）再重启，且不得重启协议输入与挂载时不同的 run。
+
+## 2026-09-08 K=80 formal repair-1：12-way 新 run 预注册与启动授权
+
+用户授权在修复后重跑，并指定 **12 并发**。旧 CLI/schema 的上限是 8，不能静默降级；现已把受控范围改为
+1..12，并为新的正式 repair run 单独冻结：`RUN_ID=tree-v2-k80-formal-repair-1`、
+`MASTER_SEED=tree-v2-k80-formal-repair-1-master-seed-1`、`concurrentTrials=12`、
+`benchmarkBaseline={taskCount:49,attemptsPerTask:2,batchSize:12}`。其余 K=80 search/tournament/sealed
+预算、任务集和协议不变；新的 scratch/run/evidence 根避免覆盖 stopped run。`batchSize=12` 与 wave width 对齐，
+所以 49×2 baseline 也会实际使用最多 12 个并发 job。Docker verifier image cache、immutable CAS object 和可重验
+candidate/build artifact 可以跨 run 去重；旧 trial verdict 不进入新 run。
+
+启动前验证：repair-12 配置契约、既有 live-profile/CLI 契约共 83 passed（23 环境依赖 skipped），`pnpm build`
+与 Prettier/diff check 通过。脚本启动时先校验 credential、native DSH lock、pinned dataset、已有 image receipts
+与 Harbor doctor；这些检查失败均在 paid trial 之前停止。
+
+**启动事实（2026-09-08）**：镜像准备命中宿主 Docker cache 后完成；init 与 doctor 通过，detached
+`dsh-evolve run` 已启动。新 manifest 已冻结为
+`sha256:abc8c6cf7050f86b2939f4d58fce4d7708f19e6744ce7b1604cf4bbdd2934f32`；启动后首次只读 status 为
+`PREFLIGHT`、controller seq=1、0 action/0 trial，尚未发生任何付费评测。后续状态以该 run root 的
+manifest/journal/report 为权威。
 
 ## 2026-09-07 ADR-045 K=80 正式信封修正（alpha=0.8、30h 墙钟、400-trial 信封、49×2 矩阵预注册）
 
@@ -205,9 +294,10 @@ harbor job**。死因证据链不可完全还原：该次 boot 的 kernel log �
 verifier 镜像全部已缓存，高内存构建窗口不再出现；detached 重启（setsid
 nohup + disown，k10 同款），进程存活确认（node 14834）。**持久化监督为
 未决提议**：`docs/runbook/dsh-k80-formal.service`（systemd Restart=on-failure
-+ boot 自启，~50h 付费 run 针对重启频发的对策）已写好但**未安装**——需要
-用户明确授权 systemd 持久化机制后才会 enable；在授权前 run 只受 detached
-进程保护，再次重启会再次中断（脚本 resume 幂等，可人工重启续跑）。
+
+- boot 自启，~50h 付费 run 针对重启频发的对策）已写好但**未安装**——需要
+  用户明确授权 systemd 持久化机制后才会 enable；在授权前 run 只受 detached
+  进程保护，再次重启会再次中断（脚本 resume 幂等，可人工重启续跑）。
 
 **Phase 4 已实现，门通过（2026-09-08 凌晨）**：schema taskCount 48→49；
 `--profile` CLI flag + `terminal-bench-formal`；k80 profile 改为正式形态

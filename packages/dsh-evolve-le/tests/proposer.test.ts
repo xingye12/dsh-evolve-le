@@ -242,6 +242,38 @@ describe('proposer tool layer', () => {
     expect(await readdir(childrenRoot)).toEqual(['child-1'])
   })
 
+  it('materializes the trusted parent tree before the first child write', async () => {
+    const inputRoot = await freshRoot('dsh-tools-seed-in-')
+    const childrenRoot = join(await freshRoot('dsh-tools-seed-ch-'), 'children')
+    const parentFiles = {
+      'candidate.json': '{"kind":"parent"}\n',
+      'src/index.ts': 'export const parent = true\n',
+      'tests/candidate.spec.ts': 'it("parent", () => {})\n',
+    }
+    for (const [rel, content] of Object.entries(parentFiles)) {
+      const target = join(inputRoot, 'parent', rel)
+      await mkdir(join(target, '..'), { recursive: true })
+      await writeFile(target, content)
+    }
+    await writeFile(
+      join(inputRoot, 'parent-files.json'),
+      `${JSON.stringify(Object.keys(parentFiles))}\n`,
+    )
+
+    const tools = openProposerTools({ inputRoot, childrenRoot })
+    await tools.writeChildFile('child-1', 'src/index.ts', 'export const child = true\n')
+
+    await expect(tools.readChild('child-1', 'candidate.json')).resolves.toBe(
+      parentFiles['candidate.json'],
+    )
+    await expect(tools.readChild('child-1', 'tests/candidate.spec.ts')).resolves.toBe(
+      parentFiles['tests/candidate.spec.ts'],
+    )
+    await expect(tools.readChild('child-1', 'src/index.ts')).resolves.toBe(
+      'export const child = true\n',
+    )
+  })
+
   it('fails closed when the staged parent view is missing for a v2 bundle (ADR-037)', async () => {
     const tools = openProposerTools({
       inputRoot: await freshRoot('dsh-tools-fin-'),
@@ -352,6 +384,7 @@ async function treeV2FinalizeFixture(): Promise<{
     // prop-2: the merged view masked their absence until admission scan).
     'package.json': parentFiles['package.json'] ?? '{"name":"fixture-v2"}\n',
     'cordis.patch.yml': parentFiles['cordis.patch.yml'] ?? 'services: {}\n',
+    'tsconfig.json': parentFiles['tsconfig.json'] ?? '{}\n',
     'src/index.ts': CHILD_INDEX_038,
     'src/hint.ts': `export const addedModule = true\n`,
     'tests/child.spec.ts': `it('mechanism', () => {})\n`,
@@ -370,7 +403,10 @@ async function treeV2FinalizeFixture(): Promise<{
         protocol: TREE_V2_PROTOCOL,
         kind: 'candidate-intent',
         candidate: { name: 'fixture-child', version: '1.0.0', entry: 'src/index.ts' },
-        parent: { candidateDigest: `sha256:${'f'.repeat(64)}`, sourceDigest: `sha256:${'f'.repeat(64)}` },
+        parent: {
+          candidateDigest: `sha256:${'f'.repeat(64)}`,
+          sourceDigest: `sha256:${'f'.repeat(64)}`,
+        },
         modeContract: { targetModes: ['solve', 'propose'], preservedModes: [] },
         runtime: {
           modeComponents: { solve: ['src/index.ts'], propose: ['src/index.ts'] },
@@ -394,7 +430,11 @@ async function treeV2FinalizeFixture(): Promise<{
           },
           capabilities: ['system-prompt'],
         },
-        tests: { command: 'pnpm vitest run tests/', mechanism: ['tests/child.spec.ts'], preservation: [] },
+        tests: {
+          command: 'pnpm vitest run tests/',
+          mechanism: ['tests/child.spec.ts'],
+          preservation: [],
+        },
         receiptDigest: `sha256:${'f'.repeat(64)}`,
       },
       null,
@@ -451,6 +491,28 @@ async function treeV2FinalizeFixture(): Promise<{
 }
 
 describe('finalizeProposal candidate-test feedback (ADR-038)', () => {
+  it('rejects an incomplete raw child tree before a merged test can mask it', async () => {
+    const { inputRoot, childrenRoot, parentSourceHash, treeV2Parent, bundle } =
+      await treeV2FinalizeFixture()
+    let testRuns = 0
+    const tools = openProposerTools({
+      inputRoot,
+      childrenRoot,
+      parentSourceHash,
+      treeV2Parent,
+      candidateTestRunner: async () => {
+        testRuns += 1
+        return { ok: true, output: 'this must not run' }
+      },
+    })
+    await rm(join(childrenRoot, 'child-1', 'tsconfig.json'))
+
+    await expect(tools.finalizeProposal(bundle as never)).rejects.toThrow(
+      /child child-1 is missing inherited parent files: tsconfig\.json/,
+    )
+    expect(testRuns).toBe(0)
+  })
+
   it('runs the merged parent+child view per child and surfaces failures as a tool error', async () => {
     const { inputRoot, childrenRoot, parentSourceHash, treeV2Parent, bundle } =
       await treeV2FinalizeFixture()
@@ -485,7 +547,10 @@ describe('finalizeProposal candidate-test feedback (ADR-038)', () => {
       childrenRoot,
       parentSourceHash,
       treeV2Parent,
-      candidateTestRunner: async () => ({ ok: true, output: 'oxlint clean; candidate tests passed' }),
+      candidateTestRunner: async () => ({
+        ok: true,
+        output: 'oxlint clean; candidate tests passed',
+      }),
     })
     const finalized = await tools.finalizeProposal(bundle as never)
     expect(finalized.children).toHaveLength(1)

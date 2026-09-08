@@ -134,12 +134,80 @@ export function openProposerTools(options: {
   ) => Promise<{ ok: boolean; output: string }>
 }): ProposerTools {
   const log: AccessRecord[] = []
-  const written = new Map<string, number>() // childName → bytes
+  const written = new Map<string, number>() // childName → model-authored bytes
+  const writtenFileBytes = new Map<string, number>()
+  const writtenPaths = new Set<string>()
   const fileCounts = new Map<string, number>()
+  const seededChildren = new Set<string>()
   let candidateTestRuns = 0
 
   const record = (entry: AccessRecord): void => {
     log.push(entry)
+  }
+
+  /**
+   * A tree-v2 child is a complete candidate source tree, not a patch. Seed its
+   * trusted parent bytes before the model's first write so the writable view,
+   * candidate-test view, and eventual scanned source are the same tree.
+   * Parent bytes are controller-staged and deliberately do not consume the
+   * model's write/file caps or access-log budget.
+   */
+  const seedChildFromParent = async (childName: string, childRoot: string): Promise<void> => {
+    if (seededChildren.has(childName)) return
+    const manifestPath = await resolveContained(
+      options.inputRoot,
+      'parent-files.json',
+      'writeChildFile',
+    )
+    const manifest = await readFile(manifestPath, 'utf8').catch((error: unknown) => {
+      const code =
+        typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined
+      if (code === 'ENOENT') return undefined
+      throw error
+    })
+    // Non-tree-v2/unit-test callers do not stage a parent source view.
+    if (manifest === undefined) {
+      seededChildren.add(childName)
+      return
+    }
+    let parentFileList: unknown
+    try {
+      parentFileList = JSON.parse(manifest) as unknown
+    } catch (error) {
+      throw new ToolError(
+        `writeChildFile: parent-files.json unreadable: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
+    }
+    if (
+      !Array.isArray(parentFileList) ||
+      parentFileList.some((entry) => typeof entry !== 'string') ||
+      new Set(parentFileList).size !== parentFileList.length
+    ) {
+      throw new ToolError('writeChildFile: parent-files.json must be a unique string array')
+    }
+    for (const rel of parentFileList as string[]) {
+      const parentPath = await resolveContained(
+        options.inputRoot,
+        `parent/${rel}`,
+        'writeChildFile',
+      )
+      const target = await resolveContained(childRoot, rel, 'writeChildFile')
+      let bytes: Buffer
+      try {
+        bytes = await readFile(parentPath)
+      } catch (error) {
+        throw new ToolError(
+          `writeChildFile: parent/${rel} unreadable: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+      }
+      await mkdir(dirname(target), { recursive: true })
+      await writeFile(target, bytes)
+    }
+    seededChildren.add(childName)
   }
 
   const tools: ProposerTools = {
@@ -196,20 +264,21 @@ export function openProposerTools(options: {
       await mkdir(options.childrenRoot, { recursive: true })
       const childRoot = await resolveContained(options.childrenRoot, childName, 'writeChildFile')
       await mkdir(childRoot, { recursive: true })
+      await seedChildFromParent(childName, childRoot)
       const target = await resolveContained(childRoot, relPath, 'writeChildFile')
       const byteLength = Buffer.byteLength(content, 'utf8')
       if (byteLength > TOOL_CAPS.maxFileBytes) {
         throw new ToolError(`writeChildFile: ${relPath} exceeds ${TOOL_CAPS.maxFileBytes} bytes`)
       }
-      const prior = await lstat(target).catch(() => undefined)
-      const priorBytes = prior?.isFile() === true ? prior.size : 0
-      const childTotal = (written.get(childName) ?? 0) - priorBytes + byteLength
+      const writeKey = `${childName}\u0000${relPath}`
+      const priorWrittenBytes = writtenFileBytes.get(writeKey) ?? 0
+      const childTotal = (written.get(childName) ?? 0) - priorWrittenBytes + byteLength
       if (childTotal > TOOL_CAPS.maxTotalWriteBytes) {
         throw new ToolError(
           `writeChildFile: child ${childName} would exceed ${TOOL_CAPS.maxTotalWriteBytes} written bytes`,
         )
       }
-      if (prior === undefined) {
+      if (!writtenPaths.has(writeKey)) {
         const count = (fileCounts.get(childName) ?? 0) + 1
         if (count > TOOL_CAPS.maxFilesPerChild) {
           throw new ToolError(
@@ -217,10 +286,12 @@ export function openProposerTools(options: {
           )
         }
         fileCounts.set(childName, count)
+        writtenPaths.add(writeKey)
       }
       await mkdir(dirname(target), { recursive: true })
       await writeFile(target, content, 'utf8')
       written.set(childName, childTotal)
+      writtenFileBytes.set(writeKey, byteLength)
       record({
         op: 'write',
         path: `${childName}/${relPath}`,
@@ -269,7 +340,11 @@ export function openProposerTools(options: {
       }
       const parentSourceFiles: Record<string, string> = {}
       for (const rel of parentFileList as string[]) {
-        const target = await resolveContained(options.inputRoot, `parent/${rel}`, 'finalizeProposal')
+        const target = await resolveContained(
+          options.inputRoot,
+          `parent/${rel}`,
+          'finalizeProposal',
+        )
         try {
           parentSourceFiles[rel] = await readFile(target, 'utf8')
         } catch (error) {
@@ -280,24 +355,16 @@ export function openProposerTools(options: {
           )
         }
       }
-      const finalized = await finalizeTreeV2Bundle({
-        proposal: proposal as ProposalOutput,
-        childrenRoot: options.childrenRoot,
-        exportManifest: (await readJson('export/manifest.json')) as ExportManifest,
-        treeV2Parent: options.treeV2Parent,
-        parentSourceHash: options.parentSourceHash,
-        catalog: (await readJson('archive-catalog.json')) as ArchiveCatalog,
-        parentSourceFiles,
-      })
-      if (options.candidateTestRunner === undefined) return finalized
-      // ADR-038: run the stage-6 suite over each child's merged parent+child
-      // view — parent files plus the child's written tree (child files shadow
-      // parent files), the same merge the builder's stage 3 materializes. A
-      // failure surfaces here as a tool error the model can fix and retry,
-      // instead of a silent controller rejection one attempt later.
+      // The raw child tree is what later becomes content-addressed candidate
+      // source. Read it before deciding whether a model-facing test runner is
+      // present, so recorded routes receive the same completeness guard.
       const readChildTree = async (childName: string): Promise<Record<string, string>> => {
         const files: Record<string, string> = {}
-        const childRoot = await resolveContained(options.childrenRoot, childName, 'finalizeProposal')
+        const childRoot = await resolveContained(
+          options.childrenRoot,
+          childName,
+          'finalizeProposal',
+        )
         const walk = async (relDir: string): Promise<void> => {
           for (const entry of await readdir(join(childRoot, relDir), { withFileTypes: true })) {
             if (entry.name === 'node_modules') continue
@@ -314,6 +381,32 @@ export function openProposerTools(options: {
         await walk('')
         return files
       }
+      const finalized = await finalizeTreeV2Bundle({
+        proposal: proposal as ProposalOutput,
+        childrenRoot: options.childrenRoot,
+        exportManifest: (await readJson('export/manifest.json')) as ExportManifest,
+        treeV2Parent: options.treeV2Parent,
+        parentSourceHash: options.parentSourceHash,
+        catalog: (await readJson('archive-catalog.json')) as ArchiveCatalog,
+        parentSourceFiles,
+      })
+      const childTrees = new Map<string, Record<string, string>>()
+      for (const child of finalized.children ?? []) {
+        const childFiles = await readChildTree(child.childName)
+        const missingParentFiles = Object.keys(parentSourceFiles)
+          .filter((path) => childFiles[path] === undefined)
+          .sort()
+        if (missingParentFiles.length > 0) {
+          throw new ToolError(
+            `finalizeProposal: child ${child.childName} is missing inherited parent files: ${missingParentFiles.join(', ')}`,
+          )
+        }
+        childTrees.set(child.childName, childFiles)
+      }
+      if (options.candidateTestRunner === undefined) return finalized
+      // ADR-038: run the stage-6 suite over the complete raw child tree. The
+      // explicit merge is retained only as a defensive assertion of the
+      // parent-overlay equivalence established immediately above.
       for (const child of finalized.children ?? []) {
         if (candidateTestRuns >= CANDIDATE_TEST_RUN_BUDGET) {
           throw new ToolError(
@@ -321,7 +414,12 @@ export function openProposerTools(options: {
           )
         }
         candidateTestRuns += 1
-        const childFiles = await readChildTree(child.childName)
+        const childFiles = childTrees.get(child.childName)
+        if (childFiles === undefined) {
+          throw new ToolError(
+            `finalizeProposal: child ${child.childName} tree disappeared before tests`,
+          )
+        }
         const files: Record<string, string> = { ...parentSourceFiles }
         for (const [rel, content] of Object.entries(childFiles)) files[rel] = content
         let result: { ok: boolean; output: string }

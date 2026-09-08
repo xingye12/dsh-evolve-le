@@ -379,8 +379,8 @@ async function commandInit(values: CliValues, io: CliIo): Promise<number> {
   let concurrentTrials: number | undefined
   if (values['concurrent-trials'] !== undefined) {
     concurrentTrials = Number(values['concurrent-trials'])
-    if (!Number.isSafeInteger(concurrentTrials) || concurrentTrials < 1 || concurrentTrials > 8) {
-      throw new CliError('--concurrent-trials expects an integer from 1 to 8', 2)
+    if (!Number.isSafeInteger(concurrentTrials) || concurrentTrials < 1 || concurrentTrials > 12) {
+      throw new CliError('--concurrent-trials expects an integer from 1 to 12', 2)
     }
   }
 
@@ -1312,8 +1312,8 @@ async function commandSealedEvaluate(values: CliValues, io: CliIo): Promise<numb
     throw new CliError(`--provider must be terminal-bench or fake, got "${providerKind}"`, 2)
   }
   const concurrency = values['concurrency'] !== undefined ? Number(values['concurrency']) : 2
-  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 8) {
-    throw new CliError('--concurrency must be an integer in 1..8', 2)
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 12) {
+    throw new CliError('--concurrency must be an integer in 1..12', 2)
   }
   let criticalFindings: number | undefined
   if (values['critical-findings'] !== undefined) {

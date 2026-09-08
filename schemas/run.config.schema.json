@@ -362,7 +362,7 @@
             "bin": { "type": "string", "minLength": 1 },
             "version": { "type": "string", "minLength": 1 },
             "jobsRoot": { "type": "string", "pattern": "^/.*$" },
-            "concurrentTrials": { "type": "integer", "minimum": 1, "maximum": 8 },
+            "concurrentTrials": { "type": "integer", "minimum": 1, "maximum": 12 },
             "prefetchImages": { "type": "boolean" }
           },
           "required": ["bin", "version", "jobsRoot", "concurrentTrials"],

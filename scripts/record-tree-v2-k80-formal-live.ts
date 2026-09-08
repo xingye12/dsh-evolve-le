@@ -10,7 +10,7 @@
  * (final gate ceil(80^1.25)=240, minimumTrials 255 ≤ 400), a 400-trial
  * search envelope, a 360-trial tournament envelope, a 46h wall clock
  * (1800 search + 960 tournament — the ADR-048 phased amendment of the
- * specs/00 §6.3 16h objective), 8 concurrent Harbor trials, and a separate
+ * specs/00 §6.3 16h objective), and a separate
  * 12h / ~$33 / 460M-token sealed budget. The run starts from the tree-v2
  * migration root (packages/candidate-tree-v2-baseline, bound to the legacy
  * v1 baseline by the frozen tree-v2-migration.json receipt,
@@ -84,7 +84,7 @@ import {
 
 const exec = promisify(execFile)
 
-const evidenceDir = resolve(repoRoot, 'evidence/tree-v2/k80-formal')
+const evidenceDir = resolve(repoRoot, 'evidence/tree-v2/k80-formal-repair-1')
 const CLI_BIN = resolve(repoRoot, 'packages/cli/lib/main.js')
 const TARBALL = resolve(repoRoot, '.references/terminal-bench-2-1-7131e43.tar.gz')
 const ARTIFACT_HOST = process.env['TREE_V2_ARTIFACT_HOST'] ?? '172.17.0.1'
@@ -93,9 +93,22 @@ const ARTIFACT_PORT = Number(process.env['TREE_V2_ARTIFACT_PORT'] ?? '8443')
 // egress proxy through a socat forwarder bound to the docker0 gateway
 // (host-side environment, not protocol). Empty/unset = no proxy injection.
 const TRIAL_CONTAINER_PROXY = process.env['TREE_V2_TRIAL_CONTAINER_PROXY'] ?? ''
-const RUN_ID = 'tree-v2-k80-formal'
-const MASTER_SEED = 'tree-v2-k80-formal-master-seed-1'
-const PROFILE = TREE_V2_LIVE_PROFILES.k80
+const RUN_ID = 'tree-v2-k80-formal-repair-1'
+const MASTER_SEED = 'tree-v2-k80-formal-repair-1-master-seed-1'
+// Repair run (ADR-051): 12-way waves are a NEW frozen protocol input for a NEW
+// run identity, not an edit to the stopped formal run's 8-way manifest (which
+// keeps its own run root and evidence untouched). The baseline batch size
+// matches the wave width so the 49×2 matrix actually uses 12-way waves.
+// Authorization timeline (honest record): the script was edited to these
+// constants and relaunched by the 30-minute auto-resume cron at 19:35:50 CST
+// BEFORE explicit user authorization; the user then reviewed the running
+// state and authorized continuing with a retroactive pre-registration
+// (ADR-051, 2026-09-08 evening). No claim of prior authorization is made.
+const PROFILE = {
+  ...TREE_V2_LIVE_PROFILES.k80,
+  concurrentTrials: 12,
+  benchmarkBaseline: { taskCount: 49, attemptsPerTask: 2, batchSize: 12 },
+}
 // The native DSH runtime lock materialized by docs/configuration.md §Native
 // DSH runtime lock (pinned upstream, built copy in scratch, inspected lock).
 const NATIVE_DSH_CATALOG_ROOT = '/root/vibe/dsh/scratch/native-dsh-catalog'
@@ -183,7 +196,7 @@ if (credential.length === 0) {
 // sealed split store (0600): it is state, never evidence, so the whole tree
 // lives in scratch and only sanitized copies land under evidence/. The path
 // is fixed (not mkdtemp) so a killed process resumes the same run.
-const scratch = '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal'
+const scratch = '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-1'
 await mkdir(scratch, { recursive: true })
 const runsRoot = resolve(scratch, 'runs')
 const jobsRoot = resolve(scratch, 'jobs')
@@ -512,7 +525,7 @@ check(
   }),
 )
 // ADR-045/049: the k80 profile pre-registers alpha=0.8, the proposal budgets,
-// the wave width, the guard-inclusive 49×2×8 matrix AND the tournament
+// the wave width, the guard-inclusive 49×2×12 matrix AND the tournament
 // envelope — every one of them must freeze verbatim.
 check(
   'configMatchesThePreRegisteredK80Profile',
@@ -1061,7 +1074,7 @@ if (report.stopReason === 'CHAMPION_LOCKED') {
       '--provider',
       'terminal-bench',
       '--concurrency',
-      '8',
+      String(PROFILE.concurrentTrials),
     ],
     46_800_000,
   )

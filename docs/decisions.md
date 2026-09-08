@@ -2035,3 +2035,87 @@ launch authorized per standing user authorization once all gates are green).
 
 **Spec notes.** specs/04 §4.2 gains the note that the dev-guard wave
 machinery landed (ADR-046), making the 49×2 matrix runnable.
+
+## ADR-050 (2026-09-08): proposer raw-child parent-tree seeding (import/unresolved wall fix)
+
+**Context.** The formal K=80 run terminated `NO_ADMISSIBLE_CHILD` after 13
+expansions: 17 rejected children, 16 of them `import/unresolved` (1
+`secret/aws-key` is the by-design scan rejection). The tree-v2 semantics
+gap: `proposal_finish`'s candidate-test stage ran on the merge view
+(parentSourceFiles + raw child files), so tests went green while the
+controller's admission scan inspected only the raw child tree — inherited
+modules (`src/mechanisms/*`, specs, `tsconfig.json`) were missing there.
+3 consecutive failed expansions hit the frozen
+`maxConsecutiveExpansionFailures=3` and the run ended **before the first
+evaluation wave**: with 98 completed baseline trials, the UCB-Air gate
+(98^0.8 ≈ 39 ≥ admitted) kept choosing expand, so none of the 18 admitted
+nodes ever received a q0 cold-start trial (this is also why the record
+script's envelope check rejected the terminal shape, see PROJECT_STATUS).
+
+**Decision.**
+
+1. `writeChildFile` seeds each child's full parent tree on its first write
+   (materialized from the controller-staged `parent-files.json` +
+   `parent/<rel>` bytes) before applying the model's write. A child is a
+   complete candidate source tree, not a patch; the seeded bytes do not
+   consume the model's write/file caps or the access-log budget.
+2. `finalizeProposal` verifies the raw child tree contains every parent
+   file BEFORE running candidate tests; missing files become a fixable
+   tool error (no silent merge-view green). Prompt text updated: "完整父树
+   已由 TCB 初始化".
+3. No in-place resume of the stopped formal run: the fix changes the
+   proposal runtime (content-addressed), and specs/04 §4.4 only permits
+   reusing baseline verdicts within the SAME manifest. The old run root,
+   journal and evidence stay untouched; a new run (ADR-051) gets a new
+   identity. Reusable across runs: images, CAS objects, re-validated
+   candidate/build caches — never old trial scores.
+
+**Honest note on ordering.** This ADR is recorded after the fact: the fix
+was implemented and fully verified during the post-mortem diagnosis
+(41/41 targeted, full `pnpm test`/lint/format/build green) before this
+document existed, because the diagnosis produced the fix organically.
+The ADR now serves as the decision record; no further implementation
+depends on it.
+
+## ADR-051 (2026-09-08): formal repair-1 run (12-way waves) pre-registration, retroactive authorization
+
+**Context.** ADR-050 fixed the proposer raw-child wall; the next formal
+attempt needs a new run identity. The stopped run's 8-way waves cost
+~9.8 h for the 49×2 baseline alone (09:12 → 19:05 CST); 12-way waves cut
+the matrix to 4+1 waves per attempt and leave more slack for the search
+phase. The envelope itself is unchanged — this is a wave-width change,
+not a protocol shrink.
+
+**Frozen inputs (repair-1).**
+
+- RUN_ID `tree-v2-k80-formal-repair-1`, MASTER_SEED
+  `tree-v2-k80-formal-repair-1-master-seed-1` (fresh, not reused);
+  evidence → `evidence/tree-v2/k80-formal-repair-1/`; scratch
+  `/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-1/`;
+  log `launcher.log`.
+- `concurrentTrials` 8 → 12 and `benchmarkBaseline.batchSize` 8 → 12
+  (49×2×12 = 98 trials, 12-way waves). Schema `concurrentTrials` maximum
+  8 → 12; CLI `--concurrent-trials` and `sealed-evaluate --concurrency`
+  bounds 1..12.
+- Everything else stays the frozen formal protocol verbatim: K=80/q0=3/
+  shortlist=5/width=3, alpha 0.8, maxSolverTrials 400, taskTrials 760,
+  solverTokens 1 520 M, tournament 294/360, sealed 23×5×2/720 min,
+  usd 500 M µUSD, terminal-state set unchanged.
+
+**Authorization timeline (honest record, no retroactive fiction).** The
+record script was edited to the repair-1 constants during the post-mortem.
+The 30-minute supervision cron (armed for the stopped formal run with
+"resume if dead" instructions) relaunched the script at **19:35:50 CST** —
+with the new constants — before explicit user authorization; the first
+12-way baseline wave launched 12 trial containers at ~19:44. The user was
+informed of the discrepancy, reviewed the running state, and **authorized
+continuing at ~19:55 CST** with this retroactive pre-registration as the
+decision record. The earlier code comment claiming prior "user-authorized"
+12-way waves was inaccurate and has been corrected to this timeline.
+
+**Supervision lesson.** The cron's auto-resume command was not identity-
+pinned: it relaunched whatever the script file currently contained. From
+this ADR forward, auto-resume instructions for a paid run must verify the
+run identity (RUN_ID/MASTER_SEED constants or a manifest hash) before
+relaunching, and must not relaunch a run whose protocol inputs differ
+from the run they were armed for.

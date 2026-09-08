@@ -387,6 +387,28 @@ describe('solver route (ADR-030, specs/00 §4 / specs/02 §13)', () => {
     }
   })
 
+  it('accepts a separately frozen formal repair run with twelve-way waves', () => {
+    const document = liveBase()
+    const result = validateRunConfig({
+      ...document,
+      search: {
+        ...document.search,
+        kTarget: 80,
+        maxDiscoveryTrials: 12,
+        maxSolverTrials: 400,
+        ucbAirAlphaPerMille: 800,
+        benchmarkBaseline: { taskCount: 49, attemptsPerTask: 2, batchSize: 12 },
+      },
+      budget: { ...document.budget, taskTrials: 400, solverTokens: 800_000_000 },
+      benchmark: {
+        ...document.benchmark,
+        harbor: { ...document.benchmark.harbor, concurrentTrials: 12 },
+      },
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.config.benchmark.harbor.concurrentTrials).toBe(12)
+  })
+
   it('rejects disabling image prefetch for a live solver run', () => {
     const document = liveBase()
     const result = validateRunConfig({
