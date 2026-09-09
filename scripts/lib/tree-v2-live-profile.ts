@@ -254,13 +254,21 @@ export const TREE_V2_LIVE_PROFILES: Record<
    * ADR-059 paid 1-job Harbor smoke (the repair-3 launch gate): the smallest
    * pre-registered live run that exercises the full tree-v2 trial path —
    * real Harbor job → capsule boot through the egress proxy → TCB solve
-   * gateway → live route → task verifier → receipt-chain settle. One
-   * benchmark-baseline matrix trial (the first observed handle of the frozen
+   * gateway → live route → task verifier → receipt-chain settle. A 2×1
+   * benchmark-baseline matrix (the first two observed handles of the frozen
    * ceremony), one live expansion/proposal and one q0 cold start; every
    * trial funds at the frozen 2M gateway cap (solverTokens = taskTrials ×
    * 2M, so the dimension never trips before task-trials). Worst case ≈ 4
    * trials / $1.20 solver + one live proposal; stable-demo profile class —
    * no tournament, no sealed demands. Claims no improvement signal.
+   *
+   * ADR-059 amendment (2026-09-09): the launch-gate calibration rejected a
+   * 1×1 matrix — bestCaseSupply 2 < minimumTrials 3 (finalGate
+   * ceil(K^(1/alpha))=1 + q0×shortlist=2), because the matrix can only
+   * supply one admitted node's cold start beyond its own trial. The matrix
+   * is 2×1 (bestCaseSupply 4), shortlistSize stays 2 (schema minimum);
+   * terminal shapes shift to K_REACHED at 3 trials and
+   * NO_REAL_FAILURE_SIGNAL at 2.
    */
   treeV2Smoke: {
     kTarget: 1,
@@ -274,7 +282,7 @@ export const TREE_V2_LIVE_PROFILES: Record<
     wallClockMinutes: 120,
     solverTokens: 8_000_000,
     concurrentTrials: 1,
-    benchmarkBaseline: { taskCount: 1, attemptsPerTask: 1, batchSize: 1 },
+    benchmarkBaseline: { taskCount: 2, attemptsPerTask: 1, batchSize: 1 },
   },
 }
 

@@ -5,8 +5,9 @@
  * launches the tree-v2 baseline capsule, boots through the 17897 egress
  * proxy, solves over the TCB gateway against the live deepseek-v4-flash
  * route, is verified by the task's own verifier, and settles from the
- * receipt chain. It runs the 1×1×1 benchmark-baseline matrix (the first
- * observed handle of the frozen ceremony) plus — only when the matrix
+ * receipt chain. It runs the 2×1×1 benchmark-baseline matrix (the first
+ * two observed handles of the frozen ceremony; ADR-059 amendment — a 1×1
+ * matrix fails the launch-gate calibration) plus — only when the matrix
  * produced a real failure — one live expansion/proposal and one q0 cold
  * start (K=1).
  *
@@ -189,9 +190,9 @@ if (excludedHandles.length === 0 || allTaskEntries.length !== 89) {
 }
 // Live solver runs refuse to launch without derived offline verifier images
 // (cli.ts composeReal): a prefetched Harbor image can still carry a verifier
-// that downloads uv/pytest at test time. Prepare the smoke's single matrix
-// task — the deterministic split ceremony's FIRST observed handle, exactly
-// the driver's 1×1×1 matrix task — before any paid launch.
+// that downloads uv/pytest at test time. Prepare the smoke's two matrix
+// tasks — the deterministic split ceremony's first TWO observed handles,
+// exactly the driver's 2×1×1 matrix — before any paid launch.
 console.log('tree-v2 smoke: building offline verifier images (no test-time downloads)…')
 const { runSplitCeremony, splitCountsForPopulation } = await import(
   pathToFileURL(resolve(repoRoot, 'packages/dsh-evolve-le/lib/split/ceremony.js')).href
@@ -215,7 +216,7 @@ const prepared = await prepareOfflineVerifierTasks({
   // derived verifier images.
   sourceTasksRoot: upstreamTasksRoot,
   outputTasksRoot: join(scratch, 'tasks'),
-  taskAllowlist: ceremony.ceremony.observedHandles.slice(0, PROFILE.discoveryBatchSize),
+  taskAllowlist: ceremony.ceremony.observedHandles.slice(0, PROFILE.benchmarkBaseline?.taskCount),
   dockerBin: 'docker',
 })
 const tasksRoot = prepared.tasksRoot
@@ -437,7 +438,7 @@ console.log(
 )
 
 // The pre-registered envelope is the only funded shape (ADR-040): the
-// 1×1×1 matrix plus — only on a real failure — one expansion with one q0
+// 2×1×1 matrix plus — only on a real failure — one expansion with one q0
 // cold start, inside the profile caps.
 const envelope = trialShapeWithinPreRegisteredEnvelope(
   {

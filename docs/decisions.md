@@ -2460,8 +2460,8 @@ with no further gate.
 
 **Decision.**
 1. New pre-registered profile `treeV2Smoke` plus a dedicated record script
-   `scripts/record-tree-v2-smoke-live.ts`: one benchmark-baseline matrix
-   trial (the first observed handle of the frozen ceremony), one live
+   `scripts/record-tree-v2-smoke-live.ts`: a 2×1 benchmark-baseline matrix
+   (the first two observed handles of the frozen ceremony), one live
    expansion/proposal and one q0 cold start. Envelope: kTarget 1,
    taskTrials 4, wallClockMinutes 120, solverTokens 8M, concurrentTrials 1,
    stable-demo profile class (no tournament, no sealed demands). Worst case
@@ -2475,13 +2475,28 @@ with no further gate.
    run, not part of the formal run's trial count, and claims no improvement
    signal; its single development trial never feeds repair-3's proposer or
    archive (fresh run root).
+
+   **Amendment (2026-09-09, attempt 1 post-mortem).** Attempt 1 stopped at
+   the doctor's `search-calibration` gate with zero paid calls:
+   `best-case pool supply 2 < minimumTrials 3` — a 1×1 matrix cannot fund
+   the final expansion gate (minimumTrials = finalGate ceil(K^(1/α)) + q0×
+   shortlist = 1 + 1×2 = 3; supply = matrix 1 + K×taskCount 1 = 2). The
+   fail-closed preflight worked as designed and rejected the mis-calibrated
+   pre-registration before any model spend. The profile amends the matrix
+   to 2×1 (supply = 2 + 2 = 4 ≥ 3); shortlistSize stays 2 (schema minimum).
+   Terminal shapes shift to K_REACHED at trials=3 and
+   NO_REAL_FAILURE_SIGNAL at trials=2. The record script's verifier
+   allowlist now derives from `benchmarkBaseline.taskCount` (the 1×1
+   draft had sliced by discoveryBatchSize).
 2. Sealed disposition: repair-3 keeps the ADR-048 pre-registered one-shot
    sealed evaluation (23 tasks × 5 attempts × 2 sides = 230 trials, 720
    min, one reveal, CHAMPION_LOCKED only) unchanged; the acceptance is
    recorded here instead of a new ADR gate.
 
-**Verification.** Profile contract tests (1×1×1 carriers; both terminal
-shapes — K_REACHED at trials=2..3 and NO_REAL_FAILURE_SIGNAL at trials=1 —
-inside the envelope); full suite green; then the live smoke itself recorded
-with the k3-style machine gates (receipt chain per trial, Harbor usage
-cross-check, redaction scan, registered terminal states).
+**Verification.** Profile contract tests (2×1×1 carriers; the
+`search-calibration` gate passes on the amended envelope — new contract
+test; both terminal shapes — K_REACHED at trials=3 and
+NO_REAL_FAILURE_SIGNAL at trials=2 — inside the envelope); full suite
+green; then the live smoke itself recorded with the k3-style machine gates
+(receipt chain per trial, Harbor usage cross-check, redaction scan,
+registered terminal states).

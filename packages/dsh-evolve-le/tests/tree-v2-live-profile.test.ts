@@ -9,6 +9,7 @@ import {
   REGISTERED_TERMINAL_STOP_REASONS,
 } from '../../../scripts/lib/tree-v2-live-profile.js'
 import { DEFAULT_SOLVE_TRIAL_BUDGET } from '../src/solver/gateway.js'
+import { calibrateSearch } from '../src/selection/calibration.js'
 
 describe('tree-v2 live run profiles', () => {
   it('pins K=3 to the stable-demo 15-trial envelope', () => {
@@ -81,7 +82,7 @@ describe('tree-v2 live run profiles', () => {
       wallClockMinutes: 120,
       solverTokens: 8_000_000,
       concurrentTrials: 1,
-      benchmarkBaseline: { taskCount: 1, attemptsPerTask: 1, batchSize: 1 },
+      benchmarkBaseline: { taskCount: 2, attemptsPerTask: 1, batchSize: 1 },
     })
     // The smoke is stable-demo class: no tournament, no formal profile
     // demands, no debugger — the smallest paid run that exists.
@@ -211,10 +212,10 @@ describe('tree-v2 live run profiles', () => {
     // the preserved 49×2 k80 args stay byte-identical without it.
     expect(repair3).toContain('wallClockSearchMinutes=3600')
     expect(k80).not.toContain('wallClockSearchMinutes=')
-    // ADR-059: the smoke emits the 1×1×1 matrix and serial concurrency,
+    // ADR-059: the smoke emits the 2×1×1 matrix and serial concurrency,
     // stays stable-demo class (no --profile carrier).
     const smoke = buildTreeV2InitArgs(TREE_V2_LIVE_PROFILES.treeV2Smoke, input)
-    expect(smoke).toContain('baselineTaskCount=1')
+    expect(smoke).toContain('baselineTaskCount=2')
     expect(smoke).toContain('baselineAttemptsPerTask=1')
     expect(smoke).toContain('baselineBatchSize=1')
     expect(smoke).not.toContain('--profile')
@@ -434,16 +435,16 @@ describe('tree-v2 live run profiles', () => {
       expect(verdict.problems.join('; ')).toMatch(/benchmark baseline matrix 49×2=98/)
     })
 
-    it('accepts the smoke terminal shapes: K_REACHED (2) and NO_REAL_FAILURE_SIGNAL (1)', () => {
-      // ADR-059: one matrix trial; a real failure funds one expansion with
-      // one q0 cold start (trials=2, K=1 reached), an all-success matrix
-      // stops NO_REAL_FAILURE_SIGNAL (trials=1). Both are the only funded
-      // shapes.
+    it('accepts the smoke terminal shapes: K_REACHED (3) and NO_REAL_FAILURE_SIGNAL (2)', () => {
+      // ADR-059 (amended 2026-09-09): a 2×1 matrix; a real failure funds one
+      // expansion with one q0 cold start (trials=3, K=1 reached), an
+      // all-success matrix stops NO_REAL_FAILURE_SIGNAL (trials=2). Both are
+      // the only funded shapes.
       const smoke = TREE_V2_LIVE_PROFILES.treeV2Smoke
       const reached = trialShapeWithinPreRegisteredEnvelope(
         {
-          trials: 2,
-          discoveryTrials: 1,
+          trials: 3,
+          discoveryTrials: 2,
           expansionAttempts: 1,
           admittedNonBaseline: 1,
           proposalCalls: 1,
@@ -453,8 +454,8 @@ describe('tree-v2 live run profiles', () => {
       expect(reached.ok, reached.problems.join('; ')).toBe(true)
       const noSignal = trialShapeWithinPreRegisteredEnvelope(
         {
-          trials: 1,
-          discoveryTrials: 1,
+          trials: 2,
+          discoveryTrials: 2,
           expansionAttempts: 0,
           admittedNonBaseline: 0,
           proposalCalls: 0,
@@ -464,11 +465,11 @@ describe('tree-v2 live run profiles', () => {
       expect(noSignal.ok, noSignal.problems.join('; ')).toBe(true)
     })
 
-    it('rejects a smoke baseline above the pre-registered 1×1 matrix', () => {
+    it('rejects a smoke baseline above the pre-registered 2×1 matrix', () => {
       const verdict = trialShapeWithinPreRegisteredEnvelope(
         {
-          trials: 2,
-          discoveryTrials: 2,
+          trials: 3,
+          discoveryTrials: 3,
           expansionAttempts: 0,
           admittedNonBaseline: 0,
           proposalCalls: 0,
@@ -476,7 +477,24 @@ describe('tree-v2 live run profiles', () => {
         TREE_V2_LIVE_PROFILES.treeV2Smoke,
       )
       expect(verdict.ok).toBe(false)
-      expect(verdict.problems.join('; ')).toMatch(/benchmark baseline matrix 1×1=1/)
+      expect(verdict.problems.join('; ')).toMatch(/benchmark baseline matrix 2×1=2/)
+    })
+
+    it('passes the launch-gate calibration on the amended smoke envelope (ADR-059)', () => {
+      // The doctor's search-calibration gate: minimumTrials = finalGate
+      // ceil(K^(1/alpha)) + q0×shortlist = 1 + 2 = 3; the 2×1 matrix supplies
+      // matrixTrials 2 + K×taskCount 2 = 4 ≥ 3 (a 1×1 matrix supplies 2 < 3 —
+      // the rejection the smoke attempt 1 recorded).
+      const verdict = calibrateSearch({
+        kTarget: TREE_V2_LIVE_PROFILES.treeV2Smoke.kTarget,
+        coldStartTrials: TREE_V2_LIVE_PROFILES.treeV2Smoke.coldStartTrials,
+        shortlistSize: TREE_V2_LIVE_PROFILES.treeV2Smoke.shortlistSize,
+        ucbAirAlphaPerMille: 600,
+        maxSolverTrials: TREE_V2_LIVE_PROFILES.treeV2Smoke.maxSolverTrials,
+        taskTrials: TREE_V2_LIVE_PROFILES.treeV2Smoke.taskTrials,
+        benchmarkBaseline: TREE_V2_LIVE_PROFILES.treeV2Smoke.benchmarkBaseline,
+      })
+      expect(verdict.ok, verdict.problems.join('; ')).toBe(true)
     })
 
     it('accepts repair3’s one-attempt matrix and rejects a partial one', () => {

@@ -1,7 +1,7 @@
 # Project status
 
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
-**更新时间：2026-09-08（Asia/Shanghai）**
+**更新时间：2026-09-09（Asia/Shanghai）**
 
 ## 2026-09-09 ADR-057：repair3 单次 baseline 与 failure pool 冻结（未启动）
 
@@ -71,25 +71,43 @@ children 处以 BUDGET_EXHAUSTED 终止（repair-2 即此路径，12/80 停止�
 K=1、coldStartTrials 1、shortlistSize 2、maxSolverTrials 4、maxDiscoveryTrials 1、
 discoveryBatchSize 1、proposalWidth 2、taskTrials 4、wallClockMinutes 120、
 solverTokens 8 000 000、concurrentTrials 1、benchmarkBaseline
-{taskCount:1, attemptsPerTask:1, batchSize:1}（冻结 ceremony 的首个 observed handle）。
+{taskCount:2, attemptsPerTask:1, batchSize:1}（冻结 ceremony 的前两个 observed handle）。
 无 tournament / sealed / debugger（stable-demo profile 类）。合法终止态
-K_REACHED（trials=2：1 矩阵 + 1 冷启动）或 NO_REAL_FAILURE_SIGNAL（trials=1：矩阵全成、
+K_REACHED（trials=3：2 矩阵 + 1 冷启动）或 NO_REAL_FAILURE_SIGNAL（trials=2：矩阵全成、
 pool 空）。最坏 ≈ 4 trials：solver 单试次被冻结 gateway 独立封顶（48 requests / 2M tokens /
 $0.30）→ $1.20，加一次真实 proposal（proposalCalls=20、proposerTokens=20M 上限）。
+
+**ADR-059 修订（2026-09-09，attempt 1 事后）**：attempt 1 在 doctor 的
+`search-calibration` 门停止，**零付费调用**——`best-case pool supply 2 < minimumTrials 3`
+（1×1 矩阵供不起 final expansion gate：minimumTrials = finalGate 1 + q0×shortlist 2 = 3，
+供给 = 矩阵 1 + K×taskCount 1 = 2）。fail-closed 预检按设计拒绝了未校准的预注册。
+修订：矩阵 2×1（供给 2+2=4 ≥ 3）；shortlistSize 保持 2（schema 下限）。record 脚本的
+verifier allowlist 改由 `benchmarkBaseline.taskCount` 派生（1×1 草稿曾按 discoveryBatchSize
+截取）。终止形态相应改为 K_REACHED(3) / NO_REAL_FAILURE_SIGNAL(2)。
 
 身份与证据：RUN_ID `tree-v2-smoke-live-1`、MASTER_SEED `tree-v2-smoke-live-1-master-seed-1`、
 evidence `evidence/tree-v2/smoke-live-1/`（smoke-live-run.json + STATUS.json，kind
 `smoke-live-run`）。record 脚本 `scripts/record-tree-v2-smoke-live.ts`（k3 脚本克隆）：
 付费门（DSH_TREE_V2_LIVE_CONFIRM=confirm）、credential 0600 门、scratch mkdtemp
 （`dsh-tree-v2-smoke-live-1-`）、≤1800s 过滤（89→72）、ceremony + verifier 镜像
-allowlist=首个 observed handle、init 冻结 config 与 smoke profile 逐字比对
-（含 1×1×1 矩阵与 concurrentTrials=1）、doctor、run（进程包装 2.5h，run 自身 2h 信封
+allowlist=前两个 observed handle、init 冻结 config 与 smoke profile 逐字比对
+（含 2×1×1 矩阵与 concurrentTrials=1）、doctor、run（进程包装 2.5h，run 自身 2h 信封
 先触发）、逐 trial receipt chain 校验、trajectory 非空且非 replay 标记、
 receiptUsageMatchesSettlement、oneTokenFilePerTrial、证据消毒复制 + 凭据/token
 redaction 扫描。smoke 的单次 development trial 不进 repair-3 的 proposer/archive，
 不构成任何提升声明（ADR-059 明确 scope.smokeFor='tree-v2-k80-formal-repair-3'）。
 
-**smoke 结果**：（运行后回填：stopReason/trials/$/record failures/evidence 哈希）
+**启动门记录（2026-09-09）**：预注册提交 `571e1e6`（5 files / +991 −1，凭据扫描 0 匹配）；
+`pnpm build`（tsc -b）通过；vitest 全绿 790 passed / 29 skipped（71 files，~6.6min，含
+smoke profile/envelope 新测试）；真实 Loader E2E 单独复跑通过（loader-spike subprocess +
+candidate-sdk harness，17 tests）。环境门：credential 0600、pinned tarball/CLI/native DSH
+lock/harbor 就绪、fwd 容器 Up、17897 egress 代理在听、evidence/tree-v2/smoke-live-1 无冲突。
+**已启动**（2026-09-09，PID 459427，detached + 持久 TMPDIR，日志
+`/root/vibe/dsh/scratch/tree-v2-smoke-live-1.log`）。
+
+**smoke 结果**：attempt 1（PID 459427，2026-09-09）：doctor `search-calibration` ✗ →
+fail closed，$0，无 evidence 写入；scratch 保留于
+`/root/vibe/dsh/scratch/dsh-tree-v2-smoke-live-1-DaONEB`。attempt 2（修订提交后）：（回填）
 
 ## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
 
