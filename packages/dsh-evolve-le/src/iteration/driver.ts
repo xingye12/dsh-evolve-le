@@ -14,7 +14,10 @@
  * (parent Thompson draw → evidence export → proposal saga → trusted rebuild →
  * admission) and evaluation (cold start from the pool, then node Thompson),
  * stopping at K, the trial cap, budget exhaustion, or
- * `NO_ADMISSIBLE_CHILD` after `maxConsecutiveExpansionFailures`.
+ * `NO_ADMISSIBLE_CHILD` after `maxConsecutiveExpansionFailures`.  A q0 cold
+ * start is an experimental obligation: it preempts a further expansion and,
+ * once the failure cap is reached, the already-admitted nodes still drain
+ * their q0 observations before the terminal result is recorded (ADR-052).
  *
  * Concealment invariants (CLAUDE.md rule 5): the ceremony document handed
  * around holds observed handles, opaque guard ids and the sealed root only;
@@ -38,6 +41,7 @@ import { loadCandidateSource } from '../candidate/store.js'
 import { stageDeclaredSource } from '../builder/staging.js'
 import {
   Controller,
+  DIAGNOSTIC_TRACE_MEDIA_TYPE,
   TERMINAL_ACTIONS,
   type ControllerConfig,
   type ProposalResult,
@@ -61,6 +65,12 @@ import type { RunConfig } from '../config/run-config.js'
 import { proposalSandboxLimits, solverTrackOf } from '../config/run-config.js'
 import { solverRoutePlan } from '../proposer/remote-runner.js'
 import { remoteRoutePlanHash } from '../proposer/remote-gateway.js'
+import {
+  FAILURE_ATTRIBUTION_MEDIA_TYPE,
+  type DebuggerTraceInput,
+  type DurableFailureAttributor,
+  type FailureAttributor,
+} from '../attribution/agent-debugger.js'
 import { drawNodeThompson, drawParentThompson } from '../selection/thompson.js'
 import {
   buildTournamentCoverage,
@@ -72,7 +82,7 @@ import {
 } from '../selection/tournament.js'
 import { shouldExpand } from '../selection/ucbair.js'
 import { runSplitCeremony, type SplitCeremony, type SplitCounts } from '../split/ceremony.js'
-import { stateHashOf } from '../state/reducer.js'
+import { stateHashOf, type Observation } from '../state/reducer.js'
 import { readJournal } from '../state/journal.js'
 import type { RngReceipt } from '../state/rng.js'
 import type { ObjectRef } from '../state/object-store.js'
@@ -202,6 +212,11 @@ export interface IterationDriverInput {
   /** Sandbox runner seam (tests); defaults to the real one-shot sandbox. */
   proposalRunner?: ProposalRunner
   /**
+   * Optional TCB Agent Debugger. It may only enrich DEV_OBSERVED evidence;
+   * its output is never read by scoring, retry or selection code.
+   */
+  failureAttributor?: FailureAttributor
+  /**
    * Controller boundary seam (specs/06 §16): the CLI's crash drill kills the
    * process here after the Nth durably committed observation (Gate 6 resume
    * equivalence); tests throw to emulate process death at a safe point.
@@ -272,6 +287,70 @@ export class IterationDriverError extends Error {
     super(`iteration: ${message}`)
     this.name = 'IterationDriverError'
   }
+}
+
+/**
+ * A known pre-ACP failure remains a scored FAIL (specs/03 §4), but it cannot
+ * be evidence that a candidate-owned mechanism can repair.  Harbor's trusted
+ * terminal fact records this explicitly; unknown and legacy trajectory shapes
+ * stay eligible so the filter never silently discards an ambiguous failure.
+ */
+function isCandidateActionableTrajectory(bytes: Buffer): boolean {
+  try {
+    const parsed = JSON.parse(bytes.toString('utf8')) as {
+      trial?: { outcome?: { agentParticipation?: unknown } }
+    }
+    return parsed.trial?.outcome?.agentParticipation !== 'never-initialized'
+  } catch {
+    return true
+  }
+}
+
+/** A bounded, trusted projection of one raw Harbor terminal fact. */
+function failureIndexTerminal(bytes: Buffer): {
+  category: string | null
+  exceptionType: string | null
+  agentParticipation: string | null
+  solverRequests: number | null
+} {
+  try {
+    const parsed = JSON.parse(bytes.toString('utf8')) as {
+      trial?: {
+        outcome?: { category?: unknown; exceptionType?: unknown; agentParticipation?: unknown }
+      }
+      solver?: { requests?: unknown }
+    }
+    const outcome = parsed.trial?.outcome
+    const text = (value: unknown): string | null => (typeof value === 'string' ? value : null)
+    return {
+      category: text(outcome?.category),
+      exceptionType: text(outcome?.exceptionType),
+      agentParticipation: text(outcome?.agentParticipation),
+      solverRequests:
+        typeof parsed.solver?.requests === 'number' && Number.isSafeInteger(parsed.solver.requests)
+          ? parsed.solver.requests
+          : null,
+    }
+  } catch {
+    return { category: null, exceptionType: null, agentParticipation: null, solverRequests: null }
+  }
+}
+
+/**
+ * Parent Thompson compares candidates only on the task stratum that the
+ * search will subsequently evaluate: the frozen baseline-failure pool.  A
+ * global baseline score is useful to define that pool, but mixing its solved
+ * tasks into a child-only failure-pool score gives the root an unearned prior
+ * advantage and makes the clade draw depend on two different task mixes.
+ */
+export function parentComparableObservations(
+  observations: readonly Observation[],
+  failurePool: readonly string[],
+): Observation[] {
+  const handles = new Set(failurePool)
+  return observations.filter(
+    (observation) => observation.split === 'dev-observed' && handles.has(observation.opaqueTaskId),
+  )
 }
 
 /**
@@ -735,6 +814,12 @@ export class IterationDriver {
           // of the dimension is what gates the controller's solver settles.
           ...(config.budget.solverTokens !== undefined
             ? { 'solver-tokens': config.budget.solverTokens }
+            : {}),
+          ...(config.budget.attributionTokens !== undefined
+            ? { 'attribution-tokens': config.budget.attributionTokens }
+            : {}),
+          ...(config.budget.attributionCalls !== undefined
+            ? { 'attribution-calls': config.budget.attributionCalls }
             : {}),
         },
         ...(this.input.proposalRunner !== undefined
@@ -1951,19 +2036,32 @@ export class IterationDriver {
       }
       if (completedTrials >= config.search.maxSolverTrials)
         return { stopReason: 'TRIAL_CAP', searchState }
+      // The failure cap closes the proposal channel, but cannot erase q0
+      // obligations already created by a successful admission.  Returning
+      // here used to let UCB-Air admit many zero-trial children after a large
+      // benchmark baseline, then terminate on three failed proposals with an
+      // impossible trial envelope.  Drain those fixed cold starts first.
       if (
+        !coldStartsPending &&
         searchState.consecutiveExpansionFailures >= config.search.maxConsecutiveExpansionFailures
       ) {
         return { stopReason: 'NO_ADMISSIBLE_CHILD', searchState }
       }
 
-      const expand = shouldExpand({
-        completedTrials,
-        pendingEvaluations: 0,
-        admittedCandidates: admitted.length,
-        kTarget: config.search.kTarget,
-        alpha,
-      })
+      // Specs/03 §6 gives q0 a higher priority than Thompson.  It is also
+      // higher priority than the UCB-Air expand/evaluate choice: UCB chooses
+      // only among optional actions, whereas q0 is a pre-registered design
+      // constraint.  The cap similarly forbids only *new* expansions.
+      const expand =
+        !coldStartsPending &&
+        searchState.consecutiveExpansionFailures < config.search.maxConsecutiveExpansionFailures &&
+        shouldExpand({
+          completedTrials,
+          pendingEvaluations: 0,
+          admittedCandidates: admitted.length,
+          kTarget: config.search.kTarget,
+          alpha,
+        })
 
       if (expand) {
         if (this.budgetWouldExhaust(this.proposalEstimate()))
@@ -1986,27 +2084,61 @@ export class IterationDriver {
           searchState.consecutiveExpansionFailures += 1
         }
         await this.saveSearchState(searchState)
+        const coldStartsNowPending = this.admittedIds().some(
+          (candidateId) =>
+            candidateId !== baselineId &&
+            this.triedHandles(candidateId).size < config.search.coldStartTrials,
+        )
         if (
-          searchState.consecutiveExpansionFailures >= config.search.maxConsecutiveExpansionFailures
+          searchState.consecutiveExpansionFailures >=
+            config.search.maxConsecutiveExpansionFailures &&
+          !coldStartsNowPending
         ) {
           return { stopReason: 'NO_ADMISSIBLE_CHILD', searchState }
         }
         continue
       }
 
-      const waveSize = Math.min(
+      const normalWaveSize = Math.min(
         config.benchmark.harbor.concurrentTrials,
         config.search.maxSolverTrials - completedTrials,
       )
+      // A wave is decided from one committed snapshot, so q0 must account for
+      // reservations made earlier in this same wave.  Without this virtual
+      // count, every draw sees an admitted child as still having zero trials
+      // until the barrier commits and fills all available Harbor slots with
+      // that child.  q0 is a pre-registered trial count, not a concurrency
+      // target (specs/03 §6, §8).
+      const coldStartDeficits = this.admittedIds()
+        .filter((candidateId) => candidateId !== baselineId)
+        .map((candidateId) =>
+          Math.max(0, config.search.coldStartTrials - this.triedHandles(candidateId).size),
+        )
+        .filter((deficit) => deficit > 0)
+      const waveSize =
+        coldStartDeficits.length > 0
+          ? Math.min(
+              normalWaveSize,
+              coldStartDeficits.reduce((sum, deficit) => sum + deficit, 0),
+            )
+          : normalWaveSize
       const selections: Array<{ candidateId: string; handle: string }> = []
       const selected = new Set<string>()
+      const virtualColdStarts = new Map<string, number>()
       for (let index = 0; index < waveSize; index += 1) {
-        const next = await this.pickEvaluation(pool, selected)
+        const next = await this.pickEvaluation(pool, selected, virtualColdStarts)
         if (next === null) break
         const key = `${next.candidateId}\0${next.handle}`
         if (selected.has(key)) break
         selected.add(key)
         selections.push(next)
+        const prior = virtualColdStarts.get(next.candidateId) ?? 0
+        if (
+          this.triedHandles(next.candidateId).size + prior < config.search.coldStartTrials &&
+          next.candidateId !== baselineId
+        ) {
+          virtualColdStarts.set(next.candidateId, prior + 1)
+        }
       }
       if (selections.length === 0) return { stopReason: 'NO_ADMISSIBLE_TASK', searchState }
       const estimate = this.trialEstimate()
@@ -2039,6 +2171,7 @@ export class IterationDriver {
   private async pickEvaluation(
     pool: readonly string[],
     selected: ReadonlySet<string> = new Set(),
+    virtualColdStarts: ReadonlyMap<string, number> = new Map(),
   ): Promise<{ candidateId: string; handle: string } | null> {
     const controller = this.controller
     if (controller === undefined) throw new IterationDriverError('controller not open')
@@ -2052,7 +2185,8 @@ export class IterationDriver {
     const cold = admitted.find(
       (candidateId) =>
         candidateId !== rootId &&
-        this.triedHandles(candidateId).size < this.config.search.coldStartTrials,
+        this.triedHandles(candidateId).size + (virtualColdStarts.get(candidateId) ?? 0) <
+          this.config.search.coldStartTrials,
     )
     if (cold !== undefined) {
       const handle = await this.sampleTask(cold, pool, selected)
@@ -2101,14 +2235,17 @@ export class IterationDriver {
     const state = controller.state
     const admitted = this.admittedIds()
 
-    // Parent draw over the admitted population (clade Beta, tau=1).
+    // Parent draw over the admitted population (clade Beta, tau=1).  The
+    // baseline can have observations on tasks excluded from the zero-success
+    // failure pool; they define the pool but are not comparable to a child
+    // that is evaluated only inside it (ADR-054).
     const counter = this.nextRngCounter('scheduler-thompson')
     const parentDraw = drawParentThompson({
       masterSeed: this.config.masterSeed,
       runId: this.config.runId,
       counter,
       candidates: admitted.map((candidateId) => state.candidates[candidateId]!),
-      observations: Object.values(state.observations),
+      observations: parentComparableObservations(Object.values(state.observations), pool),
     })
     await controller.recordRngDraw(parentDraw.receipt)
     const parentId = parentDraw.winner
@@ -2121,11 +2258,25 @@ export class IterationDriver {
           observation.outcome !== 'success' && pool.includes(observation.opaqueTaskId),
       )
       .sort((a, b) => (a.actionId < b.actionId ? -1 : 1))
-    const trajectoryRefs = failureObservations
-      .map((observation) => state.actions[observation.actionId]?.artifacts[0])
-      .filter((ref): ref is ObjectRef => ref !== undefined)
+    const store = await openObjectStore(join(this.runRoot, 'objects'))
+    const actionableFailureObservations: typeof failureObservations = []
+    const trajectoryRefs: ObjectRef[] = []
+    const diagnosticRefs = new Map<string, ObjectRef>()
+    for (const observation of failureObservations) {
+      const ref = state.actions[observation.actionId]?.artifacts[0]
+      if (ref === undefined) continue
+      if (!isCandidateActionableTrajectory(await store.read(ref))) continue
+      actionableFailureObservations.push(observation)
+      trajectoryRefs.push(ref)
+      const diagnostic = state.actions[observation.actionId]?.artifacts.find(
+        (artifact) => artifact.mediaType === DIAGNOSTIC_TRACE_MEDIA_TYPE,
+      )
+      if (diagnostic !== undefined) diagnosticRefs.set(observation.actionId, diagnostic)
+    }
     if (trajectoryRefs.length === 0) {
-      throw new IterationDriverError('failure pool has no stored trajectories to export')
+      throw new IterationDriverError(
+        'failure pool has no candidate-actionable stored trajectories to export',
+      )
     }
     const exportsRoot = join(this.runRoot, 'exports')
     await mkdir(exportsRoot, { recursive: true })
@@ -2140,18 +2291,157 @@ export class IterationDriver {
       principal: `proposer:${actionId}`,
       count: this.canaryCount,
     })
-    const store = await openObjectStore(join(this.runRoot, 'objects'))
     const normalizedTrialRefs = await Promise.all(
-      failureObservations.map((observation) =>
+      actionableFailureObservations.map((observation) =>
         store.put(Buffer.from(`${canonicalJson(observation)}\n`, 'utf8'), {
           mediaType: 'application/vnd.dsh-evolve-le.normalized-trial+json',
           label: 'DEV_OBSERVED',
         }),
       ),
     )
-    const failureRefs = [...trajectoryRefs, ...normalizedTrialRefs].sort((left, right) =>
-      left.digest < right.digest ? -1 : left.digest > right.digest ? 1 : 0,
+    // The raw evidence remains available, but this small TCB projection gives
+    // the proposer a deterministic, injection-free starting point: one row
+    // per candidate-actionable failure plus a neutral support count grouped by
+    // terminal category/participation/exception.  It neither recommends a
+    // mechanism nor changes scoring; all fields re-derive from stored facts.
+    const indexDraft = await Promise.all(
+      actionableFailureObservations.map(async (observation, index) => {
+        const trajectoryRef = trajectoryRefs[index]!
+        const normalizedTrialRef = normalizedTrialRefs[index]!
+        const terminal = failureIndexTerminal(await store.read(trajectoryRef))
+        const cluster = [
+          terminal.category ?? 'unknown-category',
+          terminal.agentParticipation ?? 'unknown-participation',
+          terminal.exceptionType ?? 'no-exception',
+        ].join('|')
+        return {
+          actionId: observation.actionId,
+          candidateId: observation.candidateId,
+          opaqueTaskId: observation.opaqueTaskId,
+          attempt: observation.attempt,
+          outcome: observation.outcome,
+          reward: observation.reward,
+          durationMs: observation.durationMs,
+          trajectoryDigest: `sha256:${trajectoryRef.digest}`,
+          normalizedTrialDigest: `sha256:${normalizedTrialRef.digest}`,
+          terminal,
+          cluster,
+        }
+      }),
     )
+    const clusterSupport = new Map<string, number>()
+    for (const entry of indexDraft) {
+      clusterSupport.set(entry.cluster, (clusterSupport.get(entry.cluster) ?? 0) + 1)
+    }
+    let attributionRef: ObjectRef | undefined
+    const attributor = this.input.failureAttributor
+    if (attributor !== undefined) {
+      const traces: DebuggerTraceInput[] = []
+      for (const entry of indexDraft) {
+        const diagnostic = diagnosticRefs.get(entry.actionId)
+        if (diagnostic === undefined) continue
+        let bundle: unknown
+        try {
+          bundle = JSON.parse((await store.read(diagnostic)).toString('utf8')) as unknown
+        } catch {
+          // Corrupt diagnostic sidecars are not scoring facts.  They stay
+          // stored/auditable but are ineligible for an LLM attribution call.
+          continue
+        }
+        traces.push({
+          actionId: entry.actionId,
+          normalizedTrialDigest: entry.normalizedTrialDigest,
+          trajectoryDigest: entry.trajectoryDigest,
+          diagnosticTraceDigest: `sha256:${diagnostic.digest}`,
+          bundle,
+        })
+      }
+      if (traces.length > 0) {
+        const durable = attributor as Partial<DurableFailureAttributor>
+        if (durable.attributeWithReceipt !== undefined && this.config.agentDebugger !== undefined) {
+          const envelope = this.config.agentDebugger
+          const selected: DebuggerTraceInput[] = []
+          let bytes = 0
+          for (const trace of traces.sort((a, b) =>
+            a.diagnosticTraceDigest < b.diagnosticTraceDigest ? -1 : 1,
+          )) {
+            const size = Buffer.byteLength(JSON.stringify(trace), 'utf8')
+            // A bounded debugger envelope is a hard safety limit. Do not let
+            // the first selected trace bypass it (nor issue an empty request
+            // if every available trace is individually too large).
+            if (size > envelope.maxInputBytes || bytes + size > envelope.maxInputBytes) continue
+            selected.push(trace)
+            bytes += size
+          }
+          if (selected.length > 0) {
+            const route = this.config.modelRoutes.find((candidate) => candidate.id === envelope.route)
+            if (route === undefined) throw new IterationDriverError('agentDebugger route disappeared')
+            const inputTokens = Math.ceil(envelope.maxInputBytes / 4)
+            const totalTokens = inputTokens + envelope.maxOutputTokens
+            const usd = Math.ceil(
+              inputTokens * (route.inputUsdMicrosPerMTok / 1_000_000) +
+                envelope.maxOutputTokens * (route.outputUsdMicrosPerMTok / 1_000_000),
+            )
+            const result = await controller.runAttribution({
+              actionId: `attrib-${actionId}`,
+              request: {
+                traceDigests: selected.map((trace) => trace.diagnosticTraceDigest),
+                maxInputBytes: envelope.maxInputBytes,
+                maxOutputTokens: envelope.maxOutputTokens,
+                route: envelope.route,
+              },
+              estimate: [
+                { dimension: 'attribution-calls', amount: 1 },
+                { dimension: 'attribution-tokens', amount: totalTokens },
+                { dimension: 'usd', amount: usd },
+              ],
+              execute: () => durable.attributeWithReceipt!({ traces: selected }),
+            })
+            attributionRef = result.attribution ?? undefined
+          }
+        } else {
+          // Deterministic test/recorded seams remain non-networked. A live
+          // route must implement DurableFailureAttributor and be configured
+          // above, otherwise it cannot evade receipts or the frozen budget.
+          const attributed = await attributor.attribute({ traces })
+          attributionRef = await store.put(attributed.artifact, {
+            mediaType: FAILURE_ATTRIBUTION_MEDIA_TYPE,
+            label: 'DEV_OBSERVED',
+          })
+        }
+      }
+    }
+    const failureIndexRef = await store.put(
+      Buffer.from(
+        `${canonicalJson({
+          protocol: 'dsh-evolve-le/failure-index/v1',
+          ...(attributionRef === undefined
+            ? {}
+            : { attributionDigest: `sha256:${attributionRef.digest}` }),
+          entries: indexDraft.map((entry) => ({
+            ...entry,
+            ...(diagnosticRefs.get(entry.actionId) === undefined
+              ? {}
+              : {
+                  diagnosticTraceDigest: `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`,
+                }),
+            clusterSupport: clusterSupport.get(entry.cluster) ?? 0,
+          })),
+        })}\n`,
+        'utf8',
+      ),
+      {
+        mediaType: 'application/vnd.dsh-evolve-le.failure-index+json',
+        label: 'DEV_OBSERVED',
+      },
+    )
+    const failureRefs = [
+      ...trajectoryRefs,
+      ...normalizedTrialRefs,
+      ...[...diagnosticRefs.values()],
+      ...(attributionRef === undefined ? [] : [attributionRef]),
+      failureIndexRef,
+    ].sort((left, right) => (left.digest < right.digest ? -1 : left.digest > right.digest ? 1 : 0))
     const monitor = this.monitor
     if (monitor === undefined) throw new IterationDriverError('information-flow monitor missing')
     // Export canary union (ADR-046): proposer-scoped canaries PLUS every

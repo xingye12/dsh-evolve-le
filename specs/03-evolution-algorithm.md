@@ -114,6 +114,11 @@ theta_clade(a) ~ Beta(tau * (1 + S_C(a)), tau * (1 + F_C(a)))
 parent = argmax theta_clade(a)
 ```
 
+用于这个 draw 的 observation 还必须属于当前 run 在 proposal 前冻结的
+baseline-failed observed pool；baseline 在 pool 之外的通过/失败只用于定义该 pool，不得进入
+parent Beta 参数。这样 root 与所有 child 都在同一 task stratum 上比较，不能把「baseline
+已能解的题」混入只在 failure pool 上 cold-start 的 child 分数（ADR-054）。
+
 Primary run 默认 `tau=1`（HGM 公开实现的 `cool_down=false`），避免未经 TB 2.1 消融就人为压缩后期
 探索。MAY 在 Gate 5、只用 development pilot 的预注册 ablation 中比较 cooling：
 
@@ -141,6 +146,14 @@ candidate_to_evaluate = argmax theta_node(a)
 
 这些是实验设计约束，不是从 reward 触发的人工规则。
 
+`q0` 是 admitted 时即产生的义务，优先级也高于 §7 的 UCB-Air
+expand/evaluate 选择：任一已 admitted node 尚欠 cold-start 时，scheduler MUST
+只排这些冷启动，不得再 dispatch proposal。若已达到连续 expansion failure
+上限，该上限只关闭新的 proposal；controller MUST 先完成已 admitted node 的
+`q0`，随后才以 `NO_ADMISSIBLE_CHILD` 终止。这样 admission、trial ledger 和
+预注册 `B_eval` 信封保持一致，且不把失败的 proposal 伪装为一个没有观测的
+candidate（ADR-052）。
+
 ## 7. Expand versus evaluate: UCB-Air
 
 令：
@@ -158,7 +171,9 @@ candidate_to_evaluate = argmax theta_node(a)
 (N + P_eval)^alpha >= T, alpha = 0.6
 ```
 
-否则选择 evaluation。达到 `K` 后只允许 evaluation/tournament；达到 `B_eval` 后不再启动 trial。
+否则选择 evaluation。这里的“选择”只作用于可选 action：§6 的未完成 `q0`
+cold-start 必须先执行，不受 UCB expansion 条件或 failure cap 推迟。达到 `K`
+后只允许 evaluation/tournament；达到 `B_eval` 后不再启动 trial。
 
 这保持 HGM 的 infinite-arm trade-off，但明确处理 pending work。`alpha`、计数定义和 off-by-one 必须
 有 golden tests；不得把 proposal 次数当 `N`。

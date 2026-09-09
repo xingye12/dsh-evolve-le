@@ -55,6 +55,15 @@ describe('tree-v2 live run profiles', () => {
       runProfile: 'terminal-bench-formal',
     })
     expect(TREE_V2_LIVE_PROFILES.k80.maxSolverTrials).toBe(400)
+    // repair3 is a separately named successor protocol.  It must not mutate
+    // the preserved 49×2 profile that repair2 recorded.
+    expect(TREE_V2_LIVE_PROFILES.k80Repair3).toMatchObject({
+      kTarget: 80,
+      coldStartTrials: 3,
+      concurrentTrials: 12,
+      benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
+      runProfile: 'terminal-bench-formal',
+    })
   })
 
   it('funds every trial at the gateway per-trial token cap', () => {
@@ -170,6 +179,12 @@ describe('tree-v2 live run profiles', () => {
     const concurrentIndex = k80.indexOf('--concurrent-trials')
     expect(concurrentIndex).toBeGreaterThanOrEqual(0)
     expect(k80[concurrentIndex + 1]).toBe('8')
+    const repair3 = buildTreeV2InitArgs(TREE_V2_LIVE_PROFILES.k80Repair3, input)
+    expect(repair3).toContain('baselineTaskCount=49')
+    expect(repair3).toContain('baselineAttemptsPerTask=1')
+    expect(repair3).toContain('baselineBatchSize=12')
+    const repair3ConcurrentIndex = repair3.indexOf('--concurrent-trials')
+    expect(repair3[repair3ConcurrentIndex + 1]).toBe('12')
     // k3/k10 keep the frozen defaults: no alpha/call/token/concurrency carriers.
     const k3 = buildTreeV2InitArgs(TREE_V2_LIVE_PROFILES.k3, input)
     expect(k3).not.toContain('ucbAirAlphaPerMille=')
@@ -379,6 +394,32 @@ describe('tree-v2 live run profiles', () => {
       )
       expect(verdict.ok).toBe(false)
       expect(verdict.problems.join('; ')).toMatch(/benchmark baseline matrix 49×2=98/)
+    })
+
+    it('accepts repair3’s one-attempt matrix and rejects a partial one', () => {
+      const complete = trialShapeWithinPreRegisteredEnvelope(
+        {
+          trials: 49,
+          discoveryTrials: 49,
+          expansionAttempts: 0,
+          admittedNonBaseline: 0,
+          proposalCalls: 0,
+        },
+        TREE_V2_LIVE_PROFILES.k80Repair3,
+      )
+      expect(complete.ok, complete.problems.join('; ')).toBe(true)
+      const partial = trialShapeWithinPreRegisteredEnvelope(
+        {
+          trials: 48,
+          discoveryTrials: 48,
+          expansionAttempts: 0,
+          admittedNonBaseline: 0,
+          proposalCalls: 0,
+        },
+        TREE_V2_LIVE_PROFILES.k80Repair3,
+      )
+      expect(partial.ok).toBe(false)
+      expect(partial.problems.join('; ')).toMatch(/benchmark baseline matrix 49×1=49/)
     })
 
     it('accepts a k80 matrix with the search-phase trials on top (98 + cold starts + ordinary)', () => {

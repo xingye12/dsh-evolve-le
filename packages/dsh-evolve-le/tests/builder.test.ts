@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildCandidate, STAGE_ORDER, type BuildResult } from '../src/builder/pipeline.js'
+import { bootConfig } from '../src/builder/capsule.js'
 import { toolchainFingerprints } from '../src/builder/pins.js'
 import { validateManifest } from '../src/schema.js'
 import { NODE_RUNTIME_BINARY_SHA256, NODE_RUNTIME_VERSION } from '../src/builder/pinned-runtime.js'
@@ -43,6 +44,14 @@ async function freshWorkRoot(): Promise<string> {
 it('records a non-empty pnpm identity from the frozen Corepack packageManager pin', async () => {
   const toolchain = await toolchainFingerprints()
   expect(toolchain.pnpm).toMatch(/^\d+\.\d+\.\d+$/)
+})
+
+it('mounts the TCB workflow declaration registry beside the native DSH spine', () => {
+  const nativeConfig = bootConfig('candidate-package', 'c_candidate', 'solve', {})
+  expect(nativeConfig).toContain("name: './runtime/candidate-workflow-stub.mjs'")
+  expect(nativeConfig).not.toContain("name: './runtime/system-prompt-stub.mjs'")
+  const compatibilityConfig = bootConfig('candidate-package', 'c_candidate', 'solve')
+  expect(compatibilityConfig).toContain("name: './runtime/system-prompt-stub.mjs'")
 })
 
 describe('golden candidate builds reproducibly', () => {
@@ -215,7 +224,9 @@ describe('tree-v2 trusted build', () => {
     // hashing would break the preserved-mode contract on identity alone.
     const parentModeFingerprints = {
       solve: treeV2RuntimeFingerprint(parentSolve, 'solve', { candidateId: parent.candidateId }),
-      propose: treeV2RuntimeFingerprint(parentPropose, 'propose', { candidateId: parent.candidateId }),
+      propose: treeV2RuntimeFingerprint(parentPropose, 'propose', {
+        candidateId: parent.candidateId,
+      }),
     }
     // ADR-039: the real Loader probe reports mounted section CONTENT
     // (name/order/text), not just names — the runtime fingerprint depends on it.

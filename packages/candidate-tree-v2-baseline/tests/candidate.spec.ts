@@ -52,6 +52,9 @@ describe('tree-v2 migration-root baseline', () => {
     expect(sections[0]?.text).toContain('solve mode')
     expect(harness.tools().map((tool) => tool.name)).toEqual(['candidate_strategy_snapshot'])
     expect(harness.skills().map((skill) => skill.name)).toEqual(['candidate-strategy-review'])
+    expect(harness.workflows().map((workflow) => workflow.name)).toEqual([
+      'candidate-workflow:solve-policy',
+    ])
   })
 
   it('registers exactly one candidate:proposal-policy section in propose mode', () => {
@@ -67,14 +70,15 @@ describe('tree-v2 migration-root baseline', () => {
 
   it('owns its contributions through effects: disposal restores the inventory', () => {
     const { harness } = mount('solve')
-    // Section + tool + skill, each effect-owned by the component Fiber.
-    expect(harness.effects()).toHaveLength(3)
+    // Section + tool + skill + solve-policy workflow, each effect-owned.
+    expect(harness.effects()).toHaveLength(4)
     expect(harness.effects()[0]?.disposed).toBe(false)
 
     harness.dispose()
     expect(harness.sections()).toEqual([])
     expect(harness.tools()).toEqual([])
     expect(harness.skills()).toEqual([])
+    expect(harness.workflows()).toEqual([])
     expect(harness.effects()[0]?.disposed).toBe(true)
   })
 
@@ -84,7 +88,8 @@ describe('tree-v2 migration-root baseline', () => {
       expect(harness.sections()).toHaveLength(1)
       expect(harness.tools()).toHaveLength(1)
       expect(harness.skills()).toHaveLength(1)
-      expect(harness.effects()).toHaveLength(3)
+      expect(harness.workflows()).toHaveLength(mode === 'solve' ? 1 : 0)
+      expect(harness.effects()).toHaveLength(mode === 'solve' ? 4 : 3)
     }
   })
 })

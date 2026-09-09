@@ -40,6 +40,7 @@ import type {
 import type { ObservationOutcome } from '@dsh-evolve-le/core'
 import { planSubmission } from './provider.js'
 import { normalizeJob, type NormalizedTrial } from './normalize.js'
+import { diagnosticTraceBundle } from './diagnostic-bundle.js'
 import type { SubmissionLedger } from './idempotency.js'
 import {
   effectiveTaskAgentTimeoutMs,
@@ -479,6 +480,13 @@ export class HarborProvider implements BenchmarkProvider {
       // Null for replay trials (no live solver route configured).
       solverTokens: solver === undefined ? null : solver.totalTokens,
       trajectory,
+      // This is a projection of raw Harbor files while their job directory is
+      // still available.  It deliberately omits task prose and the raw agent
+      // narrative; only the development driver may later export it.
+      diagnosticBundle: await diagnosticTraceBundle({
+        trialDir: join(entry.jobDir, trial.trialName ?? ''),
+        trial,
+      }),
     }
   }
 

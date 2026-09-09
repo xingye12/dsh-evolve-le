@@ -66,6 +66,15 @@ real-Loader runtime fingerprints. See
 `docs/tree-v2-implementation-spec.md` for the complete schema and migration
 boundary.
 
+The successor baseline exposes one solve-only workflow named
+`candidate-workflow:solve-policy`. The native solve runtime invokes that exact
+name at every admitted `agent/pre-step` with only `{ protocol, turn, step }`.
+Its result MAY contain one bounded `checkpoint` string (at most 2,048 chars),
+which the TCB appends to that step's model context. It cannot execute ACP tools,
+read verifier/controller state, alter model routing or budgets, or replace a
+TCB instruction. This is an executable, per-step strategy seam; it is not a
+permission for candidates to intercept arbitrary host events.
+
 ## 3. DSH bundle shape
 
 `package.json` MUST 声明 DSH bundle，而不是 profile：

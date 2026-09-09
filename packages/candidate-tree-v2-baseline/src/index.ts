@@ -27,7 +27,7 @@ import { strategyPlugin } from './strategy.js'
 export const name = 'self-evolving-candidate'
 
 /** Native DSH services used by the baseline strategy. */
-export const inject = ['systemPrompt', 'tools', 'skills']
+export const inject = ['systemPrompt', 'tools', 'skills', 'candidateWorkflows']
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

@@ -25,10 +25,7 @@ import type { ArchiveCatalog } from '../proposer/catalog.js'
 import type { ExportManifest } from '../proposer/export.js'
 import type { ProposalOutput } from '../proposer/protocol.js'
 import type { TreeV2CandidateIntent, TreeV2RequiredParentEvidence } from './contract.js'
-import type {
-  TreeV2AnalysisReceipt,
-  TreeV2ProposalReceipt,
-} from './receipts.js'
+import type { TreeV2AnalysisReceipt, TreeV2ProposalReceipt } from './receipts.js'
 
 /**
  * Keep this literal in sync with `TREE_V2_PROTOCOL` in `tree-v2/contract.ts`
@@ -59,6 +56,8 @@ const CHILD_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/
 const PRODUCTION_FILE = /^src\/[A-Za-z0-9][A-Za-z0-9._/-]*\.ts$/
 /** Mirror of the private TEST_FILE pattern in tree-v2/contract.ts. */
 const TEST_FILE = /^tests\/[A-Za-z0-9][A-Za-z0-9._/-]*\.spec\.ts$/
+/** Successor root capability introduced by ADR-055. */
+const SOLVE_POLICY_WORKFLOW = 'candidate-workflow:solve-policy'
 
 function fail(message: string): never {
   throw new TreeV2FinalizationError(message)
@@ -122,7 +121,8 @@ function assertStringList(value: unknown, label: string): string[] {
  */
 function exportObjectOf(manifest: ExportManifest, digest: string, mediaSuffix: string): boolean {
   return manifest.objects.some(
-    (object) => object.digest === digest.slice('sha256:'.length) && object.mediaType.endsWith(mediaSuffix),
+    (object) =>
+      object.digest === digest.slice('sha256:'.length) && object.mediaType.endsWith(mediaSuffix),
   )
 }
 
@@ -149,9 +149,11 @@ async function finalizeChild(
   try {
     intentRaw = JSON.parse(await readFile(intentPath, 'utf8')) as Record<string, unknown>
   } catch (error) {
-    fail(`child ${child.childName} candidate.json unreadable: ${
-      error instanceof Error ? error.message : String(error)
-    }`)
+    fail(
+      `child ${child.childName} candidate.json unreadable: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
   }
   if (
     intentRaw['schemaVersion'] !== 2 ||
@@ -177,9 +179,7 @@ async function finalizeChild(
       fail(`child ${child.childName} evidence digest ${digest} is not sha256:<64-hex>`)
     }
     if (
-      !exportManifest.objects.some(
-        (object) => object.digest === digest.slice('sha256:'.length),
-      )
+      !exportManifest.objects.some((object) => object.digest === digest.slice('sha256:'.length))
     ) {
       fail(
         `child ${child.childName} evidence ref ${digest} is not an object of the export the model read`,
@@ -275,7 +275,10 @@ async function finalizeChild(
       return undefined
     }
   }
-  const modeContract = intentBase.modeContract as { targetModes: string[]; preservedModes: string[] }
+  const modeContract = intentBase.modeContract as {
+    targetModes: string[]
+    preservedModes: string[]
+  }
   if (!Array.isArray(modeContract.targetModes) || !Array.isArray(modeContract.preservedModes)) {
     fail(
       `child ${child.childName} candidate.json modeContract must declare targetModes and preservedModes arrays`,
@@ -283,7 +286,11 @@ async function finalizeChild(
   }
   const rawRuntime = intentRaw['runtime'] as Record<string, unknown>
   const rawModeComponents = rawRuntime['modeComponents']
-  if (rawModeComponents === null || typeof rawModeComponents !== 'object' || Array.isArray(rawModeComponents)) {
+  if (
+    rawModeComponents === null ||
+    typeof rawModeComponents !== 'object' ||
+    Array.isArray(rawModeComponents)
+  ) {
     fail(`child ${child.childName} candidate.json runtime.modeComponents must be an object`)
   }
   const modeComponents = rawModeComponents as Record<string, unknown>
@@ -457,6 +464,55 @@ async function finalizeChild(
 }
 
 /**
+ * ADR-055 diversity gate.  The migration root exposes a bounded solve-policy
+ * workflow specifically so the search does not spend every multi-child batch
+ * on static prompt text.  Enforce the declaration at the trusted proposal
+ * boundary, but only for successor roots which advertise the capability: old
+ * recorded runs and their historic parent source remain replayable exactly as
+ * they were.
+ */
+async function assertSuccessorWorkflowDiversity(
+  options: FinalizeTreeV2BundleOptions,
+  children: readonly NonNullable<ProposalOutput['children'][number]>[],
+): Promise<void> {
+  if (children.length < 2) return
+  let parentWorkflowNames: unknown
+  try {
+    const parentIntent = JSON.parse(options.parentSourceFiles['candidate.json'] ?? '{}') as {
+      runtime?: { modeSurfaces?: { solve?: { workflowNames?: unknown } } }
+    }
+    parentWorkflowNames = parentIntent.runtime?.modeSurfaces?.solve?.workflowNames
+  } catch {
+    // The parent manifest is a trusted staged source file. A missing or
+    // malformed historic manifest means it does not advertise this successor
+    // capability; the normal parent/child receipt checks still apply.
+  }
+  if (!Array.isArray(parentWorkflowNames) || !parentWorkflowNames.includes(SOLVE_POLICY_WORKFLOW)) {
+    return
+  }
+  for (const child of children) {
+    const childRecord = child as unknown as Record<string, unknown>
+    const surfaces = childRecord['strategySurfaces']
+    if (!Array.isArray(surfaces) || !surfaces.includes('workflow')) continue
+    const intentPath = join(options.childrenRoot, child.childName, 'candidate.json')
+    try {
+      const intent = JSON.parse(await readFile(intentPath, 'utf8')) as {
+        runtime?: { modeSurfaces?: { solve?: { workflowNames?: unknown } } }
+      }
+      const names = intent.runtime?.modeSurfaces?.solve?.workflowNames
+      if (Array.isArray(names) && names.includes(SOLVE_POLICY_WORKFLOW)) return
+    } catch {
+      // The child finalizer has already checked readability; keep the trusted
+      // boundary fail-closed rather than treating an unreadable declaration as
+      // a non-workflow child.
+    }
+  }
+  fail(
+    `successor multi-child proposal must include one child with strategySurfaces "workflow" and solve.workflowNames ${SOLVE_POLICY_WORKFLOW}`,
+  )
+}
+
+/**
  * Finalize a v2 proposal bundle: rebuild and digest every child's receipts,
  * repair its candidate-intent parent evidence, and validate donors against
  * the staged catalog. v1 envelopes pass through untouched.
@@ -474,5 +530,6 @@ export async function finalizeTreeV2Bundle(
   for (const child of children) {
     await finalizeChild(options, child)
   }
+  await assertSuccessorWorkflowDiversity(options, children)
   return options.proposal
 }

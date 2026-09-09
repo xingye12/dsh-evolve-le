@@ -23,10 +23,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { AgentSideConnection, SessionNotification } from '@agentclientprotocol/sdk'
-import {
-  createNativeSolveAgent,
-  type NativeSolveUsageSink,
-} from '../src/acp/native-solve-agent.js'
+import { createNativeSolveAgent, type NativeSolveUsageSink } from '../src/acp/native-solve-agent.js'
 import type { LiveSolveRuntimeLimits } from '../src/acp/solve-protocol.js'
 
 type CapturedUpdate = {
@@ -46,14 +43,18 @@ type PreStepListener = (
 
 type MockAgentCtx = {
   on: (event: string, listener: PreStepListener) => void
+  provide: (name: string, value: unknown) => void
   systemPrompt: { section: () => () => undefined }
   tools: { register: (definition: { name: string; timeoutMs?: number }) => () => undefined }
 }
 
-function assistantMessageEvent(text: string, usage?: {
-  inputTokens: number
-  outputTokens: number
-}): { type: string; data: unknown } {
+function assistantMessageEvent(
+  text: string,
+  usage?: {
+    inputTokens: number
+    outputTokens: number
+  },
+): { type: string; data: unknown } {
   return {
     type: 'assistant/message',
     data: {
@@ -70,6 +71,7 @@ function makeFixture(options: {
   sink?: NativeSolveUsageSink
   limits?: LiveSolveRuntimeLimits
   now?: () => number
+  candidateSetup?: (agentCtx: MockAgentCtx) => Promise<void> | void
 }): {
   agent: ReturnType<typeof createNativeSolveAgent>
   updates: CapturedUpdate[]
@@ -114,6 +116,9 @@ function makeFixture(options: {
             if (event === 'agent/pre-step') preStepListeners.push(listener)
           },
           systemPrompt: { section: () => () => undefined },
+          provide(name, value) {
+            ;(agentCtx as unknown as Record<string, unknown>)[name] = value
+          },
           tools: {
             register: (definition) => {
               toolRegistrations.push({ name: definition.name, timeoutMs: definition.timeoutMs })
@@ -133,6 +138,9 @@ function makeFixture(options: {
         return () => undefined
       },
     },
+    ...(options.candidateSetup === undefined
+      ? {}
+      : { candidateStrategySetup: options.candidateSetup }),
   } as never
   const agent = createNativeSolveAgent(ctx, connection, {
     provider: 'test-provider',
@@ -228,7 +236,10 @@ describe('native solve agent usage reporting', () => {
     const { agent, updates } = makeFixture({
       events: [
         assistantMessageEvent('partial answer', { inputTokens: 12, outputTokens: 3 }),
-        { type: 'turn/end', data: { turn: 0, reason: { kind: 'aborted', reason: { kind: 'user' } } } },
+        {
+          type: 'turn/end',
+          data: { turn: 0, reason: { kind: 'aborted', reason: { kind: 'user' } } },
+        },
       ],
     })
     const session = await agent.newSession({ cwd: '/workspace', mcpServers: [] })
@@ -290,7 +301,10 @@ describe('native solve agent runtime limits', () => {
         // The deadline cancel ends the turn as aborted; the loop records it in
         // turn/end, and ACP must see the cancelled stop reason — never a fake
         // end_turn for a turn the deadline killed.
-        { type: 'turn/end', data: { turn: 0, reason: { kind: 'aborted', reason: { kind: 'user' } } } },
+        {
+          type: 'turn/end',
+          data: { turn: 0, reason: { kind: 'aborted', reason: { kind: 'user' } } },
+        },
       ],
     })
     const session = await agent.newSession({ cwd: '/workspace', mcpServers: [] })
@@ -317,5 +331,80 @@ describe('native solve agent runtime limits', () => {
     const exec = toolRegistrations.find((tool) => tool.name === 'solve_exec')
     // No capsule override: the tool layer's own default applies.
     expect(exec?.timeoutMs).toBe(300_000)
+  })
+
+  it('runs the candidate solve-policy workflow at every admitted step and injects its bounded checkpoint', async () => {
+    const calls: unknown[] = []
+    const { agent, preStepListeners } = makeFixture({
+      events: [],
+      candidateSetup: (agentCtx) => {
+        const registry = (
+          agentCtx as unknown as {
+            candidateWorkflows?: { register: (workflow: unknown) => () => void }
+          }
+        ).candidateWorkflows
+        registry?.register({
+          name: 'candidate-workflow:solve-policy',
+          description: 'checkpoint policy',
+          async run(input: unknown) {
+            calls.push(input)
+            return { checkpoint: 'Inspect the current artifact before another mutation.' }
+          },
+        })
+      },
+    })
+    await agent.newSession({ cwd: '/workspace', mcpServers: [] })
+    expect(preStepListeners).toHaveLength(1)
+
+    const decision = await (preStepListeners[0] as PreStepListener)(
+      { turn: 1, step: 2, messages: ['task'] },
+      () => enter(['task']),
+    )
+
+    expect(calls).toEqual([
+      { protocol: 'dsh-evolve-le/candidate-solve-policy/v1', turn: 1, step: 2 },
+    ])
+    expect(decision).toMatchObject({ kind: 'enter' })
+    expect(JSON.stringify((decision as { messages: unknown[] }).messages)).toContain(
+      'Inspect the current artifact before another mutation.',
+    )
+  })
+
+  it('executes only the exact solve-policy name and drops an oversized checkpoint', async () => {
+    const calls: string[] = []
+    const { agent, preStepListeners } = makeFixture({
+      events: [],
+      candidateSetup: (agentCtx) => {
+        const registry = (
+          agentCtx as unknown as {
+            candidateWorkflows?: { register: (workflow: unknown) => () => void }
+          }
+        ).candidateWorkflows
+        registry?.register({
+          name: 'candidate-workflow:other-policy',
+          description: 'must not execute',
+          async run() {
+            calls.push('other')
+            return { checkpoint: 'unexpected' }
+          },
+        })
+        registry?.register({
+          name: 'candidate-workflow:solve-policy',
+          description: 'oversized checkpoint',
+          async run() {
+            calls.push('solve')
+            return { checkpoint: 'x'.repeat(2_049) }
+          },
+        })
+      },
+    })
+    await agent.newSession({ cwd: '/workspace', mcpServers: [] })
+    const decision = await (preStepListeners[0] as PreStepListener)(
+      { turn: 1, step: 0, messages: ['task'] },
+      () => enter(['task']),
+    )
+
+    expect(calls).toEqual(['solve'])
+    expect(decision).toEqual({ kind: 'enter', messages: ['task'] })
   })
 })

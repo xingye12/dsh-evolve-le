@@ -131,6 +131,15 @@ export function bootConfig(
       '    toolBash: false',
       '    toolJobs: false',
       '',
+      // Candidate plugins are loaded in this outer scope before the native
+      // AgentLoop creates its unpublished per-session Fiber.  Native DSH owns
+      // prompt/tool/skill services; this small TCB registry covers only the
+      // candidate workflow declaration so Loader activation does not depend
+      // on a candidate-provided service.  The actual execution registry is
+      // installed freshly by native-solve-agent in that agent Fiber.
+      '- id: candidate-workflow-stub',
+      "  name: './runtime/candidate-workflow-stub.mjs'",
+      '',
     )
   } else {
     lines.push(
@@ -318,8 +327,8 @@ export async function assembleCapsule(options: {
     )
   }
 
-  // runtime/: install manifest + trusted systemPrompt boot stub + the pinned
-  // node interpreter the ACP entrypoint execs. The binary arrives
+  // runtime/: install manifest + trusted bootstrap stubs + the pinned node
+  // interpreter the ACP entrypoint execs. The binary arrives
   // digest-verified from materializeNodeRuntime; the copy is verified again
   // so a drifted staging area fails closed instead of shipping silently.
   await mkdir(join(capsuleDir, 'runtime'), { recursive: true })
@@ -327,6 +336,10 @@ export async function assembleCapsule(options: {
   await cp(
     join(runnerSourceDir, 'probe/system-prompt-stub.js'),
     join(capsuleDir, 'runtime/system-prompt-stub.mjs'),
+  )
+  await cp(
+    join(runnerSourceDir, 'probe/candidate-workflow-stub.js'),
+    join(capsuleDir, 'runtime/candidate-workflow-stub.mjs'),
   )
   const runtimeNodePath = join(capsuleDir, 'runtime/node')
   await cp(nodeRuntime.path, runtimeNodePath)

@@ -22,10 +22,7 @@ import {
   type TreeV2CandidateIntent,
   type TreeV2Receipt,
 } from '../../src/tree-v2/contract.js'
-import type {
-  TreeV2AnalysisReceipt,
-  TreeV2ProposalReceipt,
-} from '../../src/tree-v2/receipts.js'
+import type { TreeV2AnalysisReceipt, TreeV2ProposalReceipt } from '../../src/tree-v2/receipts.js'
 import { parseProposalOutput, type ProposalOutput } from '../../src/proposer/protocol.js'
 import { validateTreeV2 } from '../../src/schema.js'
 import type { ArchiveCatalog } from '../../src/proposer/catalog.js'
@@ -132,7 +129,11 @@ function intentFixture(
     schemaVersion: 2,
     protocol: TREE_V2_PROTOCOL,
     kind: 'candidate-intent',
-    candidate: { name: '@dsh-evolve-le/candidate-tree-v2-test-child', version: '1.0.0', entry: 'src/index.ts' },
+    candidate: {
+      name: '@dsh-evolve-le/candidate-tree-v2-test-child',
+      version: '1.0.0',
+      entry: 'src/index.ts',
+    },
     parent: { candidateDigest: FABRICATED_DIGEST, sourceDigest: FABRICATED_DIGEST },
     modeContract: options.modeContract ?? { targetModes: ['solve', 'propose'], preservedModes: [] },
     runtime: {
@@ -160,13 +161,20 @@ function intentFixture(
       },
       capabilities: ['system-prompt'],
     },
-    tests: { command: 'pnpm vitest run tests/', mechanism: ['tests/child.spec.ts'], preservation: ['tests/preserved.spec.ts'] },
+    tests: {
+      command: 'pnpm vitest run tests/',
+      mechanism: ['tests/child.spec.ts'],
+      preservation: ['tests/preserved.spec.ts'],
+    },
     receiptDigest: FABRICATED_DIGEST,
   }
 }
 
 /** The raw model bundle: attempt-7-style fabricated digests everywhere. */
-function rawBundleFixture(childName: string, donors: string[] = [DONOR_ID]): Record<string, unknown> {
+function rawBundleFixture(
+  childName: string,
+  donors: string[] = [DONOR_ID],
+): Record<string, unknown> {
   return {
     schemaVersion: 2,
     protocol: 'dsh-evolve-le/proposal/v2',
@@ -241,7 +249,10 @@ async function stageFixture(
   // the attempt-12 omission/change failure classes explicitly).
   const parentSourceFiles = {
     ...FIXED_PARENT_FILES,
-    ...(extra.parentSourceFiles ?? { 'src/index.ts': PARENT_INDEX, 'src/strategy.ts': PARENT_STRATEGY }),
+    ...(extra.parentSourceFiles ?? {
+      'src/index.ts': PARENT_INDEX,
+      'src/strategy.ts': PARENT_STRATEGY,
+    }),
   }
   const mergedChildFiles = { ...childFiles }
   for (const [path, content] of Object.entries(FIXED_PARENT_FILES)) {
@@ -277,7 +288,11 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('derives every digest from model semantic fields and binds the chain', async () => {
     const root = await freshRoot('dsh-finalize-ok-')
-    const { options, childrenRoot } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'))
+    const { options, childrenRoot } = await stageFixture(
+      root,
+      'child-1',
+      rawBundleFixture('child-1'),
+    )
     const finalized = await finalizeTreeV2Bundle(options)
 
     // The controller-side verifiers accept the receipts.
@@ -324,6 +339,73 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
     expect(() => parseProposalOutput(finalized)).not.toThrow()
   })
 
+  it('requires a workflow child in successor multi-child proposals (ADR-055)', async () => {
+    const root = await freshRoot('dsh-finalize-workflow-required-')
+    const raw = rawBundleFixture('child-1')
+    const first = (raw.children as Record<string, unknown>[])[0]!
+    raw.children.push({ ...structuredClone(first), childName: 'child-2' })
+    const parentSourceFiles = {
+      'src/index.ts': PARENT_INDEX,
+      'src/strategy.ts': `export const workflow = '${'candidate-workflow:solve-policy'}'\n`,
+      'candidate.json': JSON.stringify({
+        runtime: {
+          modeSurfaces: { solve: { workflowNames: ['candidate-workflow:solve-policy'] } },
+        },
+      }),
+    }
+    const { options } = await stageFixture(root, 'child-1', raw, { parentSourceFiles })
+    await stageFixture(root, 'child-2', raw, { parentSourceFiles })
+    await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
+      'successor multi-child proposal must include one child with strategySurfaces "workflow"',
+    )
+  })
+
+  it('accepts a declared solve-policy workflow child for a successor multi-child proposal', async () => {
+    const root = await freshRoot('dsh-finalize-workflow-ok-')
+    const raw = rawBundleFixture('child-1')
+    const first = (raw.children as Record<string, unknown>[])[0]!
+    const second = structuredClone(first)
+    second['childName'] = 'child-2'
+    second['strategySurfaces'] = ['workflow']
+    raw.children.push(second)
+    const parentSourceFiles = {
+      'src/index.ts': PARENT_INDEX,
+      'src/strategy.ts': `export const workflow = '${'candidate-workflow:solve-policy'}'\n`,
+      'candidate.json': JSON.stringify({
+        runtime: {
+          modeSurfaces: { solve: { workflowNames: ['candidate-workflow:solve-policy'] } },
+        },
+      }),
+    }
+    const { options } = await stageFixture(root, 'child-1', raw, { parentSourceFiles })
+    await stageFixture(root, 'child-2', raw, {
+      parentSourceFiles,
+      intent: {
+        ...intentFixture(),
+        runtime: {
+          ...(intentFixture()['runtime'] as Record<string, unknown>),
+          modeSurfaces: {
+            ...((intentFixture()['runtime'] as Record<string, unknown>)['modeSurfaces'] as Record<
+              string,
+              unknown
+            >),
+            solve: {
+              ...((
+                (intentFixture()['runtime'] as Record<string, unknown>)['modeSurfaces'] as Record<
+                  string,
+                  unknown
+                >
+              )['solve'] as Record<string, unknown>),
+              workflowNames: ['candidate-workflow:solve-policy'],
+            },
+          },
+          capabilities: ['system-prompt', 'workflow'],
+        },
+      },
+    })
+    await expect(finalizeTreeV2Bundle(options)).resolves.toBeDefined()
+  })
+
   it('passes v1 bundles through untouched', async () => {
     const root = await freshRoot('dsh-finalize-v1-')
     const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'))
@@ -341,13 +423,20 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
         },
       ],
     }
-    const result = await finalizeTreeV2Bundle({ ...options, proposal: v1 as unknown as ProposalOutput })
+    const result = await finalizeTreeV2Bundle({
+      ...options,
+      proposal: v1 as unknown as ProposalOutput,
+    })
     expect(result).toBe(v1)
   })
 
   it('rejects a donor that is not in the staged archive catalog', async () => {
     const root = await freshRoot('dsh-finalize-donor-')
-    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1', ['@dsh-evolve-le/invented']))
+    const { options } = await stageFixture(
+      root,
+      'child-1',
+      rawBundleFixture('child-1', ['@dsh-evolve-le/invented']),
+    )
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow('not in the archive catalog')
   })
@@ -365,7 +454,9 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
     }
     const { options } = await stageFixture(root, 'child-1', raw)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
-    await expect(finalizeTreeV2Bundle(options)).rejects.toThrow('does not resolve to a normalized-trial')
+    await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
+      'does not resolve to a normalized-trial',
+    )
   })
 
   it('rejects evidence refs that are not objects of the export', async () => {
@@ -396,20 +487,18 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a modeComponent path missing from the parent (attempt-10 replay, ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-mc-parent-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: intentFixture({
-          modeComponents: { solve: ['src/index.ts', 'src/added-module.ts'], propose: ['src/index.ts'] },
-        }),
-        childFiles: {
-          'src/index.ts': CHILD_INDEX,
-          'src/added-module.ts': ADDED_MODULE,
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: intentFixture({
+        modeComponents: {
+          solve: ['src/index.ts', 'src/added-module.ts'],
+          propose: ['src/index.ts'],
         },
+      }),
+      childFiles: {
+        'src/index.ts': CHILD_INDEX,
+        'src/added-module.ts': ADDED_MODULE,
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'references parent-missing file src/added-module.ts',
@@ -420,17 +509,12 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a modeComponent path the child never wrote (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-mc-child-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: intentFixture({
-          modeComponents: { solve: ['src/index.ts', 'src/strategy.ts'], propose: ['src/index.ts'] },
-        }),
-        childFiles: { 'src/index.ts': CHILD_INDEX },
-      },
-    )
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: intentFixture({
+        modeComponents: { solve: ['src/index.ts', 'src/strategy.ts'], propose: ['src/index.ts'] },
+      }),
+      childFiles: { 'src/index.ts': CHILD_INDEX },
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'references file src/strategy.ts missing from the child tree',
@@ -439,42 +523,30 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a non-production modeComponent path before any join (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-mc-pattern-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: intentFixture({
-          modeComponents: { solve: ['src/../escape.ts'], propose: ['src/index.ts'] },
-        }),
-      },
-    )
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: intentFixture({
+        modeComponents: { solve: ['src/../escape.ts'], propose: ['src/index.ts'] },
+      }),
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
-    await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
-      'is not a src/ production module',
-    )
+    await expect(finalizeTreeV2Bundle(options)).rejects.toThrow('is not a src/ production module')
   })
 
   it('rejects a target mode with no production-byte change (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-mc-flat-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: intentFixture({
-          modeComponents: { solve: ['src/index.ts'], propose: ['src/strategy.ts'] },
-          modeContract: { targetModes: ['solve', 'propose'], preservedModes: [] },
-        }),
-        // solve lists src/index.ts byte-identical to the parent; propose lists
-        // src/strategy.ts which the child DID change — so propose passes and
-        // solve is the rejecting mode.
-        childFiles: {
-          'src/index.ts': PARENT_INDEX,
-          'src/strategy.ts': CHILD_STRATEGY,
-        },
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: intentFixture({
+        modeComponents: { solve: ['src/index.ts'], propose: ['src/strategy.ts'] },
+        modeContract: { targetModes: ['solve', 'propose'], preservedModes: [] },
+      }),
+      // solve lists src/index.ts byte-identical to the parent; propose lists
+      // src/strategy.ts which the child DID change — so propose passes and
+      // solve is the rejecting mode.
+      childFiles: {
+        'src/index.ts': PARENT_INDEX,
+        'src/strategy.ts': CHILD_STRATEGY,
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'target mode solve has no production-byte change',
@@ -483,21 +555,16 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a preserved mode with changed production bytes (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-mc-preserved-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: intentFixture({
-          modeComponents: { solve: ['src/index.ts'], propose: ['src/strategy.ts'] },
-          modeContract: { targetModes: ['solve'], preservedModes: ['propose'] },
-        }),
-        childFiles: {
-          'src/index.ts': CHILD_INDEX,
-          'src/strategy.ts': CHILD_STRATEGY,
-        },
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: intentFixture({
+        modeComponents: { solve: ['src/index.ts'], propose: ['src/strategy.ts'] },
+        modeContract: { targetModes: ['solve'], preservedModes: ['propose'] },
+      }),
+      childFiles: {
+        'src/index.ts': CHILD_INDEX,
+        'src/strategy.ts': CHILD_STRATEGY,
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'preserved mode propose changed production bytes in src/strategy.ts',
@@ -506,21 +573,16 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a child that did not modify the component root (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-mc-root-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: intentFixture({
-          modeComponents: { solve: ['src/strategy.ts'], propose: ['src/strategy.ts'] },
-          modeContract: { targetModes: ['solve', 'propose'], preservedModes: [] },
-        }),
-        childFiles: {
-          'src/index.ts': PARENT_INDEX,
-          'src/strategy.ts': CHILD_STRATEGY,
-        },
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: intentFixture({
+        modeComponents: { solve: ['src/strategy.ts'], propose: ['src/strategy.ts'] },
+        modeContract: { targetModes: ['solve', 'propose'], preservedModes: [] },
+      }),
+      childFiles: {
+        'src/index.ts': PARENT_INDEX,
+        'src/strategy.ts': CHILD_STRATEGY,
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'must modify the component root src/index.ts',
@@ -529,17 +591,12 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a malformed modeContract instead of crashing (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-mc-contract-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: {
-          ...intentFixture(),
-          modeContract: { targetModes: 'solve' },
-        },
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: {
+        ...intentFixture(),
+        modeContract: { targetModes: 'solve' },
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'modeContract must declare targetModes and preservedModes arrays',
@@ -548,18 +605,13 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a tests.mechanism path the child never wrote (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-test-missing-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        childFiles: {
-          'src/index.ts': CHILD_INDEX,
-          'src/hint.ts': ADDED_MODULE,
-          'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
-        },
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      childFiles: {
+        'src/index.ts': CHILD_INDEX,
+        'src/hint.ts': ADDED_MODULE,
+        'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'tests.mechanism references missing test file tests/child.spec.ts',
@@ -568,32 +620,27 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a mechanism test that only modifies a parent test (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-test-modified-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        intent: {
-          ...intentFixture(),
-          tests: {
-            command: 'pnpm vitest run tests/',
-            mechanism: ['tests/candidate.spec.ts'],
-            preservation: ['tests/preserved.spec.ts'],
-          },
-        },
-        childFiles: {
-          'src/index.ts': CHILD_INDEX,
-          'src/hint.ts': ADDED_MODULE,
-          'tests/candidate.spec.ts': `it('parent test, modified', () => {})\n`,
-          'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
-        },
-        parentSourceFiles: {
-          'src/index.ts': PARENT_INDEX,
-          'src/strategy.ts': PARENT_STRATEGY,
-          'tests/candidate.spec.ts': `it('parent test', () => {})\n`,
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      intent: {
+        ...intentFixture(),
+        tests: {
+          command: 'pnpm vitest run tests/',
+          mechanism: ['tests/candidate.spec.ts'],
+          preservation: ['tests/preserved.spec.ts'],
         },
       },
-    )
+      childFiles: {
+        'src/index.ts': CHILD_INDEX,
+        'src/hint.ts': ADDED_MODULE,
+        'tests/candidate.spec.ts': `it('parent test, modified', () => {})\n`,
+        'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
+      },
+      parentSourceFiles: {
+        'src/index.ts': PARENT_INDEX,
+        'src/strategy.ts': PARENT_STRATEGY,
+        'tests/candidate.spec.ts': `it('parent test', () => {})\n`,
+      },
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'tests.mechanism path tests/candidate.spec.ts already exists in the parent',
@@ -602,18 +649,13 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a tests.preservation path the child never wrote (ADR-037)', async () => {
     const root = await freshRoot('dsh-finalize-preservation-missing-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        childFiles: {
-          'src/index.ts': CHILD_INDEX,
-          'src/hint.ts': ADDED_MODULE,
-          'tests/child.spec.ts': `it('mechanism', () => {})\n`,
-        },
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      childFiles: {
+        'src/index.ts': CHILD_INDEX,
+        'src/hint.ts': ADDED_MODULE,
+        'tests/child.spec.ts': `it('mechanism', () => {})\n`,
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'tests.preservation references missing test file tests/preserved.spec.ts',
@@ -632,22 +674,17 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a child tree missing a fixed parent file (attempt-12 replay, ADR-039)', async () => {
     const root = await freshRoot('dsh-finalize-fixed-missing-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        childFiles: {
-          'src/index.ts': CHILD_INDEX,
-          'src/hint.ts': ADDED_MODULE,
-          'tests/child.spec.ts': `it('mechanism', () => {})\n`,
-          'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
-        },
-        // package.json deliberately omitted — the merged parent side used
-        // to mask this gap until admission scan rejected the tree.
-        omitFixedFiles: ['package.json'],
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      childFiles: {
+        'src/index.ts': CHILD_INDEX,
+        'src/hint.ts': ADDED_MODULE,
+        'tests/child.spec.ts': `it('mechanism', () => {})\n`,
+        'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
       },
-    )
+      // package.json deliberately omitted — the merged parent side used
+      // to mask this gap until admission scan rejected the tree.
+      omitFixedFiles: ['package.json'],
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'is missing the fixed parent file package.json',
@@ -657,20 +694,15 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
 
   it('rejects a child that changed a fixed parent file (attempt-12 replay, ADR-039)', async () => {
     const root = await freshRoot('dsh-finalize-fixed-changed-')
-    const { options } = await stageFixture(
-      root,
-      'child-1',
-      rawBundleFixture('child-1'),
-      {
-        childFiles: {
-          'src/index.ts': CHILD_INDEX,
-          'src/hint.ts': ADDED_MODULE,
-          'tests/child.spec.ts': `it('mechanism', () => {})\n`,
-          'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
-          'package.json': `{ "name": "candidate-tree-v2-test", "version": "0.0.1" }\n`,
-        },
+    const { options } = await stageFixture(root, 'child-1', rawBundleFixture('child-1'), {
+      childFiles: {
+        'src/index.ts': CHILD_INDEX,
+        'src/hint.ts': ADDED_MODULE,
+        'tests/child.spec.ts': `it('mechanism', () => {})\n`,
+        'tests/preserved.spec.ts': `it('preserved', () => {})\n`,
+        'package.json': `{ "name": "candidate-tree-v2-test", "version": "0.0.1" }\n`,
       },
-    )
+    })
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(TreeV2FinalizationError)
     await expect(finalizeTreeV2Bundle(options)).rejects.toThrow(
       'changed the fixed parent file package.json',

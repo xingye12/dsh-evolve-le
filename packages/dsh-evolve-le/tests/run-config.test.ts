@@ -68,6 +68,47 @@ describe('run config schema (specs/07 §7)', () => {
     }
   })
 
+  it('requires separately frozen budgets for a live Agent Debugger route', () => {
+    const config = validConfig()
+    // The default Zen route intentionally carries only route-selection facts;
+    // a live role must freeze its concrete endpoint/model/temperature too.
+    const modelRoutes = config.modelRoutes.map((route) =>
+      route.id === 'deepseek/zen-compatible'
+        ? {
+            ...route,
+            baseUrl: 'https://example.test/v1',
+            model: 'deepseek-reasoner',
+            temperature: 1,
+          }
+        : route,
+    )
+    const withoutBudget = validateRunConfig({
+      ...config,
+      modelRoutes,
+      agentDebugger: {
+        route: 'deepseek/zen-compatible',
+        maxOutputTokens: 8192,
+        requestTimeoutMs: 180_000,
+        maxInputBytes: 524_288,
+      },
+    })
+    expect(withoutBudget.ok).toBe(false)
+    if (!withoutBudget.ok)
+      expect(withoutBudget.error.errors.join('\n')).toContain('attributionTokens')
+    const accepted = validateRunConfig({
+      ...config,
+      modelRoutes,
+      agentDebugger: {
+        route: 'deepseek/zen-compatible',
+        maxOutputTokens: 8192,
+        requestTimeoutMs: 180_000,
+        maxInputBytes: 524_288,
+      },
+      budget: { ...config.budget, attributionCalls: 6, attributionTokens: 600_000 },
+    })
+    expect(accepted.ok).toBe(true)
+  })
+
   it('requires an explicit legacy source when tree-v2 migration is selected', () => {
     const withoutLegacy = defaultRunConfig({
       runId: 'tree-v2-no-legacy',

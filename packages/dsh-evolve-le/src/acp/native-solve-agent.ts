@@ -39,6 +39,59 @@ export const NATIVE_SOLVE_POLICY_SECTION = {
   ].join('\n'),
 } as const
 
+/**
+ * Candidate-owned workflow name which the trusted solve runtime executes at
+ * every admitted agent step.  Unlike a static prompt-section delta, this hook
+ * receives the live turn/step coordinate and can request a bounded checkpoint
+ * in the actual DSH pre-step waterfall.  It cannot dispatch ACP tools, alter
+ * the verifier, or change controller limits.
+ */
+export const CANDIDATE_SOLVE_POLICY_WORKFLOW = 'candidate-workflow:solve-policy' as const
+export const CANDIDATE_SOLVE_POLICY_PROTOCOL = 'dsh-evolve-le/candidate-solve-policy/v1' as const
+
+type CandidateWorkflow = {
+  name: string
+  description: string
+  run(input: unknown): Promise<unknown>
+}
+
+type CandidateWorkflowRegistry = {
+  register(workflow: CandidateWorkflow): () => void
+}
+
+function installCandidateWorkflowRegistry(agentCtx: Context): {
+  workflows: readonly CandidateWorkflow[]
+} {
+  const workflows: CandidateWorkflow[] = []
+  const provide = (
+    agentCtx as unknown as {
+      provide?: (name: string, value: CandidateWorkflowRegistry) => void
+    }
+  ).provide
+  if (typeof provide !== 'function') {
+    throw new Error('native solve: agent context cannot provide candidateWorkflows')
+  }
+  provide.call(agentCtx, 'candidateWorkflows', {
+    register(workflow: CandidateWorkflow): () => void {
+      workflows.push(workflow)
+      return () => {
+        const index = workflows.indexOf(workflow)
+        if (index >= 0) workflows.splice(index, 1)
+      }
+    },
+  })
+  return { workflows }
+}
+
+function checkpointOf(value: unknown): string | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const checkpoint = (value as { checkpoint?: unknown }).checkpoint
+  if (typeof checkpoint !== 'string' || checkpoint.length === 0 || checkpoint.length > 2_048) {
+    return undefined
+  }
+  return checkpoint
+}
+
 export interface NativeSolveSession {
   sessionId: string
   cwd: string
@@ -188,6 +241,11 @@ export function createNativeSolveAgent(
         ...(options.model === undefined ? {} : { model: options.model }),
         ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
         setup: async (agentCtx) => {
+          // The workflow registry is an explicit candidate surface.  Candidate
+          // setup may register many audit workflows, but the TCB executes only
+          // the fixed solve-policy name below and only as a bounded checkpoint
+          // injection; it is not an ACP/tool escape hatch.
+          const workflowRegistry = installCandidateWorkflowRegistry(agentCtx)
           await candidateStrategySetupOf(ctx)?.(agentCtx)
           installNativePromptSections(agentCtx, [NATIVE_SOLVE_POLICY_SECTION])
           installNativeSolveTools(agentCtx, {
@@ -196,23 +254,48 @@ export function createNativeSolveAgent(
             cwd: params.cwd,
             ...(limits === undefined ? {} : { commandTimeoutMs: limits.commandTimeoutMs }),
           })
-          if (limits !== undefined) {
+          const solvePolicies = workflowRegistry.workflows.filter(
+            (workflow) => workflow.name === CANDIDATE_SOLVE_POLICY_WORKFLOW,
+          )
+          if (limits !== undefined || solvePolicies.length > 0) {
             // Turn cap: upstream AgentOptions has no maxTurns, so reject the
             // proposed step once the loop's own turn counter passes the cap.
             // The loop ends that turn as `blocked` and goes idle; the capsule
             // never drives past the budget.
-            const maxTurns = limits.maxTurns
-            const onPreStep = (
+            const onPreStep = async (
               payload: { turn: number },
               next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
-            ): Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }> =>
-              payload.turn > maxTurns
-                ? Promise.resolve({ kind: 'reject' })
-                : next()
-            ;(agentCtx as unknown as { on: (event: string, listener: typeof onPreStep) => void }).on(
-              'agent/pre-step',
-              onPreStep,
-            )
+            ): Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }> => {
+              if (limits !== undefined && payload.turn > limits.maxTurns) return { kind: 'reject' }
+              const admitted = await next()
+              if (admitted.kind === 'reject') return admitted
+              const checkpoints: string[] = []
+              for (const policy of solvePolicies) {
+                const checkpoint = checkpointOf(
+                  await policy.run({
+                    protocol: CANDIDATE_SOLVE_POLICY_PROTOCOL,
+                    turn: payload.turn,
+                    step: (payload as { step?: number }).step ?? 0,
+                  }),
+                )
+                if (checkpoint !== undefined) checkpoints.push(checkpoint)
+              }
+              if (checkpoints.length === 0) return admitted
+              return {
+                kind: 'enter',
+                messages: [
+                  ...admitted.messages,
+                  ...checkpoints.map((checkpoint) =>
+                    nativeUserMessage(
+                      `<candidate-solve-checkpoint>${checkpoint}</candidate-solve-checkpoint>`,
+                    ),
+                  ),
+                ],
+              }
+            }
+            ;(
+              agentCtx as unknown as { on: (event: string, listener: typeof onPreStep) => void }
+            ).on('agent/pre-step', onPreStep)
           }
         },
       })
@@ -228,12 +311,9 @@ export function createNativeSolveAgent(
         // takes so the in-flight request aborts via the loop's phase signal.
         // The timer is the in-turn backstop; prompt() re-checks the deadline
         // at each turn boundary so a turn that starts past it still cancels.
-        session.deadlineTimer = setTimeout(
-          () => {
-            session.handle.agent.cancel?.({ kind: 'user' })
-          },
-          limits.wallClockMs,
-        )
+        session.deadlineTimer = setTimeout(() => {
+          session.handle.agent.cancel?.({ kind: 'user' })
+        }, limits.wallClockMs)
         session.deadlineTimer.unref?.()
       }
       sessions.set(sessionId, session)

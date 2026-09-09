@@ -3,6 +3,54 @@
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
 **更新时间：2026-09-08（Asia/Shanghai）**
 
+## 2026-09-09 ADR-057：repair3 单次 baseline 与 failure pool 冻结（未启动）
+
+用户授权为新的 repair3 search run 将 baseline 从 49×2（98 次）暂时改为 **49×1（49 次）**：
+`k80Repair3` 是独立预注册 profile，保留 K=80 的 search/tournament/budget 包络，并冻结
+`concurrentTrials=12`、`benchmarkBaseline={taskCount:49,attemptsPerTask:1,batchSize:12}`。repair2
+的 `k80` 49×2 profile、run manifest、trial verdict 与 failure pool 均未改写或复用。
+
+pool 语义不变：完成矩阵后，zero-success task 进入 pool；在 A=1 下这正是「唯一一次 baseline
+attempt 真实失败即入池」。缺失、损坏或 infra-dead 仍 fail closed，不能把非能力事实静默当失败样本。
+该 49×1 仅是有明确标签的 search 成本校准，不能替代原正式 K=80 的 49×2 稳定性证据或用于该项达标声明。
+尚未启动 repair3，也没有产生新的付费 trial。
+
+repair3 冻结启动参数（预注册）：RUN_ID `tree-v2-k80-formal-repair-3`、MASTER_SEED
+`tree-v2-k80-formal-repair-3-master-seed-1`、profile `k80Repair3`；evidence 根
+`evidence/tree-v2/k80-formal-repair-3/`；scratch 根
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-3/`。ADR-056 debugger 随 repair3 冻结：
+route `deepseek/zen-compatible`、maxOutputTokens 8 192、requestTimeoutMs 180 000、
+maxInputBytes 524 288（与 TCB 冻结默认逐字一致）；`attributionCalls=80`（≤ proposalCalls 60
+加余量）、`attributionTokens=16 000 000`（≥ 80 次 × 完整信封预留 139 264 token/次）。
+record 脚本新增门：冻结 config 的 agentDebugger/attribution 必须与 profile 逐字一致；
+run 结束后 attribution 两维必须 settled 且不超预算。
+
+## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
+
+已为后继 run 实现可注入的 TypeScript Agent Debugger：Harbor collect 将 ACP
+事件与 CTRF verifier 结果压缩、脱敏为内容寻址 diagnostic trace bundle；受冻结
+route 的 LLM attributor 只能输出带 bundle event/test 索引锚点的严格 JSON，结果经
+验证后写为 `failure-attribution+json` 并由 `failure-index/v1` 引用。proposer 看到的是
+label-filtered DEV_OBSERVED bundle、failure index 与归因结果，且提示词要求把摘要视为
+非指令性证据并回查锚点。
+
+该归因不会改变 reward、retry、任务选择、Thompson/Archive 或 sealed 流；
+`never-initialized` 仍是账本中的失败、但不导出为 candidate-actionable evidence。repair-2
+和其他已冻结 run 未被改写。此前对 repair-2 原始记录做过一次独立的 live debugger
+示例（仅用于检查输出；不改变 repair-2）；后续代码修改没有发起新的付费调用。
+
+现已将生产调用接入 controller action saga：新 run 必须冻结 `agentDebugger` 的 route、8,192
+输出 token、180s timeout、输入上限，以及独立的 `attributionCalls` / `attributionTokens`。
+intent/预算 reservation、launch marker、成功/失败 receipt 和 budget settle 均追加落盘；超时、网络
+失败和崩溃恢复按未知费用吃掉完整预留且不会重放。若服务端返回空 `content` 但带 usage（reasoning-only
+耗尽 token 的已知形态），现在会记为已知计费失败而非免费失败。Harbor `event_type` 也已纳入
+diagnostic bundle 的事件分类，超大单 bundle 不再突破 debugger 的输入上限。
+
+验证：controller 成功/超时/launch 后崩溃恢复 3 条契约均通过；Agent Debugger 有效锚点、伪造锚点、
+空 reasoning 回复计费 3 条通过；driver 端到端断言 receipt → attribution artifact → failure index →
+proposer export，且不会走旧 direct-store 旁路；TypeScript check 与 `git diff --check` 通过。
+这只证明闭环与失败归因格式正确，尚未运行 repair3，不能声称子代多样性或成功率已提升。
+
 ## 2026-09-08 正式 K=80 `NO_ADMISSIBLE_CHILD` 复盘与 raw-child 修复
 
 正式 run `scratch/dsh-tree-v2-k80-formal/runs/tree-v2-k80-formal/` 的权威
@@ -91,6 +139,99 @@ candidate/build artifact 可以跨 run 去重；旧 trial verdict 不进入新 r
 `sha256:abc8c6cf7050f86b2939f4d58fce4d7708f19e6744ce7b1604cf4bbdd2934f32`；启动后首次只读 status 为
 `PREFLIGHT`、controller seq=1、0 action/0 trial，尚未发生任何付费评测。后续状态以该 run root 的
 manifest/journal/report 为权威。
+
+## 2026-09-08 ADR-052：K=80 三类终止根因的代码级修复（未启动新的付费 run）
+
+原 formal/repair-1 manifest 不在原地修改。ADR-052 的实现已把下一次启动 identity 改为
+`tree-v2-k80-formal-repair-2`（新 seed/scratch/evidence 根）；**本次只改代码、规范与契约测试，未
+调用 paid `dsh-evolve run`、resume 或 sealed-evaluate**。
+
+1. search scheduler：已 admitted 但尚欠 `q0` 的节点先完成 cold-start；连续 proposal failure cap
+   只关闭新的 expansion，不能跳过这些既有 q0 obligation。于是达到 cap 后先清偿 q0，随后才
+   `NO_ADMISSIBLE_CHILD`，不再产生 admitted=18 / cold-start=0 的负信封形状。
+2. apt/egress：`NonZeroAgentExitCodeError` 仍是 FAIL（不能整体升格 retry）；host forwarder 对幂等
+   GET/HEAD/OPTIONS 的 500/502/503/504 与连接失败采用 1+8 bounded retry，POST 不重试；配置代理的
+   formal launcher 在首次付费 action/P0 resume 前对同一 docker0 listener 跑 12 路 HEAD preflight。
+3. evidence：所有 public artifact 都走同一 bare + `terminal-bench/` qualified guard/sealed 名字消毒；
+   `image-prefetch.json` 改为 hash/size/image-count attestation，artifact 文件名、正文、最终 run 文档和
+   STATUS 都纳入 residual-name scan。raw run root 仍为受控权威证据。
+
+已验证：新增 q0 调度回归、evidence sanitizer、forwarder loopback retry/POST/probe/CONNECT 契约通过；
+`pnpm build`、`tsc --noEmit`、本次修改文件的 Prettier check 和 diff check 通过。全仓 `pnpm lint`
+与全仓 `pnpm format:check` 仍分别因 HEAD 已有的未使用 import/parameter 与 35 个既有格式文件失败，
+与本次修复无关，未顺手改动。
+
+## 2026-09-09 ADR-053：post-commit harbor 重写事故 —— committed 重收集守卫（修复中正式 run 的 TCB 变更，显式记录）
+
+2026-09-08 深夜宿主机重启打断了 repair-2 attempt 1 wave 4 的 mid-collect（8 个 action 已有
+receipt、未提交，specs/06 §13 row-6 崩溃窗口）。恢复时我先对所有含 interim result.json 的
+jobDir 重启 harbor，未先对照 journal 的 action.committed 集合——其中 3 个
+（adaptive-rejection-sampler、filter-js-from-html、extract-moves-from-video）属于**已 COMMITTED**
+trial，harbor 重跑（少量未入 controller 账本的 API 支出）并重写了 provider 字节；幂等 resume
+重走时 collectAndCommit 经 row-6 路径重取字节、与已存 envelope 摘要不符 → ControllerError
+（fail closed，行为正确；事故责任在运维性重跑，不在 store）。
+
+修复：collectAndCommit 对 COMMITTED 短路（与 runEvaluation 对称）——已提交 observation 是最终
+事实，其 provider jobDir 是 store 哈希链之外的 harbor 原始输出，事后重写不得击垮健康 run；
+row-6 receipt-without-commit 窗口保留。3 个原始 trajectory envelope 已从 object store 摘要校验后
+恢复；重跑产物弃用。永久运维规则：任何 harbor 重启前先查 journal 的 action.committed 集合，
+已提交 trial 的 jobDir 绝不重启 harbor，仅未提交且 result.json 缺 finished_at 的才是候选。
+
+验证：契约测试 `never re-collects a committed action whose provider bytes changed`（重开后
+provider 字节改写、wave 重跑：observation 不变、journal 事件数不变、无重复提交）；controller
+套件 26/26；tsc -b 绿；重启后的 record 进程即运行含守卫的构建。
+
+**进展（2026-09-09 00:18 CST）**：attempt 1 已 49/49 提交（20 success / 29 failure，
+guard-10/tune-mjcf 为第 20 个 success）；attempt 2 已开始：batch 1 共 12 trial 于 00:04:23 CST
+（journal occurredAt 为 UTC：16:04:23Z）预占、12 路 harbor 并行启动（容器 StartedAt 16:04:31Z
+吻合），fix-git-a2 于 00:07:56 CST 完成、00:18 又有两路 job 完成进入收集；预算台账 usd 累计
+≈ $72.37（µUSD 求和，含预占与结算条目）。
+
+## 2026-09-09 repair-2 search 只读诊断与 successor 修复（ADR-054；未改 repair-2）
+
+对 `tree-v2-k80-formal-repair-2` 的冻结 manifest、journal、search-state 和可见 Harbor
+terminal facts 的只读检查显示：baseline 为 49×2=98、其中 43 success；冻结 failure pool 有 14 个
+zero-success observed handles。前三次 proposal 产生 9 个 child，均通过 trusted build/admission；
+因此「低 trial 成功」不是 proposer 不能生成可准入 bundle 的问题。首批已完成 child cold-start 为
+9/84 pass，但它们全部来自这 14 个 baseline 0-success handle；将其直接和全矩阵 baseline 的 43/98
+相比较不成立（同一 pool 上 baseline 是 0/28，按定义）。
+
+同时确认三个会降低后续探索质量的 controller 路径，已按 ADR-054 以契约测试先行修复到**后继
+controller build**：
+
+- wave 内维护 virtual pending q0 reservation，12 并发下 `q0=3` 不会把同一 child 排成 12 个
+  cold-start；回归用例固定为 baseline=8、child q0=3 时总 trial=11，而旧实现为 12；
+- Harbor 明确标记 `agentParticipation=never-initialized` 的失败仍在 trial ledger/failure pool 中
+  计 FAIL，但不会作为 candidate-mechanism evidence 导出给 proposer；
+- parent Thompson 只统计 frozen failure-pool 的 `dev-observed` observations，root 在 baseline 已
+  解 handles 上的分数不再与仅在 pool 上 cold-start 的 child 混合比较。
+
+`strategySurfaces` 的 tools/skills 过度声明是 proposal 叙述/审计质量问题，不是这批低成功率的
+执行根因：真实 Loader 已验证 target-mode mounted delta，实际可执行变更为 system-prompt。没有
+凭空新增一个无法区分「继承」与「实际修改」的 rejection gate。验证：driver 39/39、tree-v2
+finalize/proposer 41/41、`tsc --noEmit` 与 diff check 通过。
+
+**运行边界：** repair-2 的 manifest、journal、object store 与 live process 未被写入、重启或
+重跑；ADR-054 的三项语义只能在一个新的、预注册的 successor run identity 上生效，尚未授权/启动
+这样的 paid run。
+
+## 2026-09-09 proposer 机制多样性 successor 改造（ADR-055；未启动）
+
+为避免 tree-v2 proposer 在“严格 surface 保持 + 先 admission 后昂贵评测”的反馈下系统性收敛到
+static prompt directive，新的 migration root 增加 solve-only
+`candidate-workflow:solve-policy`。native solve runtime 在每个 admitted DSH pre-step 调用该
+workflow，只接受 ≤2,048 字符的 checkpoint 并附加到本步上下文；它没有 ACP tool、verifier、
+controller、budget 或 route 权限。根实现默认无 checkpoint，child 可在不增加 plugin topology 的
+前提下演化有测试的 checkpoint/replan cadence。
+
+proposer export 同时新增内容寻址 `failure-index/v1`：只投影 candidate-actionable failure 的
+opaque identity、terminal category/participation/exception/request count、引用 digest 与 cluster
+support，raw trajectory 仍可读。prompt 要求先读 index；若 parent 宣告 solve-policy workflow，
+可信 finalizer 强制 multi-child batch 至少一个 child 声明并演化该 workflow，避免整批 prompt-only。
+native spine capsule 另挂载 TCB-only outer workflow registry，避免新 candidate injection 在真实 Loader 启动时
+缺服务；每个 native agent Fiber 仍创建独立执行 registry。native solve workflow 契约 10/10、baseline
+candidate 5/5、driver/proposer 65/65、tree-v2 finalizer 23/23、实际 successor migration root 的 trusted Builder
+十个 admission gate、TypeScript build 均已通过；没有启动或重启 paid run。
 
 ## 2026-09-07 ADR-045 K=80 正式信封修正（alpha=0.8、30h 墙钟、400-trial 信封、49×2 矩阵预注册）
 

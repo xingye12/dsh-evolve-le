@@ -17,6 +17,7 @@
 import type { RemoteRoutePlan } from './remote-gateway.js'
 import { tokenCount } from './gateway.js'
 import type { NativeLlmToolCall, NativeLlmToolSchema } from '../dsh/native-llm-adapter.js'
+import { createHash } from 'node:crypto'
 
 export interface UpstreamMessage {
   role: string
@@ -66,6 +67,12 @@ export interface UpstreamChatError {
   error: string
   httpStatus?: number
   timedOut?: true
+  /** Present only when a response arrived and its charge is knowable. */
+  responseSha256?: string
+  promptTokens?: number
+  completionTokens?: number
+  costUsdMicros?: number
+  modelReportedUsage?: boolean
   attempts: UpstreamAttempt[]
 }
 
@@ -162,44 +169,30 @@ async function singleAttempt(
     try {
       toolCalls = toolCallsOf(message?.tool_calls)
     } catch (error) {
-      return { ok: false, error: (error as Error).message }
+      return {
+        ok: false,
+        error: (error as Error).message,
+        responseSha256: sha256(JSON.stringify(message ?? null)),
+        ...usageFor(input, payload.usage, content),
+      }
     }
     if (content.trim() === '' && toolCalls.length === 0) {
       // Reasoning models can spend the entire max_tokens budget on
       // reasoning_content and return an empty answer — that request is a
-      // failed turn, never a receipt-worthy response.
-      return { ok: false, error: 'upstream returned empty content (finish_reason length?)' }
+      // failed turn, but its returned usage is still a billable, durable
+      // fact. Callers must settle it instead of mistaking it for a free retry.
+      return {
+        ok: false,
+        error: 'upstream returned empty content (finish_reason length?)',
+        responseSha256: sha256(JSON.stringify(message ?? null)),
+        ...usageFor(input, payload.usage, content),
+      }
     }
-    const reportedUsage = payload.usage
-    const modelReported =
-      typeof reportedUsage?.prompt_tokens === 'number' &&
-      typeof reportedUsage?.completion_tokens === 'number'
-    const promptTokens = modelReported
-      ? (reportedUsage!.prompt_tokens as number)
-      : tokenCount(
-          JSON.stringify({
-            system: [...input.sections]
-              .sort((a, b) => a.order - b.order)
-              .map((section) => ({ name: section.name, text: section.text })),
-            user: input.userText,
-          }),
-        )
-    const completionTokens = modelReported
-      ? (reportedUsage!.completion_tokens as number)
-      : input.messages === undefined
-        ? tokenCount(content)
-        : tokenCount(JSON.stringify({ content, toolCalls }))
-    const costUsdMicros = Math.round(
-      promptTokens * input.plan.inputUsdPerMTok + completionTokens * input.plan.outputUsdPerMTok,
-    )
     return {
       ok: true,
       content,
       toolCalls,
-      promptTokens,
-      completionTokens,
-      costUsdMicros,
-      modelReportedUsage: modelReported,
+      ...usageFor(input, payload.usage, content, toolCalls),
     }
   } catch (error) {
     const aborted = (error as Error).name === 'AbortError'
@@ -213,6 +206,44 @@ async function singleAttempt(
   } finally {
     clearTimeout(timer)
   }
+}
+
+function usageFor(
+  input: UpstreamChatInput,
+  reportedUsage: { prompt_tokens?: unknown; completion_tokens?: unknown } | undefined,
+  content: string,
+  toolCalls: readonly NativeLlmToolCall[] = [],
+): Pick<UpstreamChatOk, 'promptTokens' | 'completionTokens' | 'costUsdMicros' | 'modelReportedUsage'> {
+  const modelReported =
+    typeof reportedUsage?.prompt_tokens === 'number' &&
+    typeof reportedUsage?.completion_tokens === 'number'
+  const promptTokens = modelReported
+    ? (reportedUsage!.prompt_tokens as number)
+    : tokenCount(
+        JSON.stringify({
+          system: [...input.sections]
+            .sort((a, b) => a.order - b.order)
+            .map((section) => ({ name: section.name, text: section.text })),
+          user: input.userText,
+        }),
+      )
+  const completionTokens = modelReported
+    ? (reportedUsage!.completion_tokens as number)
+    : input.messages === undefined
+      ? tokenCount(content)
+      : tokenCount(JSON.stringify({ content, toolCalls }))
+  return {
+    promptTokens,
+    completionTokens,
+    costUsdMicros: Math.round(
+      promptTokens * input.plan.inputUsdPerMTok + completionTokens * input.plan.outputUsdPerMTok,
+    ),
+    modelReportedUsage: modelReported,
+  }
+}
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex')
 }
 
 /** ADR-033: only transient infrastructure failures retry, nothing else. */

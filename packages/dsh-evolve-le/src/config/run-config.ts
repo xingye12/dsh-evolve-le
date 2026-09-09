@@ -156,6 +156,13 @@ export interface RunConfig {
    * `budget.solverTokens`.
    */
   solverRoute?: string
+  /** Optional, separately budgeted LLM failure-attribution route. */
+  agentDebugger?: {
+    route: string
+    maxOutputTokens: number
+    requestTimeoutMs: number
+    maxInputBytes: number
+  }
   benchmark: {
     provider: 'terminal-bench-2-1'
     maxAgentTimeoutSec: typeof TERMINAL_BENCH_MAX_AGENT_TIMEOUT_SEC
@@ -187,6 +194,9 @@ export interface RunConfig {
     wallClockMinutes: number
     /** Live-solver token budget (ADR-030); required iff `solverRoute` is set. */
     solverTokens?: number
+    /** Required iff `agentDebugger` is configured; separate from proposals. */
+    attributionTokens?: number
+    attributionCalls?: number
   }
   sealedAccess: false
 }
@@ -325,6 +335,32 @@ function semanticProblems(config: RunConfig): string[] {
   // check applies to whichever role (proposer, solver) selects the route.
   problems.push(...routeCompleteness(config, 'proposer'))
   problems.push(...routeCompleteness(config, 'solver'))
+  if (config.agentDebugger !== undefined) {
+    const route = config.modelRoutes.find(
+      (candidate) => candidate.id === config.agentDebugger!.route,
+    )
+    if (route === undefined || route.provider !== 'zen-compatible') {
+      problems.push('agentDebugger.route must reference a zen-compatible model route')
+    } else {
+      problems.push(
+        ...routeCompleteness(
+          { modelRoutes: config.modelRoutes, proposerRoute: config.agentDebugger.route },
+          'proposer',
+        ).map((problem) => `agentDebugger ${problem}`),
+      )
+    }
+    if (
+      config.budget.attributionTokens === undefined ||
+      config.budget.attributionCalls === undefined
+    ) {
+      problems.push('agentDebugger requires budget.attributionTokens and budget.attributionCalls')
+    }
+  } else if (
+    config.budget.attributionTokens !== undefined ||
+    config.budget.attributionCalls !== undefined
+  ) {
+    problems.push('attribution budget is set but agentDebugger is missing')
+  }
   if (config.solverRoute !== undefined) {
     if (config.budget.solverTokens === undefined) {
       problems.push(
@@ -450,6 +486,8 @@ export function defaultRunConfig(input: {
   proposerRoute?: string
   /** Optional live solver route id (ADR-030); paired with solverTokens. */
   solverRoute?: string
+  /** Optional frozen Agent Debugger route; budgets arrive through overrides. */
+  agentDebuggerRoute?: string
   /** Live-solver token budget (ADR-030); paired with solverRoute. */
   solverTokens?: number
   /** Concurrent real-solver Harbor waves; live runs default to four. */
@@ -567,9 +605,11 @@ export function defaultRunConfig(input: {
   const budgetOverrides: Partial<RunConfig['budget']> = {}
   // solverTokens is optional in the document, so it is not in budgetDefaults'
   // key set — include it explicitly or `--set solverTokens=` would be dropped.
-  const budgetKeys = Object.keys(budgetDefaults).concat('solverTokens') as Array<
-    keyof RunConfig['budget']
-  >
+  const budgetKeys = Object.keys(budgetDefaults).concat(
+    'solverTokens',
+    'attributionTokens',
+    'attributionCalls',
+  ) as Array<keyof RunConfig['budget']>
   for (const key of budgetKeys) {
     const value = input.overrides?.[key]
     if (value !== undefined) budgetOverrides[key] = value
@@ -601,6 +641,16 @@ export function defaultRunConfig(input: {
     modelRoutes,
     proposerRoute: input.proposerRoute ?? STABLE_DEMO_DEFAULTS.recordedRoute.id,
     ...(input.solverRoute !== undefined ? { solverRoute: input.solverRoute } : {}),
+    ...(input.agentDebuggerRoute === undefined
+      ? {}
+      : {
+          agentDebugger: {
+            route: input.agentDebuggerRoute,
+            maxOutputTokens: 8_192,
+            requestTimeoutMs: 180_000,
+            maxInputBytes: 524_288,
+          },
+        }),
     ...(input.nativeDshCatalogRoot !== undefined
       ? {
           nativeDsh: {

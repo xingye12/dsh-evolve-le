@@ -51,11 +51,16 @@ export { computeTreeDigest, TREE_DIGEST_ALGO } from './digest.js'
 export {
   Controller,
   ControllerError,
+  ATTRIBUTION_RECEIPT_MEDIA_TYPE,
+  ATTRIBUTION_RESULT_MEDIA_TYPE,
+  DIAGNOSTIC_TRACE_MEDIA_TYPE,
   readRunStatus,
   TRAJECTORY_MEDIA_TYPE,
   type BoundaryPoint,
   type ControllerConfig,
   type EvaluationInput,
+  type AttributionInput,
+  type AttributionResult,
   type EvaluationRequest,
   type ProposalRunner,
   type RecoveryDisposition,
@@ -193,6 +198,19 @@ export {
   type RemoteRoutePlan,
 } from './proposer/remote-gateway.js'
 export { upstreamChatCompletion } from './proposer/upstream.js'
+export {
+  AGENT_DEBUGGER_PROTOCOL,
+  FAILURE_ATTRIBUTION_MEDIA_TYPE,
+  AgentDebuggerError,
+  remoteAgentDebugger,
+  type DebuggerTraceInput,
+  type FailureAttributionResult,
+  type FailureAttributor,
+  type DurableFailureAttributor,
+  type AttributionAttempt,
+  type AttributionUsageReceipt,
+  type FailureMode,
+} from './attribution/agent-debugger.js'
 export {
   DEFAULT_SOLVE_TRIAL_BUDGET,
   openSolveGateway,

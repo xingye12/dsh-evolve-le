@@ -272,7 +272,7 @@ function exportedTreeV2Evidence(reads: readonly ReadResult[]): {
     (object) => object.mediaType === 'application/vnd.dsh-evolve-le.normalized-trial+json',
   )
   const trajectory = objects.find(
-    (object) => object !== normalized && object.mediaType !== normalized?.mediaType,
+    (object) => object.mediaType === 'application/vnd.dsh-evolve-le.trajectory+json',
   )
   if (normalized === undefined || trajectory === undefined) {
     throw new Error('tree-v2 proposal requires exported normalized-trial and trajectory objects')

@@ -17,6 +17,7 @@ import {
 } from '../../src/iteration/driver.js'
 import { FakeProvider, type ScriptedResult } from '../../src/controller/provider.js'
 import type { ControllerConfig, ProposalRunner } from '../../src/controller/controller.js'
+import type { FailureAttributor } from '../../src/attribution/agent-debugger.js'
 import { defaultRunConfig, validateRunConfig, type RunConfig } from '../../src/config/run-config.js'
 import { runSplitCeremony, type SplitCounts } from '../../src/split/ceremony.js'
 import { journalDirOf } from '../../src/state/journal.js'
@@ -132,13 +133,16 @@ export function fakeBridge(): Bridge {
  */
 export function fakeSandboxRunner(opts: { failWorker?: boolean; workerError?: string } = {}) {
   const calls: string[] = []
+  const exportDirs: string[] = []
   // ADR-044: what the driver handed each expansion as prior-rejection feedback.
   const priorRejectionCalls: Array<RunProposalSandboxOptions['priorRejections']> = []
   const runner: ProposalRunner & {
     calls: string[]
+    exportDirs: string[]
     priorRejectionCalls: typeof priorRejectionCalls
   } = async (options) => {
     calls.push(options.sandboxRoot)
+    exportDirs.push(options.exportDir)
     priorRejectionCalls.push(options.priorRejections ?? [])
     const inputRoot = join(options.sandboxRoot, 'input')
     const workRoot = join(options.sandboxRoot, 'work')
@@ -258,6 +262,7 @@ export function fakeSandboxRunner(opts: { failWorker?: boolean; workerError?: st
     }
   }
   runner.calls = calls
+  runner.exportDirs = exportDirs
   runner.priorRejectionCalls = priorRejectionCalls
   return runner
 }
@@ -336,6 +341,7 @@ export function makeDriver(
       path: 'sealed-plan.json'
       sha256: string
     }
+    failureAttributor?: FailureAttributor
   } = {},
 ): IterationDriver {
   return new IterationDriver({
@@ -354,6 +360,9 @@ export function makeDriver(
       : {}),
     buildCapsule: extra.buildCapsule ?? fakeBuildCapsule,
     proposalRunner: runner,
+    ...(extra.failureAttributor === undefined
+      ? {}
+      : { failureAttributor: extra.failureAttributor }),
     clock:
       extra.clock ??
       (() => new Date(1_700_000_000_000 + Math.floor(Math.random() * 1000)).toISOString()),

@@ -1,7 +1,9 @@
 /**
  * Record the tree-v2 K=80 FORMAL run — the ADR-045..049 full protocol
- * (specs/03 §2 terminal-bench-formal envelope): the guard-inclusive 49×2
- * benchmark baseline matrix (39 observed + 10 guard opaque, ADR-046/049),
+ * (specs/03 §2 terminal-bench-formal envelope): the guard-inclusive 49×1
+ * benchmark baseline matrix (39 observed + 10 guard opaque, ADR-046/049 —
+ * the ADR-057 successor-only repair3 calibration: one attempt per
+ * development handle, results labeled 49×1),
  * the champion tournament with triple-hash lock (ADR-047), and — only when
  * the driver stops at CHAMPION_LOCKED — the pre-registered sealed evaluation
  * (ADR-048: 23 sealed tasks × 5 attempts × 2 sides = 230 trials, 95% CI,
@@ -38,10 +40,11 @@
  * Cost bound (pre-registered profile k80, scripts/lib/tree-v2-live-profile.ts):
  * taskTrials 760 spans both paid phases (search ≤ 400 + tournament ≤ 360);
  * solverTokens 1 520M funds every trial at the frozen 2M gateway cap;
- * proposalCalls 60 / proposerTokens 60M cap proposer work. The honest
- * total (baseline 98 + cold starts + evaluations + tournament + sealed 230)
- * is ≈ 924–1026 trials / ≈ $144–160 at the measured per-trial pace — inside
- * the $500 acceptance ceiling.
+ * proposalCalls 60 / proposerTokens 60M cap proposer work; the ADR-056
+ * debugger adds attributionCalls 80 / attributionTokens 16M on top. The
+ * honest total (baseline 49 + cold starts + evaluations + tournament +
+ * sealed 230) is ≈ 875–977 trials / ≈ $136–152 at the measured per-trial
+ * pace — inside the $500 acceptance ceiling.
  *
  * Environment:
  *   DSH_TREE_V2_LIVE_CONFIRM  must be exactly `confirm` (the paid-run gate)
@@ -73,6 +76,12 @@ import { promisify } from 'node:util'
 import { repoRoot } from './lib/lock.ts'
 import { proposalEvidenceCopies } from './lib/evidence-copy-set.ts'
 import {
+  imagePrefetchAttestation,
+  restrictedTaskNameHits,
+  restrictedTaskNameRedactions,
+  sanitizeRestrictedTaskNames,
+} from './lib/evidence-sanitization.ts'
+import {
   TREE_V2_LIVE_PROFILES,
   REGISTERED_TERMINAL_STOP_REASONS,
   buildTreeV2InitArgs,
@@ -84,7 +93,7 @@ import {
 
 const exec = promisify(execFile)
 
-const evidenceDir = resolve(repoRoot, 'evidence/tree-v2/k80-formal-repair-1')
+const evidenceDir = resolve(repoRoot, 'evidence/tree-v2/k80-formal-repair-3')
 const CLI_BIN = resolve(repoRoot, 'packages/cli/lib/main.js')
 const TARBALL = resolve(repoRoot, '.references/terminal-bench-2-1-7131e43.tar.gz')
 const ARTIFACT_HOST = process.env['TREE_V2_ARTIFACT_HOST'] ?? '172.17.0.1'
@@ -93,22 +102,19 @@ const ARTIFACT_PORT = Number(process.env['TREE_V2_ARTIFACT_PORT'] ?? '8443')
 // egress proxy through a socat forwarder bound to the docker0 gateway
 // (host-side environment, not protocol). Empty/unset = no proxy injection.
 const TRIAL_CONTAINER_PROXY = process.env['TREE_V2_TRIAL_CONTAINER_PROXY'] ?? ''
-const RUN_ID = 'tree-v2-k80-formal-repair-1'
-const MASTER_SEED = 'tree-v2-k80-formal-repair-1-master-seed-1'
-// Repair run (ADR-051): 12-way waves are a NEW frozen protocol input for a NEW
-// run identity, not an edit to the stopped formal run's 8-way manifest (which
-// keeps its own run root and evidence untouched). The baseline batch size
-// matches the wave width so the 49×2 matrix actually uses 12-way waves.
-// Authorization timeline (honest record): the script was edited to these
-// constants and relaunched by the 30-minute auto-resume cron at 19:35:50 CST
-// BEFORE explicit user authorization; the user then reviewed the running
-// state and authorized continuing with a retroactive pre-registration
-// (ADR-051, 2026-09-08 evening). No claim of prior authorization is made.
-const PROFILE = {
-  ...TREE_V2_LIVE_PROFILES.k80,
-  concurrentTrials: 12,
-  benchmarkBaseline: { taskCount: 49, attemptsPerTask: 2, batchSize: 12 },
-}
+const EGRESS_PROBE_URL =
+  process.env['TREE_V2_EGRESS_PROBE_URL'] ??
+  'http://archive.ubuntu.com/ubuntu/dists/noble/InRelease'
+const EGRESS_FORWARDER = resolve(repoRoot, 'scripts/lib/trial-egress-forwarder.py')
+const RUN_ID = 'tree-v2-k80-formal-repair-3'
+const MASTER_SEED = 'tree-v2-k80-formal-repair-3-master-seed-1'
+// ADR-057 successor-only repair3 protocol: a fresh identity once more — the
+// 49×1 baseline calibration, the ADR-054 q0 wave fix and the ADR-056
+// bounded LLM Agent Debugger all change the runtime, so this is never a
+// mutation of any earlier formal manifest. The 12-way wave width and the
+// 49×1×12 matrix ride the pre-registered k80Repair3 profile; no paid launch
+// occurs without this script's confirmation gate.
+const PROFILE = TREE_V2_LIVE_PROFILES.k80Repair3
 // The native DSH runtime lock materialized by docs/configuration.md §Native
 // DSH runtime lock (pinned upstream, built copy in scratch, inspected lock).
 const NATIVE_DSH_CATALOG_ROOT = '/root/vibe/dsh/scratch/native-dsh-catalog'
@@ -196,12 +202,40 @@ if (credential.length === 0) {
 // sealed split store (0600): it is state, never evidence, so the whole tree
 // lives in scratch and only sanitized copies land under evidence/. The path
 // is fixed (not mkdtemp) so a killed process resumes the same run.
-const scratch = '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-1'
+const scratch = '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-3'
 await mkdir(scratch, { recursive: true })
 const runsRoot = resolve(scratch, 'runs')
 const jobsRoot = resolve(scratch, 'jobs')
 const runRoot = join(runsRoot, RUN_ID)
 const sealedStorePath = join(scratch, 'sealed-store.json')
+
+// A configured container proxy is a pre-launch dependency, not a candidate
+// signal.  Before the first paid action (and before a P0 resume) exercise the
+// exact docker0 listener with a 12-way HEAD probe.  The forwarder itself
+// retries transient 5xx responses; a bad result stops before a Harbor job is
+// created.  Do not demand the probe when there is no configured proxy, and do
+// not rerun it during post-run evidence collection.
+if (TRIAL_CONTAINER_PROXY !== '' && !existsSync(join(runRoot, 'drive-report.json'))) {
+  const proxy = new URL(TRIAL_CONTAINER_PROXY)
+  if (proxy.protocol !== 'http:' || proxy.username !== '' || proxy.password !== '') {
+    throw new Error(
+      'tree-v2 k80 formal: trial container proxy must be credential-free http://HOST:PORT',
+    )
+  }
+  const { stdout, stderr } = await exec('python3', [
+    EGRESS_FORWARDER,
+    '--probe-proxy',
+    TRIAL_CONTAINER_PROXY,
+    '--probe-url',
+    EGRESS_PROBE_URL,
+    '--probe-parallel',
+    '12',
+  ])
+  if (!stdout.includes('probe: OK') || stderr !== '') {
+    throw new Error('tree-v2 k80 formal: trial egress preflight did not pass')
+  }
+  console.log('tree-v2 k80 formal: 12-way trial-egress preflight passed')
+}
 
 /** Harbor layout: <jobsRoot>/<job>/<trial>/result.json (as in the pilot). */
 async function trialPaths(root: string): Promise<Array<{ jobName: string; trialName: string }>> {
@@ -501,6 +535,14 @@ const frozenConfig = JSON.parse(await readFile(join(runRoot, 'run.config.json'),
     wallClockMinutes?: number
     proposalCalls?: number
     proposerTokens?: number
+    attributionTokens?: number
+    attributionCalls?: number
+  }
+  agentDebugger?: {
+    route?: string
+    maxOutputTokens?: number
+    requestTimeoutMs?: number
+    maxInputBytes?: number
   }
   benchmark?: {
     baselineSourceDir?: string
@@ -525,8 +567,9 @@ check(
   }),
 )
 // ADR-045/049: the k80 profile pre-registers alpha=0.8, the proposal budgets,
-// the wave width, the guard-inclusive 49×2×12 matrix AND the tournament
-// envelope — every one of them must freeze verbatim.
+// the wave width, the guard-inclusive 49×1×12 matrix (ADR-057) AND the
+// tournament envelope — every one of them must freeze verbatim. ADR-056
+// adds the debugger envelope and the attribution budgets to the same gate.
 check(
   'configMatchesThePreRegisteredK80Profile',
   frozenConfig.search?.kTarget === PROFILE.kTarget &&
@@ -553,11 +596,18 @@ check(
     frozenConfig.budget?.wallClockMinutes === PROFILE.wallClockMinutes &&
     frozenConfig.budget?.proposalCalls === PROFILE.proposalCalls &&
     frozenConfig.budget?.proposerTokens === PROFILE.proposerTokens &&
-    frozenConfig.benchmark?.harbor?.concurrentTrials === PROFILE.concurrentTrials,
+    frozenConfig.benchmark?.harbor?.concurrentTrials === PROFILE.concurrentTrials &&
+    frozenConfig.agentDebugger?.route === PROFILE.agentDebugger?.route &&
+    frozenConfig.agentDebugger?.maxOutputTokens === PROFILE.agentDebugger?.maxOutputTokens &&
+    frozenConfig.agentDebugger?.requestTimeoutMs === PROFILE.agentDebugger?.requestTimeoutMs &&
+    frozenConfig.agentDebugger?.maxInputBytes === PROFILE.agentDebugger?.maxInputBytes &&
+    frozenConfig.budget?.attributionTokens === PROFILE.attributionTokens &&
+    frozenConfig.budget?.attributionCalls === PROFILE.attributionCalls,
   JSON.stringify({
     search: frozenConfig.search,
     budget: frozenConfig.budget,
     harbor: frozenConfig.benchmark?.harbor,
+    agentDebugger: frozenConfig.agentDebugger ?? null,
   }),
 )
 check(
@@ -689,6 +739,24 @@ check(
     proposalCalls.spent === report.expansionAttempts &&
     proposalCalls.reserved === 0,
   JSON.stringify(proposalCalls ?? null),
+)
+// ADR-056: the debugger's separate dimensions must settle inside their
+// pre-registered budgets with nothing left in flight.
+const attributionCalls = report.budget['attribution-calls']
+check(
+  'attributionCallsSettledWithinBudget',
+  attributionCalls !== undefined &&
+    attributionCalls.reserved === 0 &&
+    attributionCalls.spent <= (PROFILE.attributionCalls ?? 0),
+  JSON.stringify(attributionCalls ?? null),
+)
+const attributionTokens = report.budget['attribution-tokens']
+check(
+  'attributionTokensSettledWithinBudget',
+  attributionTokens !== undefined &&
+    attributionTokens.reserved === 0 &&
+    attributionTokens.spent <= (PROFILE.attributionTokens ?? 0),
+  JSON.stringify(attributionTokens ?? null),
 )
 
 // --- 8. The migration receipt + every Harbor trial's receipt chain -------------
@@ -965,12 +1033,28 @@ check(
 const artifactsDir = resolve(evidenceDir, 'artifacts')
 await mkdir(artifactsDir, { recursive: true })
 const artifactCopies: Array<[string, string]> = []
-const sanitizeGuardNames = (text: string): string => {
-  let out = text
-  for (const [handle, opaqueId] of guardNameToOpaque) {
-    out = out.split(handle).join(opaqueId)
+const restrictedNameRedactions = restrictedTaskNameRedactions(
+  guardNameToOpaque,
+  sealedStore.sealedHandles,
+)
+const sanitizeEvidenceText = (text: string, surface: string): string => {
+  const sanitized = sanitizeRestrictedTaskNames(text, restrictedNameRedactions)
+  const residual = restrictedTaskNameHits(sanitized, restrictedNameRedactions)
+  if (residual.length > 0) {
+    throw new Error(
+      `evidence sanitation left restricted task name(s) on ${surface}: ${residual.join(', ')}`,
+    )
   }
-  return out
+  return sanitized
+}
+const copySanitizedArtifact = async (source: string, name: string): Promise<void> => {
+  if (!existsSync(source)) return
+  // Every public evidence artifact is a derived UTF-8 representation.  The
+  // protected source bytes and their hashes stay in the run root; copying raw
+  // bytes here was the bypass that leaked task_name fields (ADR-052).
+  const safeName = sanitizeEvidenceText(name, `artifact filename ${name}`)
+  const text = sanitizeEvidenceText(await readFile(source, 'utf8'), `artifact ${safeName}`)
+  await writeFile(resolve(artifactsDir, safeName), text, 'utf8')
 }
 for (const [index, fact] of trialFacts.entries()) {
   const tag = `t${index + 1}-${fact.jobName}`
@@ -979,24 +1063,26 @@ for (const [index, fact] of trialFacts.entries()) {
     [fact.resultPath, `${tag}-trial-result.json`],
     [fact.trajectoryPath, `${tag}-trajectory.json`],
   ] as const) {
-    // Guard trials: their artifacts carry the real guard task name (Harbor
-    // resolves the opaque id); the EVIDENCE copy swaps it for the opaque id.
-    // The scratch original is untouched and its sha256 is recorded per fact.
-    if (fact.sanitized && existsSync(source)) {
-      const text = sanitizeGuardNames(await readFile(source, 'utf8'))
-      await writeFile(resolve(artifactsDir, name), text, 'utf8')
-      continue
-    }
-    artifactCopies.push([source, name])
+    // Harbor's guard results name their resolved task in several fields;
+    // proposal objects and future artifact families can do likewise.  Route
+    // all of them through the same redactor, not a guard-only special case.
+    await copySanitizedArtifact(source, name)
   }
 }
 artifactCopies.push(
   [join(runRoot, 'run-manifest.json'), 'run-manifest.json'],
   [join(runRoot, 'drive-report.json'), 'drive-report.json'],
   [migrationPath, 'tree-v2-migration.json'],
-  [join(runRoot, 'image-prefetch.json'), 'image-prefetch.json'],
   [monitorPath, 'info-flow-monitor.json'],
 )
+const imagePrefetchPath = join(runRoot, 'image-prefetch.json')
+if (existsSync(imagePrefetchPath)) {
+  await writeFile(
+    resolve(artifactsDir, 'image-prefetch.attestation.json'),
+    `${JSON.stringify(imagePrefetchAttestation(await readFile(imagePrefetchPath)), null, 2)}\n`,
+    'utf8',
+  )
+}
 if (existsSync(join(runRoot, 'candidate-lock.json'))) {
   // Content hashes only (winner id, source/archive hashes, lock triple) —
   // no task identity of any kind.
@@ -1011,7 +1097,7 @@ if (existsSync(join(runRoot, 'candidate-lock.json'))) {
 // receipts, worker verdicts — must survive the scratch deletion (rule 7).
 artifactCopies.push(...(await proposalEvidenceCopies(runRoot)))
 for (const [source, name] of artifactCopies) {
-  await cp(source, resolve(artifactsDir, name)).catch(() => undefined)
+  await copySanitizedArtifact(source, name)
 }
 
 // --- 12. Sealed evaluation (only from the champion lock) ------------------------
@@ -1265,7 +1351,7 @@ const document = {
       specs00Amendment: 'ADR-048',
     },
   },
-  profile: { name: 'k80', ...PROFILE },
+  profile: { name: 'k80Repair3', label: '49×1 baseline calibration (ADR-057)', ...PROFILE },
   route: {
     id: 'deepseek/zen-compatible',
     baseUrl,
@@ -1307,6 +1393,8 @@ const document = {
     'task-trials': report.budget['task-trials'] ?? null,
     'proposal-calls': proposalCalls ?? null,
     'proposer-tokens': report.budget['proposer-tokens'] ?? null,
+    'attribution-calls': attributionCalls ?? null,
+    'attribution-tokens': attributionTokens ?? null,
   },
   run: {
     runId: RUN_ID,
@@ -1371,19 +1459,26 @@ const document = {
     'packages/dsh-evolve-le/tests/tournament.test.ts',
     'packages/dsh-evolve-le/tests/sealed.test.ts',
     'packages/dsh-evolve-le/tests/sealed-evaluate.test.ts',
+    'packages/dsh-evolve-le/tests/agent-debugger.test.ts',
+    'packages/dsh-evolve-le/tests/iteration/driver.test.ts',
     'packages/cli/tests/cli.test.ts',
+    'benchmark-adapters/terminal-bench/tests/diagnostic-bundle.test.ts',
+    'scripts/tests/evidence-sanitization.test.ts',
+    'scripts/tests/k80-formal-recorder-concealment.test.ts',
   ],
 }
 // Provisional document = exactly the bytes that would land, with the failure
 // list so far; the scan below can only append static check names, so the
 // rebuilt final document stays byte-equivalent where it matters.
-const provisional = JSON.stringify({ ...document, failures }, null, 2)
-const artifactTexts = await Promise.all(
-  (await readdir(artifactsDir).catch(() => [] as string[]))
-    .sort()
-    .map((name) => readFile(join(artifactsDir, name), 'utf8').catch(() => '')),
+const provisional = sanitizeEvidenceText(
+  JSON.stringify({ ...document, failures }, null, 2),
+  'formal record document',
 )
-const everyText = [provisional, ...artifactTexts]
+const artifactNames = (await readdir(artifactsDir).catch(() => [] as string[])).sort()
+const artifactTexts = await Promise.all(
+  artifactNames.map((name) => readFile(join(artifactsDir, name), 'utf8').catch(() => '')),
+)
+const everyText = [provisional, ...artifactNames, ...artifactTexts]
 check(
   'noCredentialInAnyArtifact',
   everyText.every((text) => !text.includes(credential)),
@@ -1403,7 +1498,10 @@ check(
   `${String(canaryHits.length)} canary fingerprint(s) in evidence`,
 )
 const guardLeak = everyText.flatMap((text) =>
-  [...guardNameToOpaque.keys()].filter((handle) => text.includes(handle)),
+  restrictedTaskNameHits(
+    text,
+    restrictedNameRedactions.filter((entry) => entry.replacement.startsWith('guard:')),
+  ),
 )
 check(
   'noGuardTaskNameInAnyArtifact',
@@ -1411,7 +1509,10 @@ check(
   `${String(guardLeak.length)} guard name(s) in evidence`,
 )
 const sealedLeak = everyText.flatMap((text) =>
-  sealedStore.sealedHandles.filter((handle) => text.includes(handle)),
+  restrictedTaskNameHits(
+    text,
+    restrictedNameRedactions.filter((entry) => entry.replacement.startsWith('sealed:')),
+  ),
 )
 check(
   'noSealedTaskNameInAnyArtifact',
@@ -1423,47 +1524,50 @@ check(
 const finalDocument = { ...document, failures }
 const documentPath = resolve(evidenceDir, 'k80-formal-run.json')
 await mkdir(evidenceDir, { recursive: true })
-await writeFile(documentPath, `${JSON.stringify(finalDocument, null, 2)}\n`)
+await writeFile(
+  documentPath,
+  `${sanitizeEvidenceText(JSON.stringify(finalDocument, null, 2), 'final formal record')}\n`,
+)
 const allPassed = failures.length === 0
 const documentSha = createHash('sha256')
   .update(await readFile(documentPath))
   .digest('hex')
+const statusDocument = {
+  gate: 'tree-v2',
+  kind: 'k80-formal-run-status',
+  generatedAt: document.generatedAt,
+  environment: document.environment,
+  summary: {
+    route: `solver+proposer deepseek/zen-compatible → ${modelName}`,
+    protocol: 'tree-v2 (migration root, resultsInherited:false)',
+    profile: 'k80Repair3 / terminal-bench-formal (ADR-057 successor-only 49×1)',
+    scope: 'formal',
+    stopReason: report.stopReason,
+    trials: report.trials,
+    discoveryTrials: report.discoveryTrials,
+    tournamentTrials: report.tournamentTrials ?? null,
+    expansionAttempts: report.expansionAttempts,
+    tasks: trialFacts.map((fact) => fact.taskName ?? '?'),
+    rewards: trialFacts.map((fact) => fact.reward),
+    requests: document.receipts.totalRequests,
+    totalTokens: document.receipts.totalTokens,
+    costUsdMicros: document.receipts.costUsdMicros,
+    seconds: runSeconds,
+    sealedVerdict: sealedOutcome.evaluated ? (sealedOutcome.verdict ?? null) : null,
+    sealedPhase: sealedOutcome.evaluated ? (sealedOutcome.phase ?? null) : null,
+    sealedCostUsdMicros: sealedOutcome.evaluated ? (sealedOutcome.costUsdMicros ?? null) : null,
+  },
+  allPassed,
+  evidence: {
+    run: {
+      path: 'evidence/tree-v2/k80-formal-repair-3/k80-formal-run.json',
+      sha256: documentSha,
+    },
+  },
+}
 await writeFile(
   resolve(evidenceDir, 'STATUS.json'),
-  `${JSON.stringify(
-    {
-      gate: 'tree-v2',
-      kind: 'k80-formal-run-status',
-      generatedAt: document.generatedAt,
-      environment: document.environment,
-      summary: {
-        route: `solver+proposer deepseek/zen-compatible → ${modelName}`,
-        protocol: 'tree-v2 (migration root, resultsInherited:false)',
-        profile: 'k80 / terminal-bench-formal (ADR-045..049)',
-        scope: 'formal',
-        stopReason: report.stopReason,
-        trials: report.trials,
-        discoveryTrials: report.discoveryTrials,
-        tournamentTrials: report.tournamentTrials ?? null,
-        expansionAttempts: report.expansionAttempts,
-        tasks: trialFacts.map((fact) => fact.taskName ?? '?'),
-        rewards: trialFacts.map((fact) => fact.reward),
-        requests: document.receipts.totalRequests,
-        totalTokens: document.receipts.totalTokens,
-        costUsdMicros: document.receipts.costUsdMicros,
-        seconds: runSeconds,
-        sealedVerdict: sealedOutcome.evaluated ? (sealedOutcome.verdict ?? null) : null,
-        sealedPhase: sealedOutcome.evaluated ? (sealedOutcome.phase ?? null) : null,
-        sealedCostUsdMicros: sealedOutcome.evaluated ? (sealedOutcome.costUsdMicros ?? null) : null,
-      },
-      allPassed,
-      evidence: {
-        run: { path: 'evidence/tree-v2/k80-formal/k80-formal-run.json', sha256: documentSha },
-      },
-    },
-    null,
-    2,
-  )}\n`,
+  `${sanitizeEvidenceText(JSON.stringify(statusDocument, null, 2), 'formal status document')}\n`,
 )
 if (!allPassed) {
   console.error(`tree-v2 k80 formal FAILED:\n${failures.map((f) => `  - ${f}`).join('\n')}`)

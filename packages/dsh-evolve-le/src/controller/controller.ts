@@ -21,7 +21,8 @@ import {
   type BudgetTotals,
 } from '../state/budget.js'
 import { Journal, readJournal, type JournalConfig, type JournalEvent } from '../state/journal.js'
-import { openObjectStore, type ObjectStore } from '../state/object-store.js'
+import { openObjectStore, type ObjectRef, type ObjectStore } from '../state/object-store.js'
+import { canonicalJson } from '../state/canonical.js'
 import {
   reduceEvent,
   stateHashOf,
@@ -67,6 +68,7 @@ import { join } from 'node:path'
 import { acquireWriterLock } from './lock.js'
 import type { BenchmarkProvider } from './provider.js'
 import { persistTreeV2ReceiptDocument } from '../tree-v2/receipts.js'
+import type { AttributionAttempt, AttributionUsageReceipt } from '../attribution/agent-debugger.js'
 
 export type BoundaryPoint =
   | 'intent-durable'
@@ -126,7 +128,30 @@ export interface EvaluationInput extends EvaluationRequest {
   estimate: Array<{ dimension: BudgetDimension; amount: number }>
 }
 
+/** One budgeted, non-retryable LLM attribution action. */
+export interface AttributionInput {
+  actionId: string
+  request: Record<string, unknown>
+  estimate: Array<{ dimension: BudgetDimension; amount: number }>
+  execute(): Promise<AttributionAttempt>
+}
+
+export interface AttributionResult {
+  actionId: string
+  status: ActionStatus
+  receipt: ObjectRef | null
+  attribution: ObjectRef | null
+  failureReason: string | null
+}
+
 export const TRAJECTORY_MEDIA_TYPE = 'application/vnd.dsh-evolve-le.trajectory+json'
+/** A bounded, indexed provider projection consumed by Agent Debugger only. */
+export const DIAGNOSTIC_TRACE_MEDIA_TYPE =
+  'application/vnd.dsh-evolve-le.diagnostic-trace-bundle+json'
+export const ATTRIBUTION_RECEIPT_MEDIA_TYPE =
+  'application/vnd.dsh-evolve-le.attribution-receipt+json'
+export const ATTRIBUTION_RESULT_MEDIA_TYPE =
+  'application/vnd.dsh-evolve-le.failure-attribution+json'
 
 export const PROPOSAL_TRANSCRIPT_MEDIA_TYPE =
   'application/vnd.dsh-evolve-le.proposal-transcript+jsonl'
@@ -336,6 +361,21 @@ export class Controller {
           disposition: existsSync(workerResultPath(action.externalJobId))
             ? 'running'
             : 'pending-launch',
+        })
+        continue
+      }
+      if (action.kind === 'attribution') {
+        // The upstream API exposes no idempotency/reconciliation endpoint.
+        // A launch marker with no terminal receipt is ambiguous: retrying
+        // could buy a second completion, so retain the reservation and fail.
+        await this.failUncertainAttribution(
+          action.actionId,
+          'controller resumed after an in-flight agent-debugger request',
+        )
+        this.recovery.inspected.push({
+          actionId: action.actionId,
+          externalJobId: action.externalJobId,
+          disposition: 'lost',
         })
         continue
       }
@@ -673,6 +713,182 @@ export class Controller {
     const sandboxRoot = join(this.runDir, 'sandboxes', input.actionId)
     await this.launchProposalSandbox(input, sandboxRoot)
     return this.collectProposal(input, sandboxRoot)
+  }
+
+  /**
+   * One LLM attribution call with a durable intent, receipt and budget trail.
+   * Unlike a proposal sandbox, an upstream chat completion has no reliable
+   * idempotency key; a crash after `action.launched` is therefore terminally
+   * unattributable and is never replayed as a second paid request.
+   */
+  async runAttribution(input: AttributionInput): Promise<AttributionResult> {
+    const existing = this.current.actions[input.actionId]
+    if (existing !== undefined && TERMINAL_ACTIONS.has(existing.status)) {
+      return this.attributionResultOf(input.actionId)
+    }
+    if (existing !== undefined && existing.externalJobId !== null) {
+      await this.failUncertainAttribution(
+        input.actionId,
+        'recovered after an in-flight attribution call',
+      )
+      return this.attributionResultOf(input.actionId)
+    }
+    if (existing === undefined) {
+      await this.emit('action.reserved', {
+        actionId: input.actionId,
+        kind: 'attribution',
+        idempotencyKey: `attribution-${input.actionId}`,
+        request: input.request,
+        waveId: null,
+        budget: input.estimate,
+      })
+      for (const { dimension, amount } of input.estimate) {
+        await this.mirrorBudget({ kind: 'reserve', dimension, actionId: input.actionId, amount })
+      }
+      await this.boundary('intent-durable', input.actionId)
+    }
+    // This journal event is deliberately BEFORE the external request. It is
+    // the durable marker that prevents a restart from issuing an ambiguous
+    // second request to an API without caller-provided idempotency.
+    await this.emit('action.launched', {
+      actionId: input.actionId,
+      externalJobId: `attribution:${input.actionId}`,
+      provider: 'agent-debugger',
+    })
+    await this.boundary('launch-receipt-durable', input.actionId)
+    let attempt: AttributionAttempt
+    try {
+      attempt = await input.execute()
+    } catch (error) {
+      attempt = {
+        outcome: 'error',
+        receipt: {
+          routeId: 'unattributable',
+          routeHash: `sha256:${'0'.repeat(64)}`,
+          inputSha256: `sha256:${'0'.repeat(64)}`,
+          status: 'error',
+          responseSha256: null,
+          promptTokens: null,
+          completionTokens: null,
+          costUsdMicros: null,
+          modelReportedUsage: null,
+          attempts: [],
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }
+    }
+    await this.observeExternalTerminal(input.actionId, {
+      kind: 'agent-debugger',
+      outcome: attempt.outcome,
+    })
+    const receipt = await this.putAttributionReceipt(input.actionId, attempt.receipt)
+    if (attempt.outcome === 'ok') {
+      const attribution = await this.store.put(attempt.artifact, {
+        mediaType: ATTRIBUTION_RESULT_MEDIA_TYPE,
+        label: 'DEV_OBSERVED',
+      })
+      await this.emit('artifact.collected', { actionId: input.actionId, artifact: attribution })
+      await this.settleAttributionBudget(input.actionId, attempt.receipt)
+      await this.emit('action.committed', { actionId: input.actionId, observation: null })
+      await this.boundary('action-committed', input.actionId)
+      return {
+        actionId: input.actionId,
+        status: 'COMMITTED',
+        receipt,
+        attribution,
+        failureReason: null,
+      }
+    }
+    await this.emit('action.terminal', {
+      actionId: input.actionId,
+      status: 'FAILED',
+      reason: `agent-debugger: ${attempt.receipt.error ?? 'unknown failure'}`,
+    })
+    await this.settleAttributionBudget(input.actionId, attempt.receipt)
+    await this.boundary('action-committed', input.actionId)
+    return this.attributionResultOf(input.actionId)
+  }
+
+  private async putAttributionReceipt(
+    actionId: string,
+    receipt: AttributionUsageReceipt,
+  ): Promise<ObjectRef> {
+    const existing = this.action(actionId).artifacts.find(
+      (ref) => ref.mediaType === ATTRIBUTION_RECEIPT_MEDIA_TYPE,
+    )
+    if (existing !== undefined) return existing
+    const ref = await this.store.put(Buffer.from(`${canonicalJson(receipt)}\n`, 'utf8'), {
+      mediaType: ATTRIBUTION_RECEIPT_MEDIA_TYPE,
+      label: 'CONTROLLER_INTERNAL',
+    })
+    await this.emit('artifact.collected', { actionId, artifact: ref })
+    return ref
+  }
+
+  private async settleAttributionBudget(
+    actionId: string,
+    receipt: AttributionUsageReceipt,
+  ): Promise<void> {
+    const reserved = this.current.budgetByAction[actionId] ?? {}
+    const cap = (dimension: BudgetDimension): number => reserved[dimension]?.reserved ?? 0
+    const knownUsage =
+      receipt.promptTokens !== null &&
+      receipt.completionTokens !== null &&
+      receipt.costUsdMicros !== null
+    const settle = async (dimension: BudgetDimension, actual: number): Promise<void> => {
+      await this.settleIfAccountable({
+        dimension,
+        actionId,
+        // An unknown completion may have been billed after an abort. Spend the
+        // reservation rather than release it; this is conservative by design.
+        amount: knownUsage ? Math.min(actual, cap(dimension)) : cap(dimension),
+        unpricedUnits: knownUsage ? 0 : 1,
+      })
+    }
+    await settle('attribution-calls', 1)
+    await settle(
+      'attribution-tokens',
+      (receipt.promptTokens ?? 0) + (receipt.completionTokens ?? 0),
+    )
+    await settle('usd', receipt.costUsdMicros ?? 0)
+    if (knownUsage) await this.releaseRemainder(actionId)
+  }
+
+  private async failUncertainAttribution(actionId: string, reason: string): Promise<void> {
+    const action = this.action(actionId)
+    if (TERMINAL_ACTIONS.has(action.status)) return
+    if (action.status === 'RUNNING') {
+      await this.observeExternalTerminal(actionId, { kind: 'agent-debugger', outcome: 'unknown' })
+    }
+    const receipt: AttributionUsageReceipt = {
+      routeId: 'unattributable',
+      routeHash: `sha256:${'0'.repeat(64)}`,
+      inputSha256: `sha256:${'0'.repeat(64)}`,
+      status: 'error',
+      responseSha256: null,
+      promptTokens: null,
+      completionTokens: null,
+      costUsdMicros: null,
+      modelReportedUsage: null,
+      attempts: [],
+      error: reason,
+    }
+    await this.putAttributionReceipt(actionId, receipt)
+    await this.emit('action.terminal', { actionId, status: 'FAILED', reason })
+    await this.settleAttributionBudget(actionId, receipt)
+  }
+
+  private attributionResultOf(actionId: string): AttributionResult {
+    const action = this.action(actionId)
+    return {
+      actionId,
+      status: action.status,
+      receipt:
+        action.artifacts.find((ref) => ref.mediaType === ATTRIBUTION_RECEIPT_MEDIA_TYPE) ?? null,
+      attribution:
+        action.artifacts.find((ref) => ref.mediaType === ATTRIBUTION_RESULT_MEDIA_TYPE) ?? null,
+      failureReason: action.failure?.reason ?? null,
+    }
   }
 
   private async reserveProposalAction(input: ProposalInput): Promise<void> {
@@ -1204,6 +1420,15 @@ export class Controller {
 
   /** §13 rows 4–7: collect (or validate an already-stored artifact), commit once. */
   private async collectAndCommit(actionId: string): Promise<Observation> {
+    if (this.action(actionId).status === 'COMMITTED') {
+      // Committed exactly once — the observation is final. Never re-collect a
+      // committed action: its provider jobDir is raw harbor output outside the
+      // controller's hash-chained evidence, and a harbor retry may rewrite it
+      // after the commit; re-verifying would fail closed on bytes that are
+      // legitimately outside the store's invariants. (§13 row 6 recovery only
+      // needs the receipt-without-commit window, which this guard preserves.)
+      return this.observationOf(actionId)
+    }
     const request = this.requestOf(actionId)
     if (this.current.actions[actionId]?.artifacts.length === 0) {
       const externalJobId = this.current.externalJobs[actionId]
@@ -1213,11 +1438,10 @@ export class Controller {
       const terminal = await this.provider.collect(externalJobId)
       // Object-store put is staging → fsync → no-clobber publish: a crash
       // mid-write discards staging; re-collecting re-puts the same bytes.
-      const ref = await this.store.put(terminal.trajectory, {
-        mediaType: TRAJECTORY_MEDIA_TYPE,
-        label: request.split === 'dev-guard' ? 'DEV_GUARD' : 'DEV_OBSERVED',
-      })
-      await this.emit('artifact.collected', { actionId, artifact: ref })
+      const refs = await this.storeTerminalArtifacts(terminal, request.split)
+      for (const ref of refs) {
+        await this.emit('artifact.collected', { actionId, artifact: ref })
+      }
       await this.boundary('artifact-stored', actionId)
       await this.commitObservation(
         actionId,
@@ -1236,20 +1460,27 @@ export class Controller {
         throw new ControllerError(`action ${actionId} has no external job to collect`)
       }
       const terminal = await this.provider.collect(externalJobId)
-      const [stored] = this.action(actionId).artifacts
-      if (stored === undefined) {
+      const stored = this.action(actionId).artifacts
+      if (stored.length === 0) {
         throw new ControllerError(`action ${actionId} has a receipt without an artifact ref`)
       }
-      const fresh = await this.store.put(terminal.trajectory, {
-        mediaType: TRAJECTORY_MEDIA_TYPE,
-        label: request.split === 'dev-guard' ? 'DEV_GUARD' : 'DEV_OBSERVED',
-      })
-      if (fresh.digest !== stored.digest) {
+      const fresh = await this.storeTerminalArtifacts(terminal, request.split)
+      // `artifact.collected` is one durable event per object. A process can
+      // die after the terminal fact event but before the diagnostic sidecar
+      // event; the stored list is then a valid ordered prefix, not drift.
+      // Verify that prefix and append exactly the missing immutable refs.
+      if (
+        stored.length > fresh.length ||
+        stored.some((ref, index) => ref.digest !== fresh[index]?.digest)
+      ) {
         throw new ControllerError(
-          `collected trajectory for ${actionId} does not match the stored artifact`,
+          `collected artifacts for ${actionId} do not match the stored artifacts`,
         )
       }
-      await this.store.verify(stored)
+      await this.store.scrub(stored)
+      for (const ref of fresh.slice(stored.length)) {
+        await this.emit('artifact.collected', { actionId, artifact: ref })
+      }
       await this.commitObservation(
         actionId,
         request,
@@ -1260,6 +1491,24 @@ export class Controller {
       )
     }
     return this.observationOf(actionId)
+  }
+
+  /** Store the immutable terminal fact and, when supplied, its bounded diagnostic sidecar. */
+  private async storeTerminalArtifacts(
+    terminal: Awaited<ReturnType<BenchmarkProvider['collect']>>,
+    split: EvaluationRequest['split'],
+  ) {
+    const label = split === 'dev-guard' ? 'DEV_GUARD' : 'DEV_OBSERVED'
+    const trajectory = await this.store.put(terminal.trajectory, {
+      mediaType: TRAJECTORY_MEDIA_TYPE,
+      label,
+    })
+    if (terminal.diagnosticBundle === undefined) return [trajectory]
+    const diagnostic = await this.store.put(terminal.diagnosticBundle, {
+      mediaType: DIAGNOSTIC_TRACE_MEDIA_TYPE,
+      label,
+    })
+    return [trajectory, diagnostic]
   }
 
   private async commitObservation(

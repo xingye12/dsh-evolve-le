@@ -28,6 +28,14 @@ export interface ProviderTerminal {
   solverTokens?: number | null
   /** Raw trajectory bytes; the controller stores them content-addressed. */
   trajectory: Buffer
+  /**
+   * Optional, bounded diagnostic projection of the provider's raw trial
+   * directory.  It is development evidence only: it neither changes outcome,
+   * reward, retries nor the provider's bill.  The controller stores it next
+   * to (not instead of) the terminal trajectory so a later attribution pass
+   * can cite stable event/test indexes without reopening a mutable job dir.
+   */
+  diagnosticBundle?: Buffer
 }
 
 export interface ProviderInspect {
@@ -61,6 +69,7 @@ export interface ScriptedResult {
   costUsdMicros?: number | null
   durationMs?: number | null
   trajectory?: Buffer
+  diagnosticBundle?: Buffer
   /** Live-solver tokens for the terminal fact (default null = replay). */
   solverTokens?: number | null
   /** Stay RUNNING forever (used to exercise nonterminal recovery). */
@@ -113,7 +122,10 @@ export class FakeProvider implements BenchmarkProvider {
   private resultFor(key: string): ScriptedResult {
     const exact = this.scriptedKeys.get(key)
     if (exact !== undefined) return exact
-    return this.scriptedPrefixes.find((entry) => key.startsWith(entry.prefix))?.result ?? this.defaultResult
+    return (
+      this.scriptedPrefixes.find((entry) => key.startsWith(entry.prefix))?.result ??
+      this.defaultResult
+    )
   }
 
   private statusOf(result: ScriptedResult): ProviderJobStatus {
@@ -173,6 +185,9 @@ export class FakeProvider implements BenchmarkProvider {
           `${JSON.stringify({ externalJobId, outcome: result.outcome, key: job.key })}\n`,
           'utf8',
         ),
+      ...(result.diagnosticBundle === undefined
+        ? {}
+        : { diagnosticBundle: result.diagnosticBundle }),
     }
   }
 }

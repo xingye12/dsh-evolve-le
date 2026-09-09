@@ -12,6 +12,11 @@ node_modules/
 **/lib/
 **/.tsbuildinfo
 **/*.tsbuildinfo
+# Source helpers under scripts/lib are normally generated alongside their
+# compiled output; this hand-authored formal-evidence sanitizer is an explicit
+# exception and must remain versioned.
+!scripts/lib/
+!scripts/lib/evidence-sanitization.ts
 # Local native DSH closure lock (catalog paths are host-specific).
 native-dsh.lock.json
 

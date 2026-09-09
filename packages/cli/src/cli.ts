@@ -29,11 +29,14 @@ import {
   loadRunConfig,
   LIVE_ROUTE_REQUEST_TIMEOUT_MS,
   openSolveGateway,
+  remoteAgentDebugger,
   remoteProposalRunner,
+  remoteRoutePlanOf,
   SOLVE_CLIENT_REQUEST_TIMEOUT_MS,
   solverRoutePlan,
   validateRunConfig,
   type ProposalRunner,
+  type DurableFailureAttributor,
   type RemoteRoutePlan,
   type RunConfig,
   type SolveGateway,
@@ -198,6 +201,11 @@ function searchBudgetOverrides(sets: Record<string, number>): Partial<RunConfig[
     // ADR-030: valid only in a config that also sets solverRoute (semantic
     // check in run-config.ts rejects the unpaired document).
     'solverTokens',
+    // ADR-056: attribution budgets are valid only in a config that also
+    // sets agentDebugger (semantic check in run-config.ts rejects the
+    // unpaired document).
+    'attributionTokens',
+    'attributionCalls',
   ])
   const overrides: Partial<RunConfig['search']> & Partial<RunConfig['budget']> = {}
   for (const [key, value] of Object.entries(sets)) {
@@ -434,6 +442,9 @@ async function commandInit(values: CliValues, io: CliIo): Promise<number> {
       ...(modelTemperature !== undefined ? { modelTemperature } : {}),
       ...(typeof values['solver-route'] === 'string'
         ? { solverRoute: values['solver-route'] }
+        : {}),
+      ...(typeof values['agent-debugger-route'] === 'string'
+        ? { agentDebuggerRoute: values['agent-debugger-route'] }
         : {}),
       ...(solverTokens !== undefined ? { solverTokens } : {}),
       ...(concurrentTrials !== undefined ? { concurrentTrials } : {}),
@@ -883,6 +894,7 @@ async function commandRun(values: CliValues, io: CliIo): Promise<number> {
   let report
   try {
     const proposalRunner = await remoteRunnerFor(env)
+    const failureAttributor = await agentDebuggerFor(env)
     const driver = new IterationDriver({
       config: env.config,
       configHash: env.configHash,
@@ -898,6 +910,7 @@ async function commandRun(values: CliValues, io: CliIo): Promise<number> {
         ? { verifierImageReceipt: composition.verifierImageReceipt }
         : {}),
       ...(proposalRunner !== undefined ? { proposalRunner } : {}),
+      ...(failureAttributor !== undefined ? { failureAttributor } : {}),
       ...(onBoundary !== undefined ? { onBoundary } : {}),
       ...(sealedPlanReceipt !== undefined ? { sealedPlanReceipt } : {}),
     })
@@ -933,6 +946,27 @@ async function remoteRunnerFor(env: RunEnv): Promise<ProposalRunner | undefined>
   })
 }
 
+/** Frozen, separately budgeted Agent Debugger route for successor runs only. */
+async function agentDebuggerFor(env: RunEnv): Promise<DurableFailureAttributor | undefined> {
+  const configured = env.config.agentDebugger
+  if (configured === undefined) return undefined
+  const route = env.config.modelRoutes.find((candidate) => candidate.id === configured.route)
+  if (
+    route === undefined ||
+    route.provider !== 'zen-compatible' ||
+    route.credentialFile === undefined
+  ) {
+    throw new CliError('agentDebugger route is incomplete (re-init the run)', 2)
+  }
+  const credential = (await readFile(route.credentialFile, 'utf8')).trim()
+  if (credential.length === 0) throw new CliError(`${route.credentialFile} is empty`, 2)
+  return remoteAgentDebugger({
+    plan: { ...remoteRoutePlanOf(route), maxOutputTokens: configured.maxOutputTokens },
+    credential,
+    requestTimeoutMs: configured.requestTimeoutMs,
+  })
+}
+
 // ---------------------------------------------------------------------------
 // status / audit / doctor
 // ---------------------------------------------------------------------------
@@ -951,6 +985,12 @@ function controllerConfigOf(env: RunEnv) {
       // in solver-token runs, so status/audit of replay runs replay unchanged.
       ...(config.budget.solverTokens !== undefined
         ? { 'solver-tokens': config.budget.solverTokens }
+        : {}),
+      ...(config.budget.attributionTokens !== undefined
+        ? { 'attribution-tokens': config.budget.attributionTokens }
+        : {}),
+      ...(config.budget.attributionCalls !== undefined
+        ? { 'attribution-calls': config.budget.attributionCalls }
         : {}),
     },
   }
@@ -1401,6 +1441,7 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
     'model-name': { type: 'string' },
     'model-temperature': { type: 'string' },
     'solver-route': { type: 'string' },
+    'agent-debugger-route': { type: 'string' },
     'solver-base-url': { type: 'string' },
     'solver-model': { type: 'string' },
     'solver-temperature': { type: 'string' },

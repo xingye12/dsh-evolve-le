@@ -10,22 +10,13 @@
   },
   "parent": null,
   "modeContract": {
-    "targetModes": [
-      "solve",
-      "propose"
-    ],
+    "targetModes": ["solve", "propose"],
     "preservedModes": []
   },
   "runtime": {
     "modeComponents": {
-      "solve": [
-        "src/index.ts",
-        "src/strategy.ts"
-      ],
-      "propose": [
-        "src/index.ts",
-        "src/strategy.ts"
-      ]
+      "solve": ["src/index.ts", "src/strategy.ts"],
+      "propose": ["src/index.ts", "src/strategy.ts"]
     },
     "modeSurfaces": {
       "solve": {
@@ -35,15 +26,11 @@
             "order": 100
           }
         ],
-        "newToolNames": [
-          "candidate_strategy_snapshot"
-        ],
-        "newSkillNames": [
-          "candidate-strategy-review"
-        ],
+        "newToolNames": ["candidate_strategy_snapshot"],
+        "newSkillNames": ["candidate-strategy-review"],
         "agentEventNames": [],
         "sessionEventNames": [],
-        "workflowNames": []
+        "workflowNames": ["candidate-workflow:solve-policy"]
       },
       "propose": {
         "promptSections": [
@@ -52,29 +39,19 @@
             "order": 100
           }
         ],
-        "newToolNames": [
-          "candidate_strategy_snapshot"
-        ],
-        "newSkillNames": [
-          "candidate-strategy-review"
-        ],
+        "newToolNames": ["candidate_strategy_snapshot"],
+        "newSkillNames": ["candidate-strategy-review"],
         "agentEventNames": [],
         "sessionEventNames": [],
         "workflowNames": []
       }
     },
-    "capabilities": [
-      "skills",
-      "system-prompt",
-      "tools"
-    ]
+    "capabilities": ["skills", "system-prompt", "tools", "workflow"]
   },
   "tests": {
     "command": "pnpm test",
-    "mechanism": [
-      "tests/candidate.spec.ts"
-    ],
+    "mechanism": ["tests/candidate.spec.ts"],
     "preservation": []
   },
-  "receiptDigest": "sha256:767e6495a4e77723105d73d22584b548019602cc191b53217f4b1428878cc878"
+  "receiptDigest": "sha256:e166ad2f9b04a95b7f28c2231ed12306f3c2c659a719d6c9d2a96ebe3bdce46d"
 }

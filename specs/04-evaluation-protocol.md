@@ -125,6 +125,13 @@ Baseline 不是零散 smoke score。`c0000` 必须与候选使用同一 stable r
 > guard opaque 段，split `dev-guard`），49×2 矩阵自此可运行；observed-only 过渡矩阵
 > 39×2 彩排已按用户决策终止，其 evidence 维持 `formal:false`（rule 6）。
 
+> ADR-057 注记（2026-09-09，repair3）：在新的、独立的 repair3 search run 中，用户授权将
+> baseline 改为同一 49 个 development handles 的 **49×1** 矩阵；每 task 的这唯一一次
+> baseline attempt 为真实失败时，即按 zero-success 规则进入 failure pool。该协议必须以独立
+> run id、manifest 与 profile `k80Repair3` 冻结，不能改写或复用 repair2 的 49×2 verdict。
+> 49×1 是降低 search 前置评测成本的校准协议，不等同于本节原有的「正式 K=80 至少 2 attempts」
+> baseline 要求；任何结果必须标注 repair3/49×1，不能以它替代或声称满足 49×2 正式稳定性证据。
+
 ### 4.3 Sealed baseline
 
 为了避免先看 baseline sealed score 再调搜索，sealed baseline 与 locked candidate 在同一 reveal

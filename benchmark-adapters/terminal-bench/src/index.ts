@@ -51,6 +51,11 @@ export {
   type TrialStatus,
 } from './normalize.js'
 export {
+  DIAGNOSTIC_TRACE_BUNDLE_PROTOCOL,
+  diagnosticTraceBundle,
+  type DiagnosticTraceBundle,
+} from './diagnostic-bundle.js'
+export {
   buildAugmentedCaBundle,
   generateLocalCa,
   startArtifactServer,

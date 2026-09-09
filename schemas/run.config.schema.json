@@ -53,6 +53,18 @@
       "minLength": 1,
       "description": "Optional live model route id for SOLVE trials (ADR-030). Absent means every solve trial runs the recorded-replay capsule (Gate 8 behavior). Must reference a zen-compatible networked route and be paired with budget.solverTokens; the derived track (self iff it equals proposerRoute, specs/00 §4) and route hash freeze into the run manifest."
     },
+    "agentDebugger": {
+      "type": "object",
+      "properties": {
+        "route": { "type": "string", "minLength": 1 },
+        "maxOutputTokens": { "type": "integer", "minimum": 1024, "maximum": 32768 },
+        "requestTimeoutMs": { "type": "integer", "minimum": 10000, "maximum": 900000 },
+        "maxInputBytes": { "type": "integer", "minimum": 16384, "maximum": 1048576 }
+      },
+      "required": ["route", "maxOutputTokens", "requestTimeoutMs", "maxInputBytes"],
+      "additionalProperties": false,
+      "description": "Optional development-only Agent Debugger route and bounded request envelope."
+    },
     "nativeDsh": {
       "$ref": "#/$defs/nativeDsh",
       "description": "Trusted prebuilt DSH catalog and preflight closure hash. The built-in iteration builder requires this lock and rechecks it for every candidate admission."
@@ -422,6 +434,16 @@
           "type": "integer",
           "minimum": 1,
           "description": "Total live-solver token budget across the run (ADR-030); required iff solverRoute is set. Reserved per trial before launch and settled from the gateway receipt chain — never from agent self-reporting."
+        },
+        "attributionTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total token envelope for LLM failure attribution; required iff agentDebugger is configured."
+        },
+        "attributionCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total LLM failure-attribution calls; separate from proposalCalls."
         },
         "wallClockMinutes": {
           "type": "integer",

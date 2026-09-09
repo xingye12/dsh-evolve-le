@@ -21,6 +21,7 @@ import {
   defineCandidate,
   type CandidateSkillRegistration,
   type CandidateToolDefinition,
+  type CandidateWorkflowRegistration,
 } from '@dsh-evolve-le/candidate-sdk'
 
 /** Baseline candidate configuration validated by the Loader at mount. */
@@ -59,6 +60,20 @@ const strategySkill = (config: Config): CandidateSkillRegistration => ({
   invocation: { modelInvocable: true, userInvocable: false },
 })
 
+/**
+ * Stable named seam for child candidates to evolve an actual per-step solve
+ * policy. The TCB invokes only this workflow name in the native solve
+ * pre-step waterfall and accepts only a bounded `{ checkpoint }` result.
+ * The migration root deliberately emits no checkpoint.
+ */
+const solvePolicyWorkflow = (_config: Config): CandidateWorkflowRegistration => ({
+  name: 'candidate-workflow:solve-policy',
+  description: 'Produce a bounded checkpoint for the next live solve step.',
+  async run() {
+    return {}
+  },
+})
+
 const candidate = defineCandidate<Config>({
   solve: {
     promptSection: (config) => ({
@@ -71,6 +86,7 @@ const candidate = defineCandidate<Config>({
     }),
     tools: (config) => [strategyTool(config)],
     skills: (config) => [strategySkill(config)],
+    workflows: (config) => [solvePolicyWorkflow(config)],
   },
   propose: {
     promptSection: (config) => ({
@@ -97,14 +113,15 @@ export function strategyPlugin(ctx: Context, config: Config): void {
   candidate.register(ctx, config)
   // The root registration keeps the Loader probe observable. Native DSH
   // agents call this capability from create({ setup }) so candidate-owned
-  // tools/skills are also installed in the agent Fiber (the scope that owns
-  // their effects), rather than in a controller-global registry.
+  // tools/skills/workflows are also installed in the agent Fiber (the scope
+  // that owns their effects), rather than in a controller-global registry.
   const provide = (ctx as unknown as { provide?: (name: string, value: unknown) => void }).provide
   if (typeof provide === 'function') {
     provide.call(ctx, 'candidateStrategySetup', (agentCtx: Context) => {
       // Native DSH agent scopes own their prompt registry. Keep the complete
-      // candidate contribution in that scope so prompt, tools and skills are
-      // composed by AgentSpine together and disposed with the agent Fiber.
+      // candidate contribution in that scope so prompt, tools, skills and the
+      // bounded solve-policy workflow are composed by AgentSpine together and
+      // disposed with the agent Fiber.
       candidate.register(agentCtx, config, { prompt: true })
     })
   }

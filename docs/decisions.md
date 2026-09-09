@@ -1817,6 +1817,7 @@ exists in the reducer with no emitter, and `HarborProvider.launch` throws on
 `attempt !== 1` — the matrix's second attempt would crash at launch.
 
 **Decision.**
+
 1. `freezeBenchmarkBaseline` plans the matrix as two contiguous segments in
    frozen ceremony order: the 39 observed handles, then the 10 opaque guard
    ids (`guard-01`…`guard-10`, split `'dev-guard'`, action ids
@@ -1846,7 +1847,7 @@ exists in the reducer with no emitter, and `HarborProvider.launch` throws on
    drive-report and before any CANDIDATE_LOCKED transition. A hit escalates
    to run-level abort: `controller.changePhase('SAFETY_ABORTED')` (legal
    edge from SEARCHING/CALIBRATED/PREFLIGHT), new `StopReason
-   'SAFETY_ABORTED'`, drive-report records it, `info-flow-monitor.json`
+'SAFETY_ABORTED'`, drive-report records it, `info-flow-monitor.json`
    stores fingerprints only (never tokens). Lineage is invalidated
    (specs/05 §15 S3: new run ID required; no resume).
 5. `HarborProvider.launch` relaxes the `attempt !== 1` throw: per-attempt
@@ -1858,7 +1859,7 @@ exists in the reducer with no emitter, and `HarborProvider.launch` throws on
 6. Contract-first, including the information-flow tests specs/03 §15 names
    as a paid-run precondition: sealed/guard canary injected into a proposal
    worker result → forced SAFETY_ABORTED; canary in export bytes → refusal
-   + abort; canary in journal summary → terminal sweep abort.
+   - abort; canary in journal summary → terminal sweep abort.
 
 **Spec notes.** specs/04 §7 gains a pool-observed-only implementation note;
 specs/05 §10 gains the monitor implementation pointer.
@@ -1872,6 +1873,7 @@ tournament but no driver code exists: nothing emits `dev-champion`,
 `candidate.locked`, or the CANDIDATE_LOCKED phase.
 
 **Decision.**
+
 1. After `search()` returns `K_REACHED` and only when
    `config.profile === 'terminal-bench-formal'`, the driver runs the
    tournament (new pure module `src/selection/tournament.ts`):
@@ -1909,7 +1911,7 @@ tournament but no driver code exists: nothing emits `dev-champion`,
    (EARLY_TERMINALS + SEARCHING edge) so a resume can never re-enter
    search.
 4. Reporting: `StopReason` += `'NO_DEVELOPMENT_IMPROVEMENT' |
-   'CHAMPION_LOCKED' | 'SAFETY_ABORTED'` (SAFETY_ABORTED rides ADR-046);
+'CHAMPION_LOCKED' | 'SAFETY_ABORTED'` (SAFETY_ABORTED rides ADR-046);
    `DriveReport` += tournamentTrials/championId/championLockHash/shortlist;
    `status` and `audit` CLI commands surface the champion lock read-only
    and verify candidate-lock.json against `state.locks.candidateLock`.
@@ -1932,6 +1934,7 @@ contain search + tournament + sealed (ADR-045's own note estimated
 25-45 h for the forced trial volumes).
 
 **Decision.**
+
 1. **sealed = 23, disclosed.** The formal K=80 sealed confirmation runs on
    the 23 sealed tasks of the 72-task ≤1800s-eligible population;
    `Delta = (1/23) Σ d_i` over paired task means. specs/04 §9's `(1/29)`
@@ -1946,7 +1949,7 @@ contain search + tournament + sealed (ADR-045's own note estimated
    (specs/04 §4.3).
 4. **Sealed evaluator is a new CLI subcommand**
    (`dsh-evolve sealed-evaluate --run-root --sealed-store --sealed-plan
-   --candidate-lock-hash`), invoked by the formal record script after the
+--candidate-lock-hash`), invoked by the formal record script after the
    driver ends at CANDIDATE_LOCKED. The driver keeps `sealedAccess:false`
    (schema const untouched); the sealed store is persisted 0600 root-only
    outside the evidence tree and never enters the controller journal
@@ -1985,6 +1988,7 @@ launch authorized per standing user authorization once all gates are green).
 `stable-demo`, and no formal record script exists.
 
 **Decision.**
+
 1. **Schema** (`schemas/run.config.schema.json`): `taskCount` maximum
    48 → 49 (description updated); `profile` enum +=
    `'terminal-bench-formal'`; new optional `search.tournament`
@@ -1992,13 +1996,13 @@ launch authorized per standing user authorization once all gates are green).
    1..3 default 1, `maxTrials` 1..1000, `bootstrapResamples`
    100000..1000000 default 100000} — required when profile is formal
    (semantic check); `taskTrials` must cover `maxSolverTrials +
-   tournament.maxTrials`; `sealedAccess` stays `const:false` (sealed
+tournament.maxTrials`; `sealedAccess` stays `const:false` (sealed
    evaluation lives in the sealed-evaluate subcommand, ADR-048). New
    `--profile` CLI flag.
 2. **k80 profile** (`scripts/lib/tree-v2-live-profile.ts`):
    `benchmarkBaseline` becomes {taskCount: 49, attemptsPerTask: 2,
    batchSize: 8} + tournament fields; init args emit `--profile
-   terminal-bench-formal` and the tournament `--set` carriers.
+terminal-bench-formal` and the tournament `--set` carriers.
 3. **Formal record script** `scripts/record-tree-v2-k80-formal-live.ts`
    (cloned from the rehearsal script): fresh RUN_ID `tree-v2-k80-formal`,
    MASTER_SEED `tree-v2-k80-formal-master-seed-1`; verifier-image
@@ -2119,3 +2123,289 @@ this ADR forward, auto-resume instructions for a paid run must verify the
 run identity (RUN_ID/MASTER_SEED constants or a manifest hash) before
 relaunching, and must not relaunch a run whose protocol inputs differ
 from the run they were armed for.
+
+## ADR-052 (2026-09-08): K=80 terminal-chain repair — q0 drain, egress gate, and complete evidence sanitation
+
+**Context.** The stopped original formal record exposed three independent,
+real defects: (1) UCB-Air could keep expanding after the 98-row baseline and
+leave admitted children with zero q0 observations; (2) transient Ubuntu apt
+502s occurred before ACP initialization and Harbor reported the unrefinable
+`NonZeroAgentExitCodeError`; (3) the formal recorder copied several
+task-name-bearing artifacts outside its guard-only sanitation path. None is
+an evidence-check bug and none is repaired by reclassifying an ambiguous
+agent-process exit as retryable.
+
+**Decision.**
+
+1. A pending q0 cold start preempts UCB-Air expansion. The consecutive
+   expansion-failure cap closes the proposal channel only; it cannot discard
+   the already-admitted nodes' mandatory q0 trials. After the q0 drain, the
+   terminal result remains `NO_ADMISSIBLE_CHILD` if the frozen cap is still
+   reached. This restores the pre-registered ledger invariant without
+   weakening the envelope check.
+2. `NonZeroAgentExitCodeError` remains a capability FAIL and is **not** added
+   to `INFRA_RETRYABLE_EXCEPTIONS`: that class also represents genuine capsule
+   and candidate boot failures. The host-side retrying HTTP forwarder instead
+   retries idempotent GET/HEAD/OPTIONS requests on 500/502/503/504 or transport
+   failure up to 8 additional times (1+8), with bounded backoff; POST/PUT/etc.
+   never retry. Its listener uses pre-bind address reuse. When a formal run
+   configures the trial proxy, the recorder performs a 12-way HEAD probe of
+   that exact docker0 listener before any paid action (and before P0 resume);
+   a failed probe stops before Harbor receives a job.
+3. Public evidence copies are now all derived through one restricted-name
+   redactor, for bare and `terminal-bench/`-qualified guard/sealed names.
+   `image-prefetch.json` is no longer copied: a task-name-free attestation
+   carries its raw SHA-256, byte length and image count. The access-controlled
+   raw run root remains authoritative; every output file is then scanned for
+   residual restricted names before the final record is written.
+
+**Verification.** Contract tests pin the q0-before-expand ordering, the
+forwarder's retry/POST/probe/tunnel behavior, and the sanitizer's qualified
+guard/sealed and image-attestation cases. The full TypeScript check and the
+targeted test suite must pass before a new formal identity is launched.
+
+**Run identity.** This changes controller scheduling, host preflight and the
+public evidence derivation. It must not be applied in place to either the
+stopped original formal run or any manifest frozen before this ADR. The
+launcher therefore names a fresh `tree-v2-k80-formal-repair-2` run; creating
+or launching it remains subject to the normal explicit paid-run gate.
+
+## ADR-053 (2026-09-09): post-commit harbor rewrite incident — committed-action re-collection guard
+
+**Context.** During repair-2 attempt 1 wave 4 the host was rebooted mid-collect:
+8 actions had launch receipts with commits pending (the specs/06 §13 row-6
+crash window). During recovery I re-launched harbor for every jobDir holding an
+interim result.json without first cross-checking the journal's
+action.committed set. Three of those jobDirs belonged to already-COMMITTED
+trials (adaptive-rejection-sampler, filter-js-from-html, extract-moves-from-
+video); harbor re-ran them — a small unaccounted spend outside the controller
+ledger, with early agent exceptions — and rewrote the provider bytes
+(result.json, agent/trajectory.json). On the idempotent resume re-walk,
+collectAndCommit reached those three actions through the row-6 recovery path,
+re-fetched the rewritten bytes, and the digest check against the stored
+terminal-fact envelope failed → ControllerError → the run stopped. The
+controller failed closed exactly as designed; the fault was the operational
+re-launch, not the store.
+
+**Decision.** (1) collectAndCommit now short-circuits on COMMITTED status —
+symmetric with runEvaluation: the observation is final; a committed action's
+provider jobDir is raw harbor output outside the store's hash-chained
+invariants, and a post-commit harbor rewrite must not fail a healthy run. The
+guard keeps the row-6 receipt-without-commit window, which is the only window
+recovery needs. (2) The three original trajectory envelopes were restored from
+the object store (digest-verified) for raw-evidence coherence; the re-run
+harbor outputs were discarded and never entered the store or any scoring.
+(3) Operational rule, made permanent: before any harbor restart, check the
+journal's action.committed set first — never re-launch harbor for a committed
+action's jobDir; only non-committed actions whose result.json lacks
+finished_at are relaunch candidates.
+
+**Verification.** Contract test `never re-collects a committed action whose
+provider bytes changed (post-commit harbor rewrite)`: reopen after a scripted
+provider rewrite, re-run the wave — observation unchanged, journal event count
+unchanged, no re-commit. Controller suite 26/26; tsc -b clean; the rebuilt lib
+is what the relaunched record process is running.
+
+**Run identity.** This admits a TCB change mid-formal-run (repair-2). The
+change only makes the controller more conservative about re-collecting
+committed evidence: no committed observation, score, or stored artifact was
+altered, and no trial was re-evaluated. Attempt 1 finished under the relaunched
+process at 49/49 committed (20 success / 29 failure); attempt 2 proceeds under
+the guard.
+
+## ADR-054 (2026-09-09): repair-2 search diagnosis — q0 reservation, actionable evidence, and comparable parent strata
+
+**Context.** repair-2's 49×2 baseline completed 43/98 passes, but its frozen
+failure pool contains only the 14 zero-success observed tasks. The first three
+accepted proposal batches produced nine build-admitted children; this rules out
+a trusted-builder/proposer admission defect. The first 84 completed child
+cold-starts instead produced 9 passes, all on those deliberately hard failure-pool
+tasks. Comparing that 10.7% directly with 43.9% global baseline is invalid: on
+the same 14 pool handles the baseline is 0/28 by construction.
+
+The diagnosis found three controller/protocol defects or ambiguities which make
+the exploration less useful, even though they do not turn those nine valid
+admissions into successful trials:
+
+1. a wave chose all reservations from the pre-wave committed state, so with
+   `q0=3` and 12 Harbor slots one newly admitted child could receive twelve
+   cold-start dispatches before the first three committed;
+2. failures whose trusted Harbor fact says `agentParticipation=never-initialized`
+   (for example setup/egress before ACP) were scored as failures correctly but
+   were also exported as if they described a candidate mechanism;
+3. parent Thompson included root observations on baseline-solved tasks, while
+   every child was evaluated only on the zero-success failure pool. That mixes
+   task strata and gives the root a non-comparable clade prior.
+
+**Decision.** For every new run identity after this ADR: (1) a wave maintains
+virtual q0 reservations and caps a pending-cold wave at the outstanding q0
+deficit, so `q0` is a trial count rather than the Harbor concurrency width;
+(2) `never-initialized` terminal facts remain immutable scored failures in the
+trial ledger and failure pool, but their raw/normalized evidence is excluded
+from the proposer export; unrecognized legacy shapes remain exportable rather
+than being silently discarded; (3) parent Thompson receives only
+`dev-observed` observations whose opaque handle belongs to the frozen failure
+pool. This changes neither node evaluation statistics nor the retained
+failure ledger.
+
+`strategySurfaces` mismatches observed in the first three proposals are not a
+separate executor defect: the real Loader boundary already verifies target-mode
+mounted surface deltas. In these children the actual executable delta was a
+system-prompt change while inherited tool/skill surfaces were merely
+over-declared in proposal narration. That declaration remains an audit-quality
+issue, not evidence that the proposer cannot produce admissible candidates;
+it is deliberately not made a new rejection gate without a versioned manifest
+field that can distinguish an inherited tool implementation from a changed one.
+
+**Run boundary.** repair-2's manifest, journal, object store, and live process
+are not modified or resumed under these semantics. The fixes are contract-tested
+against a successor controller build and require a fresh pre-registered run
+identity before any paid execution.
+
+## ADR-055 (2026-09-09): executable solve-policy seam and failure-indexed proposal evidence
+
+**Context.** The repair-2 postmortem showed that all nine initially admitted
+children changed only the static prompt section. This was not evidence-free:
+the native proposer read raw trajectory objects, parent source and the archive.
+But it faced a sparse two-file baseline, a large unindexed export, and immediate
+feedback only for build/admission. The lowest-risk route to an observable mode
+delta was therefore a prompt directive; a newly added mechanism module merely
+generated that directive.
+
+**Decision.** A fresh tree-v2 migration root now declares solve-only workflow
+`candidate-workflow:solve-policy`. The native solve TCB installs a scoped
+workflow registry before candidate setup and invokes only this exact workflow
+at every admitted DSH `agent/pre-step`. The candidate receives a minimal
+`{protocol, turn, step}` input and may return only a 2,048-character checkpoint,
+which the TCB appends after downstream pre-step admission. It cannot execute
+ACP tools, inspect verifier/controller state, change budgets/routes, or replace
+TCB instructions. The root's default workflow returns no checkpoint; a child
+can evolve its per-step cadence/decision logic and test it without enlarging the
+plugin topology.
+
+Every proposer export now also contains one content-addressed,
+`DEV_OBSERVED` `failure-index/v1` object. It is a trusted projection of each
+candidate-actionable failure: opaque handle/action identity, trial outcome,
+trajectory and normalized-trial digests, and neutral terminal
+category/participation/exception/request-count fields with deterministic support
+counts. It contains no free-form trajectory reason and recommends no mechanism;
+the raw facts remain available for audit. The proposer instruction requires
+reading this index. The trusted tree-v2 finalizer (not the instruction alone)
+requires a workflow child in a multi-child batch when the parent advertises
+the solve-policy seam. Native-spine capsules additionally mount a TCB-only
+outer declaration registry so a candidate's Loader injection is satisfiable;
+each native agent Fiber still receives a fresh execution registry, and only
+the TCB invokes the exact named workflow there.
+
+**Run boundary.** This changes the candidate contract, native solve runtime,
+evidence-export content and proposer instruction. It is successor-only: no
+repair-2 artifact, score, journal, or process is reused or modified.
+
+## ADR-056 (2026-09-09): bounded LLM Agent Debugger attribution evidence
+
+**Context.** repair-2's controller stored only a compact Harbor terminal fact
+in its object store even though the raw development job directory also held
+ACP event records and verifier CTRF results. The existing failure index could
+therefore identify _which_ terminal category recurred, but not provide an
+evidence-bounded account of an agent's tool/test behavior. Passing complete
+raw transcripts to the proposer would be both too large and an untrusted
+prompt-injection surface.
+
+**Decision.** The Terminal-Bench provider now builds a bounded
+`diagnostic-trace-bundle/v1` at collection time, while the raw Harbor directory
+is still available. It contains a sanitized, indexed ACP event projection,
+indexed verifier test outcomes, and terminal facts; it excludes task prose,
+raw agent narrative, host paths and obvious credentials. The sidecar is
+stored content-addressed alongside (never instead of) the terminal trajectory,
+with the same DEV_OBSERVED/DEV_GUARD label.
+
+An injected TCB `FailureAttributor` can invoke the frozen compatible model
+route once over development-only bundles. Its strict JSON output must give
+one diagnosis per bundle and cite only existing `events[index]` or
+`tests[index]` anchors. The TCB then derives a deterministic aggregate of
+recurrent failure modes, suggested candidate surfaces, and insufficient-
+evidence digests; it does not ask the model for an unanchored global claim.
+Invalid JSON, invented digest/index, unsupported
+failure mode, oversized text, or missing diagnosis fails closed. Accepted
+output records only content hashes and route/usage metadata, is stored as
+`failure-attribution+json`, and is referenced from `failure-index/v1`. The
+proposer is told to treat it as untrusted evidence rather than instructions
+and to verify the anchors before relying on it.
+
+Attribution has no path to reward, retry, task selection, Thompson sampling,
+archive admission, or sealed data. It is an optional successor composition
+seam rather than an implicit mutation of repair-2 or any frozen run. A live
+composition freezes `agentDebugger` (route, input/output/timeout envelope),
+`budget.attributionCalls`, and `budget.attributionTokens`. The controller
+writes `action.reserved` and its budget reservations before the request, then
+writes `action.launched` before crossing the network boundary. It persists a
+CONTROLLER_INTERNAL attribution receipt on every success, validation error,
+empty response, timeout, network error, and recovered in-flight action.
+
+The controller settles known usage against the separate call/token dimensions
+and the shared USD dimension; an unknown timeout/crash consumes the full
+reservation with an unpriced marker. Restart never replays an action that has
+an attribution launch marker, because the upstream API exposes no idempotency
+or reconciliation endpoint. An HTTP-success empty answer (including a
+reasoning-only response) now carries its returned token usage and response
+hash into that receipt rather than being incorrectly treated as free.
+
+**Verification.** Adapter contract test verifies indexed event/test extraction
+and redaction (including Harbor `event_type`). Remote-debugger tests verify a
+valid anchored LLM response, reject an invented anchor, and retain known usage
+for a reasoning-only empty answer. Controller tests cover success, timeout,
+and SIGKILL-equivalent recovery at the durable launch receipt (no second
+request). Driver integration verifies the frozen-budget durable path reaches
+failure index → label-filtered DEV_OBSERVED proposer export while pre-ACP
+failures stay absent. This proves evidence and accounting flow, not an
+improvement claim; successor-run diversity and reward remain empirical gates.
+
+## ADR-057 (2026-09-09): repair3 49×1 baseline failure-pool calibration
+
+**Context.** repair2's frozen K=80 baseline spent 98 development trials
+(49 handles × 2 attempts) before search. The user authorized a temporary,
+successor-only repair3 protocol that instead spends one baseline attempt per
+development handle and uses the resulting failures to seed search. Existing
+repair2 evidence and its 49×2 profile remain historical facts and must not be
+rewritten.
+
+**Decision.** Add the separately named `k80Repair3` live profile. It preserves
+the K=80 search, budget and tournament envelope, sets `concurrentTrials=12`,
+and freezes `benchmarkBaseline={taskCount:49, attemptsPerTask:1, batchSize:12}`.
+The driver already defines pool membership as zero successful baseline attempts;
+therefore for `A=1`, each real failure of that sole attempt is retained, while a
+success is excluded. Missing, damaged, or infra-dead trials still fail closed:
+the pool is not frozen and no proposal starts. The baseline matrix itself is
+still completed in frozen ceremony order before pool freeze, so this change
+does not create an early-stop or reward-selected task path.
+
+repair3 must receive a new run id, master seed, manifest and evidence root.
+No repair2 verdict, receipt or failure-pool entry is reused. This is an explicit
+search-cost calibration exception, not a relaxation of the original formal
+49×2 stability requirement: repair3 results must carry the `49×1` label and
+cannot alone support a claim that the 49×2 formal baseline was run.
+
+**Verification.** Live-profile contract tests assert the 49×1 argument
+carriers, 12-way concurrency, and exact 49-trial discovery envelope. A driver
+contract test scripts two failures and two successes in a four-task A=1 matrix,
+then proves that exactly the two failures form the frozen pool after all four
+trials and that one child q0 evaluation follows. Existing A=2 and infra-dead
+matrix tests remain in place to guard the historical semantics and fail-closed
+behavior.
+
+**Frozen inputs (repair3).** RUN_ID `tree-v2-k80-formal-repair-3`, MASTER_SEED
+`tree-v2-k80-formal-repair-3-master-seed-1` (fresh, not reused); evidence →
+`evidence/tree-v2/k80-formal-repair-3/`; scratch
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-3/`; log `launcher.log`.
+Profile `k80Repair3` as pre-registered in `scripts/lib/tree-v2-live-profile.ts`.
+ADR-056 debugger frozen for this run: route `deepseek/zen-compatible`,
+maxOutputTokens 8 192, requestTimeoutMs 180 000, maxInputBytes 524 288 (verbatim
+the TCB-frozen defaults); `attributionCalls=80` (≤ proposalCalls 60 plus
+margin), `attributionTokens=16 000 000` (≥ 80 × the full-envelope reservation
+of 524 288/4 + 8 192 = 139 264 tokens per call). The record script gains a
+frozen-config gate (agentDebugger envelope and attribution budgets must match
+the profile verbatim) and post-run attribution settlement gates. Everything
+else stays the frozen formal protocol verbatim: K=80/q0=3/shortlist=5/width=3,
+alpha 0.8, maxSolverTrials 400, taskTrials 760, solverTokens 1 520 M,
+tournament 294/360, sealed 23×5×2/720 min, usd 500 M µUSD, terminal-state set
+unchanged.

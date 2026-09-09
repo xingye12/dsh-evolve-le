@@ -26,10 +26,15 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
-import { IterationDriver, type BuildCapsuleFn } from '../../src/iteration/driver.js'
+import {
+  IterationDriver,
+  parentComparableObservations,
+  type BuildCapsuleFn,
+} from '../../src/iteration/driver.js'
+import type { Observation } from '../../src/state/reducer.js'
 import { FakeProvider, type ScriptedResult } from '../../src/controller/provider.js'
 import type { ControllerConfig } from '../../src/controller/controller.js'
-import { defaultRunConfig, type RunConfig } from '../../src/config/run-config.js'
+import { defaultRunConfig, validateRunConfig, type RunConfig } from '../../src/config/run-config.js'
 import { runSplitCeremony, type SplitCounts } from '../../src/split/ceremony.js'
 import { deriveCanaryTokens, canaryFingerprint } from '../../src/proposer/canary.js'
 import { journalDirOf } from '../../src/state/journal.js'
@@ -66,6 +71,43 @@ afterAll(async () => {
 })
 
 describe('iteration driver: closed loop', () => {
+  it('uses only the frozen failure-pool task stratum for parent Thompson evidence', () => {
+    const observation = (fields: Partial<Observation>): Observation => ({
+      actionId: 'act-1',
+      candidateId: 'root',
+      opaqueTaskId: 'pool-failure',
+      split: 'dev-observed',
+      attempt: 1,
+      outcome: 'failure',
+      reward: 0,
+      costUsdMicros: null,
+      durationMs: null,
+      ...fields,
+    })
+
+    const comparable = parentComparableObservations(
+      [
+        observation(),
+        // This baseline pass establishes that this handle is outside the
+        // zero-success pool.  It must not inflate root's parent Beta prior.
+        observation({
+          actionId: 'baseline-pass',
+          opaqueTaskId: 'solved-task',
+          outcome: 'success',
+          reward: 1,
+        }),
+        observation({ actionId: 'guard', candidateId: 'child', split: 'dev-guard' }),
+        observation({ actionId: 'child-failure', candidateId: 'child' }),
+      ],
+      ['pool-failure'],
+    )
+
+    expect(comparable).toEqual([
+      expect.objectContaining({ actionId: 'act-1' }),
+      expect.objectContaining({ actionId: 'child-failure' }),
+    ])
+  })
+
   it('refuses the built-in admission pipeline without a frozen native DSH lock', async () => {
     const fx = await newRun('dsh-drive-native-lock-')
     expect(
@@ -273,6 +315,220 @@ describe('iteration driver: closed loop', () => {
     expect(runner.priorRejectionCalls).toHaveLength(2)
     expect(runner.priorRejectionCalls[0]).toEqual([])
     expect(runner.priorRejectionCalls[1]!.map((entry) => entry.actionId)).toEqual(['prop-1'])
+  }, 120_000)
+
+  it('drains admitted q0 cold starts before another UCB expansion (ADR-052)', async () => {
+    // This is the K=80 failure shape at compact scale: a large frozen
+    // baseline makes N^alpha keep admitting new nodes.  q0 is an experimental
+    // constraint (§6), so it must preempt that expansion gate; otherwise the
+    // envelope can contain admitted nodes with zero observations.
+    const fx = await newRun('dsh-drive-cold-before-expand-', {
+      kTarget: 10,
+      proposalWidth: 1,
+      coldStartTrials: 1,
+      maxSolverTrials: 40,
+      taskTrials: 40,
+      maxConsecutiveExpansionFailures: 2,
+    })
+    fx.config.search.benchmarkBaseline = { taskCount: 4, attemptsPerTask: 2, batchSize: 4 }
+    fx.config.search.ucbAirAlphaPerMille = 1000
+    const provider = new FakeProvider({ outcome: 'success' })
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    for (const handle of ceremony.ceremony.observedHandles.slice(0, 4)) {
+      provider.script(`eval-eval-${shortId(baselineId)}-${handle}-a1`, { outcome: 'failure' })
+      provider.script(`eval-eval-${shortId(baselineId)}-${handle}-a2`, { outcome: 'failure' })
+    }
+
+    const runner = fakeSandboxRunner()
+    let observedFirstChild = false
+    const stopAfterFirstChild: ControllerConfig['onBoundary'] = (point, actionId) => {
+      if (
+        point === 'action-committed' &&
+        actionId?.startsWith('eval-') === true &&
+        !actionId.includes(shortId(baselineId))
+      ) {
+        observedFirstChild = true
+        // With alpha=1 and N=8 the legacy scheduler would have dispatched
+        // seven more expansions before this first child evaluation.
+        expect(runner.calls).toHaveLength(1)
+        throw new Error('stop after q0 ordering assertion')
+      }
+    }
+
+    await expect(
+      makeDriver(fx, provider, fakeBridge(), runner, { onBoundary: stopAfterFirstChild }).drive(),
+    ).rejects.toThrow('stop after q0 ordering assertion')
+    expect(observedFirstChild).toBe(true)
+  }, 120_000)
+
+  it('reserves no more than q0 cold starts for a child inside a wide wave', async () => {
+    // The formal profile has q0=3 but uses 12 Harbor slots.  A scheduler that
+    // only consults committed observations sees the same child as cold for all
+    // twelve draws and silently turns q0 into the concurrency width.  Keep the
+    // pool at four handles so the fourth reservation catches the old bug: it
+    // was another cold-start dispatch solely because the first three had not
+    // committed yet.
+    const fx = await newRun(
+      'dsh-drive-q0-virtual-reservations-',
+      {
+        kTarget: 1,
+        proposalWidth: 1,
+        coldStartTrials: 3,
+        maxSolverTrials: 20,
+        taskTrials: 20,
+      },
+      undefined,
+      undefined,
+      12,
+    )
+    fx.config.search.benchmarkBaseline = { taskCount: 4, attemptsPerTask: 2, batchSize: 4 }
+    const provider = new FakeProvider({ outcome: 'failure' })
+    const report = await makeDriver(fx, provider, fakeBridge(), fakeSandboxRunner()).drive()
+
+    expect(report.stopReason).toBe('K_REACHED')
+    expect(report.discoveryTrials).toBe(8)
+    expect(report.trials).toBe(11)
+    expect(provider.counters.launchEffects).toHaveLength(11)
+  }, 120_000)
+
+  it('does not export a known never-initialized failure as proposer evidence', async () => {
+    const fx = await newRun('dsh-drive-proposer-actionability-', {
+      kTarget: 1,
+      proposalWidth: 1,
+      maxSolverTrials: 8,
+      taskTrials: 8,
+    })
+    fx.config.search.benchmarkBaseline = { taskCount: 2, attemptsPerTask: 2, batchSize: 2 }
+    const provider = new FakeProvider({ outcome: 'success' })
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    const [dead, actionable] = ceremony.ceremony.observedHandles
+    expect(dead).toBeDefined()
+    expect(actionable).toBeDefined()
+    for (const attempt of ['a1', 'a2']) {
+      provider.script(`eval-eval-${shortId(baselineId)}-${dead!}-${attempt}`, {
+        outcome: 'failure',
+        trajectory: Buffer.from(
+          JSON.stringify({ trial: { outcome: { agentParticipation: 'never-initialized' } } }),
+        ),
+      })
+      provider.script(`eval-eval-${shortId(baselineId)}-${actionable!}-${attempt}`, {
+        outcome: 'failure',
+        trajectory: Buffer.from(
+          JSON.stringify({ trial: { outcome: { agentParticipation: 'ran' } } }),
+        ),
+        diagnosticBundle: Buffer.from(
+          JSON.stringify({ events: [{ index: 0 }], tests: [{ index: 0 }] }),
+        ),
+      })
+    }
+    const runner = fakeSandboxRunner()
+    let attributed = 0
+    const configured = validateRunConfig({
+      ...fx.config,
+      modelRoutes: fx.config.modelRoutes.map((route) =>
+        route.id === 'deepseek/zen-compatible'
+          ? {
+              ...route,
+              baseUrl: 'https://example.test/v1',
+              model: 'deepseek-reasoner',
+              temperature: 1,
+            }
+          : route,
+      ),
+      agentDebugger: {
+        route: 'deepseek/zen-compatible',
+        maxOutputTokens: 8192,
+        requestTimeoutMs: 180_000,
+        maxInputBytes: 524_288,
+      },
+      budget: { ...fx.config.budget, attributionCalls: 4, attributionTokens: 300_000 },
+    })
+    if (!configured.ok) throw new Error(configured.error.errors.join('; '))
+    const liveFx = { ...fx, config: configured.config, configHash: configured.configHash }
+
+    await makeDriver(liveFx, provider, fakeBridge(), runner, {
+      failureAttributor: {
+        async attributeWithReceipt(input) {
+          attributed += 1
+          expect(input.traces).toHaveLength(2)
+          return {
+            outcome: 'ok' as const,
+            artifact: Buffer.from(
+              JSON.stringify({
+                protocol: 'dsh-evolve-le/agent-debugger/v1',
+                source: 'test',
+                traces: input.traces.map((trace) => ({
+                  diagnosticTraceDigest: trace.diagnosticTraceDigest,
+                  evidence: [{ source: 'events', index: 0 }],
+                })),
+              }),
+            ),
+            receipt: {
+              routeId: 'deepseek/zen-compatible',
+              routeHash: `sha256:${'a'.repeat(64)}`,
+              inputSha256: `sha256:${'b'.repeat(64)}`,
+              status: 'ok' as const,
+              responseSha256: `sha256:${'c'.repeat(64)}`,
+              promptTokens: 100,
+              completionTokens: 200,
+              costUsdMicros: 12,
+              modelReportedUsage: true,
+              attempts: [{ outcome: 'ok' }],
+            },
+          }
+        },
+        async attribute() {
+          throw new Error('durable debugger must not fall back to legacy direct storage')
+        },
+      },
+    }).drive()
+
+    expect(attributed).toBeGreaterThan(0)
+    const controllerJournal = await journalText(fx.runRoot)
+    expect(controllerJournal).toContain('"kind":"attribution"')
+    expect(controllerJournal).toContain('attribution-receipt')
+    expect(controllerJournal).toContain('failure-attribution')
+    expect(runner.exportDirs.length).toBeGreaterThan(0)
+    for (const exportDir of runner.exportDirs) {
+      const objectNames = await readdir(join(exportDir, 'objects'))
+      const objectBytes = await Promise.all(
+        objectNames.map((name) => readFile(join(exportDir, 'objects', name), 'utf8')),
+      )
+      // The identical actionable trajectories dedupe in CAS; both normalized
+      // action facts remain distinct and the trusted failure index is one
+      // extra, compact entry point for diagnosis.
+      expect(objectBytes).toHaveLength(6)
+      expect(objectBytes.join('\n')).not.toContain('never-initialized')
+      expect(objectBytes.join('\n')).toContain('"actionId"')
+      const index = objectBytes
+        .map(
+          (bytes) =>
+            JSON.parse(bytes) as {
+              protocol?: string
+              entries?: Array<{ diagnosticTraceDigest?: string }>
+              attributionDigest?: string
+            },
+        )
+        .find((value) => value.protocol === 'dsh-evolve-le/failure-index/v1')
+      expect(index?.entries).toHaveLength(2)
+      expect(index?.attributionDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
+      expect(index?.entries?.every((entry) => entry.diagnosticTraceDigest !== undefined)).toBe(true)
+      expect(objectBytes.join('\n')).toContain('dsh-evolve-le/agent-debugger/v1')
+    }
   }, 120_000)
 
   it('a child the trusted builder rejects is skipped, never a run crash (specs/03 §7)', async () => {
@@ -930,6 +1186,38 @@ describe('iteration driver: benchmark baseline freeze (ADR-042)', () => {
     expect(report.discoveryTrials).toBe(8)
     expect(report.trials).toBe(9)
     expect(report.failurePool).toEqual([h0, h3].sort())
+  })
+
+  it('uses the sole observed attempt as repair3 failure-pool evidence', async () => {
+    const fx = await baselineRun('dsh-drive-baseline-one-attempt-', {
+      taskCount: 4,
+      attemptsPerTask: 1,
+      batchSize: 2,
+    })
+    const provider = new FakeProvider({ outcome: 'success' })
+    const ceremony = runSplitCeremony({
+      runId: fx.config.runId,
+      masterSeed: fx.config.masterSeed,
+      handles: HANDLES,
+    })
+    const baselineId = candidateIdFromDigest(
+      (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
+    )
+    const short = shortId(baselineId)
+    const [h0, , h2] = ceremony.ceremony.observedHandles
+    // With A=1, the zero-success definition is exactly: the sole baseline
+    // attempt failed.  Both failures must be retained; successful tasks stay
+    // out of the frozen pool.
+    provider.script(`eval-eval-${short}-${h0}-a1`, { outcome: 'failure' })
+    provider.script(`eval-eval-${short}-${h2}-a1`, { outcome: 'failure' })
+
+    const report = await makeDriver(fx, provider, fakeBridge(), fakeSandboxRunner()).drive()
+
+    expect(report.stopReason).toBe('K_REACHED')
+    expect(report.discoveryTrials).toBe(4)
+    // Four one-attempt baseline trials plus one q0 cold-start trial.
+    expect(report.trials).toBe(5)
+    expect(report.failurePool).toEqual([h0, h2].sort())
   })
 
   it('stops honestly as NO_REAL_FAILURE_SIGNAL when every matrix trial succeeds', async () => {
