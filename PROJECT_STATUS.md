@@ -25,6 +25,15 @@ maxInputBytes 524 288（与 TCB 冻结默认逐字一致）；`attributionCalls=
 record 脚本新增门：冻结 config 的 agentDebugger/attribution 必须与 profile 逐字一致；
 run 结束后 attribution 两维必须 settled 且不超预算。
 
+**启动门记录（2026-09-09）**：预注册提交 `82dbbe8`
+（`82dbbe8bafd2e2ec159353d713bd8c33990f74af`，49 files / +4662 −437）；`tsc -b`
+通过；vitest 全绿 785 passed / 29 skipped（71 files，~6.5min）；真实 Loader E2E
+单独复跑通过（loader-spike subprocess + candidate-sdk harness，17 tests）；
+环境门：credential 0600、pinned tarball/CLI/native DSH lock/harbor 就绪、fwd 容器
+Up、17897 egress 代理在听、repair-3 scratch/evidence 无冲突。**尚未启动**
+（等用户确认；repair-2 残留孤儿容器 `extract-moves-from-video__rwkwsap__env-main-1`
+未清理）。
+
 ## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
 
 已为后继 run 实现可注入的 TypeScript Agent Debugger：Harbor collect 将 ACP
