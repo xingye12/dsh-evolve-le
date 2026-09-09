@@ -2409,3 +2409,40 @@ else stays the frozen formal protocol verbatim: K=80/q0=3/shortlist=5/width=3,
 alpha 0.8, maxSolverTrials 400, taskTrials 760, solverTokens 1 520 M,
 tournament 294/360, sealed 23×5×2/720 min, usd 500 M µUSD, terminal-state set
 unchanged.
+
+## ADR-058 (2026-09-09): repair3 search-phase wall clock 1800 → 3600 minutes
+
+**Context.** repair2 stopped at 12/80 children after 30 h of search. The
+post-ADR-054 cadence arithmetic: one 3-child cycle ≈ 1.6–2.2 h (one proposal
++ one mixed q0 wave at 12-way concurrency); 80 children ≈ 27 cycles ≈ 45–60 h
+of search. The ADR-048/057 envelope froze the search share at 1800 min (30 h)
+— the same wall-clock wall that makes repair2's CHAMPION_LOCKED path
+BUDGET_EXHAUSTED at ~25–40 children. The user authorized raising the repair3
+search phase to 3600 min (60 h).
+
+**Decision.** repair3 search share 1800 → 3600 min; the run-config envelope
+wallClockMinutes 2760 → 4560 (3600 search + 960 tournament). Tournament
+(960 min), sealed (720 min, ~$33, 460 M tokens), usd 500 M µUSD and the +5pp
+gate are unchanged. The search share becomes an explicit optional budget
+field `wallClockSearchMinutes` (absent = the ADR-048 frozen 1800 default, so
+the preserved 49×2 k80 profile keeps its pre-registered semantics
+byte-identical); the driver derives the tournament wall budget as
+wallClockMinutes − wallClockSearchMinutes. Schema wallClockMinutes maximum
+2880 → 4560 (the bound admits exactly the pre-registered envelope; any
+further extension needs its own ADR + schema edit). The record script's
+process wrapper 47 h → 77 h (the run's own budgets still trip first),
+scope.phasedWallClock freezes 3600/960/720 (total 5280 min), and the frozen-
+config gate now pins wallClockSearchMinutes to the profile verbatim. This is
+the third explicit amendment of specs/00 §6.3 (after ADR-045 16h→30h and
+ADR-048's phased split); $500 and +5pp unchanged, no silent protocol shrink
+(rule 9). It supersedes the wall-clock figures in ADR-057's frozen-inputs
+block. The 60 h figure is the upper end of the projected 45–60 h search need
+— the projection is empirical, not a guarantee: the run may still terminate
+BUDGET_EXHAUSTED before K=80, and that remains an honest terminal state.
+
+**Verification.** Contract tests: schema boundary 4560/4561; semantic pairing
+of wallClockSearchMinutes (a share that eats the whole envelope is rejected);
+driver tournament wall derivation for both the default-1800 fixture and the
+explicit pre-registered pair (4560 − 3600 = 960); k80Repair3 profile
+freezes 4560/3600 and emits the --set carrier while the k80 profile stays
+2760 without the field.

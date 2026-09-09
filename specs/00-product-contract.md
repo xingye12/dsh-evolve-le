@@ -165,6 +165,14 @@ protocol completeness = 100%
 > tournament 与 sealed。正式 K=80 按分阶段预注册：搜索 1800min + tournament 960min +
 > sealed 720min，总现实 ≈ 50-55h、上限 ≈ 65h（三个进程，各阶段独立预算与披露）；
 > $500 与 +5pp 门不变。两次修订均为显式 ADR，未静默缩小协议（rule 9）。
+> ADR-058 三次显式修订（2026-09-09，用户决策）：repair-3 搜索阶段 1800min → 3600min
+> （60h）。依据：ADR-054 修复 q0 wave 构造后，每 3-child 周期实测节奏 ≈ 1.6-2.2h，
+> 80 children ≈ 27 周期 ≈ 45-60h；30h 搜索相位会让 run 在 ~25-40 children 处以
+> BUDGET_EXHAUSTED 终止（repair-2 即此路径）。run config 信封 wallClockMinutes
+> 2760 → 4560（3600 搜索 + 960 tournament），搜索份额显式进入 run config
+> （`wallClockSearchMinutes`）；tournament 960min、sealed 720min、$500 与 +5pp 门不变。
+> 三次修订均为显式 ADR，未静默缩小协议（rule 9）；60h 是投影上界，run 仍可能在 K=80
+> 前合法 BUDGET_EXHAUSTED。
 - 正式 public leaderboard 运行若由维护方单独执行，成本 MUST 单列，不能隐藏在目标外。
 
 Gate 5 baseline calibration 若证明保留最终评测预算后不可能达到约束，run MUST 在付费搜索前

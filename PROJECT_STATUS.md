@@ -22,6 +22,8 @@ repair3 冻结启动参数（预注册）：RUN_ID `tree-v2-k80-formal-repair-3`
 route `deepseek/zen-compatible`、maxOutputTokens 8 192、requestTimeoutMs 180 000、
 maxInputBytes 524 288（与 TCB 冻结默认逐字一致）；`attributionCalls=80`（≤ proposalCalls 60
 加余量）、`attributionTokens=16 000 000`（≥ 80 次 × 完整信封预留 139 264 token/次）。
+ADR-058：`wallClockMinutes=4560`、`wallClockSearchMinutes=3600`（搜索 60h；tournament
+960min / sealed 720min / $500 / +5pp 不变）。
 record 脚本新增门：冻结 config 的 agentDebugger/attribution 必须与 profile 逐字一致；
 run 结束后 attribution 两维必须 settled 且不超预算。
 
@@ -32,7 +34,22 @@ run 结束后 attribution 两维必须 settled 且不超预算。
 环境门：credential 0600、pinned tarball/CLI/native DSH lock/harbor 就绪、fwd 容器
 Up、17897 egress 代理在听、repair-3 scratch/evidence 无冲突。**尚未启动**
 （等用户确认；repair-2 残留孤儿容器 `extract-moves-from-video__rwkwsap__env-main-1`
-未清理）。
+已按用户指令停掉）。
+
+## 2026-09-09 ADR-058：repair3 搜索相位墙钟 1800 → 3600 分钟（未启动）
+
+用户指令：搜索墙钟改到 60h。依据是 ADR-054 wave 构造修复后的节奏推算——每 3-child 周期
+≈ 1.6–2.2h，80 children ≈ 27 周期 ≈ 45–60h；ADR-048 冻结的 30h 搜索相位会在 ~25–40
+children 处以 BUDGET_EXHAUSTED 终止（repair-2 即此路径，12/80 停止）。
+
+**改动**：repair3 搜索份额 1800 → 3600 min；run-config 信封 `wallClockMinutes` 2760 →
+4560（3600 搜索 + 960 tournament）。搜索份额成为可选预算字段 `wallClockSearchMinutes`
+（缺省 = ADR-048 冻结的 1800，`k80` 49×2 profile 逐字不变）；driver 的 tournament 墙钟
+预算 = wallClockMinutes − wallClockSearchMinutes。schema wallClockMinutes 上限 2880 →
+4560；record 脚本进程包装 47h → 77h、scope.phasedWallClock 冻结 3600/960/720（总
+5280min）、冻结 config 门新增 wallClockSearchMinutes 逐字比对。tournament 960min、sealed
+720min、$500 与 +5pp 门不变。这是 specs/00 §6.3 的第三次显式修订（ADR-045、ADR-048 之后），
+未静默缩小协议（rule 9）；60h 是投影上界，run 仍可能在 K=80 前合法 BUDGET_EXHAUSTED。
 
 ## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
 

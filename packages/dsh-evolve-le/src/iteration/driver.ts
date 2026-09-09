@@ -1452,9 +1452,11 @@ export class IterationDriver {
    * freezes before the lock events, and each event is guarded by the reducer
    * state it transitions.
    *
-   * Wall budget: wallClockMinutes − 1800 minutes from the frozen start
-   * (search owns the first 1800). A wave that would cross it stops the run
-   * BUDGET_EXHAUSTED — a legal SEARCHING edge.
+   * Wall budget: wallClockMinutes − wallClockSearchMinutes from the frozen
+   * start (search owns the first wallClockSearchMinutes; absent = the
+   * ADR-048 frozen 1800 default, ADR-058 pre-registers 3600 for repair3).
+   * A wave that would cross it stops the run BUDGET_EXHAUSTED — a legal
+   * SEARCHING edge.
    */
   private async runTournament(
     baselineId: string,
@@ -1508,7 +1510,8 @@ export class IterationDriver {
     const startPath = join(this.runRoot, 'tournament-start.json')
     const startDoc = (await this.readJson<{ at: string }>(startPath)) ?? { at: this.now() }
     await this.freeze(startPath, startDoc)
-    const wallBudgetMinutes = Math.max(0, this.config.budget.wallClockMinutes - 1800)
+    const searchShareMinutes = this.config.budget.wallClockSearchMinutes ?? 1800
+    const wallBudgetMinutes = Math.max(0, this.config.budget.wallClockMinutes - searchShareMinutes)
     const wallExhausted = (): boolean =>
       (Date.parse(this.now()) - Date.parse(startDoc.at)) / 60000 > wallBudgetMinutes
 

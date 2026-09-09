@@ -448,8 +448,13 @@
         "wallClockMinutes": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 2880,
-          "description": "The wall-clock objective is 16h for the formal protocol (specs/00 §6.3), NOT a system invariant for every config. The 48h bound admits pre-registered rehearsal profiles whose live trials cannot fit 16h (ADR-030 K=10 live pilot: ~50 live Harbor trials at minutes-to-half-an-hour each) — the deviation must be recorded in the run's STATUS preRegistration. ADR-045 explicitly amends the formal K=80 objective to 30h (1800 minutes) with full disclosure: the mandatory trial floor (98 baseline + 240 cold starts + tournament + sealed) cannot fit 16h at the observed 1447s/trial-slot pace."
+          "maximum": 4560,
+          "description": "The wall-clock objective is 16h for the formal protocol (specs/00 §6.3), NOT a system invariant for every config. The bound admits pre-registered rehearsal profiles whose live trials cannot fit 16h (ADR-030 K=10 live pilot: ~50 live Harbor trials at minutes-to-half-an-hour each) — the deviation must be recorded in the run's STATUS preRegistration. ADR-045 explicitly amends the formal K=80 objective to 30h (1800 minutes) with full disclosure: the mandatory trial floor (98 baseline + 240 cold starts + tournament + sealed) cannot fit 16h at the observed 1447s/trial-slot pace. ADR-058 amends the repair3 formal envelope to 4560 minutes (3600 search + 960 tournament); the bound admits exactly that pre-registered envelope — any further extension needs its own ADR and schema edit."
+        },
+        "wallClockSearchMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "ADR-058: the search phase's share of wallClockMinutes (minutes). The driver derives the champion-tournament wall budget as wallClockMinutes − wallClockSearchMinutes. Optional: absent = the ADR-048 frozen 1800 default, so the preserved 49×2 formal profile keeps its pre-registered semantics byte-identical. The repair3 pre-registration sets 3600 (60h)."
         }
       },
       "required": ["usd", "proposerTokens", "proposalCalls", "taskTrials", "wallClockMinutes"],

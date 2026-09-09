@@ -192,6 +192,13 @@ export interface RunConfig {
     proposalCalls: number
     taskTrials: number
     wallClockMinutes: number
+    /**
+     * ADR-058: the search phase's share of wallClockMinutes. Optional:
+     * absent = the ADR-048 frozen 1800 default, so the preserved 49×2
+     * formal profile keeps its pre-registered semantics byte-identical.
+     * The driver derives the tournament wall budget from it.
+     */
+    wallClockSearchMinutes?: number
     /** Live-solver token budget (ADR-030); required iff `solverRoute` is set. */
     solverTokens?: number
     /** Required iff `agentDebugger` is configured; separate from proposals. */
@@ -360,6 +367,20 @@ function semanticProblems(config: RunConfig): string[] {
     config.budget.attributionCalls !== undefined
   ) {
     problems.push('attribution budget is set but agentDebugger is missing')
+  }
+  // ADR-058: the search share must leave the tournament phase a positive
+  // wall budget — a share that eats the whole envelope is a mis-registration,
+  // never a silent zero-budget tournament.
+  if (config.budget.wallClockSearchMinutes !== undefined) {
+    if (config.budget.wallClockSearchMinutes < 1) {
+      problems.push('budget.wallClockSearchMinutes must be ≥ 1')
+    }
+    if (config.budget.wallClockSearchMinutes >= config.budget.wallClockMinutes) {
+      problems.push(
+        'budget.wallClockSearchMinutes must be smaller than wallClockMinutes so the ' +
+          'tournament phase keeps a positive wall budget',
+      )
+    }
   }
   if (config.solverRoute !== undefined) {
     if (config.budget.solverTokens === undefined) {
@@ -609,6 +630,7 @@ export function defaultRunConfig(input: {
     'solverTokens',
     'attributionTokens',
     'attributionCalls',
+    'wallClockSearchMinutes',
   ) as Array<keyof RunConfig['budget']>
   for (const key of budgetKeys) {
     const value = input.overrides?.[key]

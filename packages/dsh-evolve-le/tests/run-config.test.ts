@@ -263,29 +263,48 @@ describe('run config schema (specs/07 §7)', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('accepts the pre-registered 48h rehearsal wall clock and fails closed beyond it (K=10 live pilot)', () => {
+  it('accepts the pre-registered 76h repair3 envelope and fails closed beyond it (ADR-058)', () => {
     // ADR-030 live pilot: ~50 live Harbor trials at minutes-to-half-an-hour
     // each cannot fit the 16h formal efficiency objective (specs/00 §6.3), so
-    // the schema admits pre-registered rehearsal budgets up to 48h — the
+    // the schema admits pre-registered rehearsal budgets beyond 16h — the
     // deviation is recorded in the STATUS preRegistration. ADR-045 later
     // pre-registers 1800 (30h) as the explicit formal k80 wall-clock
-    // amendment, so 48h remains the rehearsal-only bound. The first launch
-    // attempt died in init because the old global 960 maximum contradicted
-    // the schema's own "advisory for stable-demo" clause; this pins the
-    // reconciled bound.
+    // amendment; ADR-058 amends the repair3 envelope to 4560 (3600 search +
+    // 960 tournament). The first launch attempt died in init because the old
+    // global 960 maximum contradicted the schema's own "advisory for
+    // stable-demo" clause; this pins the reconciled bound.
     const config = validConfig()
     const pilot = validateRunConfig({
       ...config,
-      budget: { ...config.budget, wallClockMinutes: 2880 },
+      budget: { ...config.budget, wallClockMinutes: 4560 },
     })
     expect(pilot.ok).toBe(true)
     const beyond = validateRunConfig({
       ...config,
-      budget: { ...config.budget, wallClockMinutes: 2881 },
+      budget: { ...config.budget, wallClockMinutes: 4561 },
     })
     expect(beyond.ok).toBe(false)
     if (!beyond.ok) {
       expect(beyond.error.errors.join('\n')).toContain('wallClockMinutes')
+    }
+  })
+
+  it('pairs the ADR-058 search share with the envelope and requires a positive tournament budget', () => {
+    const config = validConfig()
+    const paired = validateRunConfig({
+      ...config,
+      budget: { ...config.budget, wallClockMinutes: 4560, wallClockSearchMinutes: 3600 },
+    })
+    expect(paired.ok).toBe(true)
+    // A share that eats the whole envelope is a mis-registration: the
+    // tournament would get zero wall budget, never a silent pass.
+    const eatsEnvelope = validateRunConfig({
+      ...config,
+      budget: { ...config.budget, wallClockMinutes: 4560, wallClockSearchMinutes: 4560 },
+    })
+    expect(eatsEnvelope.ok).toBe(false)
+    if (!eatsEnvelope.ok) {
+      expect(eatsEnvelope.error.errors.join('\n')).toContain('wallClockSearchMinutes')
     }
   })
 

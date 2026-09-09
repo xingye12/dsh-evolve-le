@@ -63,7 +63,12 @@ describe('tree-v2 live run profiles', () => {
       concurrentTrials: 12,
       benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
       runProfile: 'terminal-bench-formal',
+      // ADR-058: the search phase owns 3600 min of the 4560 envelope; the
+      // 49×2 profile stays on the ADR-048 1800 default (field absent).
+      wallClockMinutes: 4560,
+      wallClockSearchMinutes: 3600,
     })
+    expect(TREE_V2_LIVE_PROFILES.k80.wallClockSearchMinutes).toBeUndefined()
   })
 
   it('funds every trial at the gateway per-trial token cap', () => {
@@ -183,6 +188,10 @@ describe('tree-v2 live run profiles', () => {
     expect(repair3).toContain('baselineTaskCount=49')
     expect(repair3).toContain('baselineAttemptsPerTask=1')
     expect(repair3).toContain('baselineBatchSize=12')
+    // ADR-058: the search share rides the flat --set surface for repair3;
+    // the preserved 49×2 k80 args stay byte-identical without it.
+    expect(repair3).toContain('wallClockSearchMinutes=3600')
+    expect(k80).not.toContain('wallClockSearchMinutes=')
     const repair3ConcurrentIndex = repair3.indexOf('--concurrent-trials')
     expect(repair3[repair3ConcurrentIndex + 1]).toBe('12')
     // k3/k10 keep the frozen defaults: no alpha/call/token/concurrency carriers.

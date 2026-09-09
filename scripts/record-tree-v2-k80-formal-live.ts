@@ -10,9 +10,11 @@
  * one-shot reveal). Both the solver and the proposer run on the real
  * networked model route (deepseek/zen-compatible): alpha=0.8 pre-registered
  * (final gate ceil(80^1.25)=240, minimumTrials 255 ≤ 400), a 400-trial
- * search envelope, a 360-trial tournament envelope, a 46h wall clock
- * (1800 search + 960 tournament — the ADR-048 phased amendment of the
- * specs/00 §6.3 16h objective), and a separate
+ * search envelope, a 360-trial tournament envelope, a 76h wall clock
+ * (3600 search + 960 tournament — the ADR-058 phased amendment of the
+ * specs/00 §6.3 16h objective; ADR-048 had set the search share at 1800,
+ * which the post-ADR-054 cadence projection cannot reach K=80 under), and
+ * a separate
  * 12h / ~$33 / 460M-token sealed budget. The run starts from the tree-v2
  * migration root (packages/candidate-tree-v2-baseline, bound to the legacy
  * v1 baseline by the frozen tree-v2-migration.json receipt,
@@ -263,9 +265,10 @@ async function cli(args: readonly string[], timeoutMs: number): Promise<CliResul
   try {
     const { stdout, stderr } = await exec(process.execPath, [CLI_BIN, ...args], {
       cwd: repoRoot,
-      // The pre-registered envelope is 46 h wall clock (ADR-048); give the
-      // process wrapper 47 h so the run's own budget trips first and the
-      // report lands as data, not as a killed process.
+      // The pre-registered envelope is 76 h wall clock (3600 search + 960
+      // tournament, ADR-058); give the process wrapper 77 h so the run's own
+      // budget trips first and the report lands as data, not as a killed
+      // process.
       timeout: timeoutMs,
       maxBuffer: 64 << 20,
     })
@@ -533,6 +536,7 @@ const frozenConfig = JSON.parse(await readFile(join(runRoot, 'run.config.json'),
     solverTokens?: number
     taskTrials?: number
     wallClockMinutes?: number
+    wallClockSearchMinutes?: number
     proposalCalls?: number
     proposerTokens?: number
     attributionTokens?: number
@@ -594,6 +598,7 @@ check(
     frozenConfig.budget?.solverTokens === PROFILE.solverTokens &&
     frozenConfig.budget?.taskTrials === PROFILE.taskTrials &&
     frozenConfig.budget?.wallClockMinutes === PROFILE.wallClockMinutes &&
+    frozenConfig.budget?.wallClockSearchMinutes === PROFILE.wallClockSearchMinutes &&
     frozenConfig.budget?.proposalCalls === PROFILE.proposalCalls &&
     frozenConfig.budget?.proposerTokens === PROFILE.proposerTokens &&
     frozenConfig.benchmark?.harbor?.concurrentTrials === PROFILE.concurrentTrials &&
@@ -672,7 +677,7 @@ console.log(
 const runStart = Date.now()
 const run = await cli(
   [command, '--run-root', runRoot, '--sealed-plan-file', sealedPlanFile],
-  169_200_000,
+  277_200_000,
 )
 const runSeconds = Math.round((Date.now() - runStart) / 1000)
 if (run.code !== 0) {
@@ -1344,14 +1349,18 @@ const document = {
     formal: true,
     rehearsal: null,
     phasedWallClock: {
-      searchMinutes: 1800,
+      searchMinutes: 3600,
       tournamentMinutes: 960,
       sealedMinutes: SEALED_BUDGET.wallClockMinutes,
-      totalMinutes: 1800 + 960 + SEALED_BUDGET.wallClockMinutes,
-      specs00Amendment: 'ADR-048',
+      totalMinutes: 3600 + 960 + SEALED_BUDGET.wallClockMinutes,
+      specs00Amendment: 'ADR-058',
     },
   },
-  profile: { name: 'k80Repair3', label: '49×1 baseline calibration (ADR-057)', ...PROFILE },
+  profile: {
+    name: 'k80Repair3',
+    label: '49×1 baseline calibration (ADR-057); 60h search wall clock (ADR-058)',
+    ...PROFILE,
+  },
   route: {
     id: 'deepseek/zen-compatible',
     baseUrl,
@@ -1540,7 +1549,7 @@ const statusDocument = {
   summary: {
     route: `solver+proposer deepseek/zen-compatible → ${modelName}`,
     protocol: 'tree-v2 (migration root, resultsInherited:false)',
-    profile: 'k80Repair3 / terminal-bench-formal (ADR-057 successor-only 49×1)',
+    profile: 'k80Repair3 / terminal-bench-formal (ADR-057 successor-only 49×1; ADR-058 60h search)',
     scope: 'formal',
     stopReason: report.stopReason,
     trials: report.trials,

@@ -30,6 +30,13 @@ export interface TreeV2LiveProfile {
   taskTrials: number
   /** Wall-clock budget in minutes. */
   wallClockMinutes: number
+  /**
+   * ADR-058: the search phase's share of wallClockMinutes (minutes).
+   * Optional: absent = the ADR-048 frozen 1800 default — the preserved
+   * 49×2 formal profile keeps its pre-registered semantics byte-identical.
+   * The driver derives the tournament wall budget from it.
+   */
+  wallClockSearchMinutes?: number
   /** Live-solver token budget (ADR-030), paired with the solver route. */
   solverTokens: number
   /**
@@ -196,6 +203,13 @@ export const TREE_V2_LIVE_PROFILES: Record<
    * task, freezes every real observed failure into the pool, and preserves
    * the 12-way Harbor envelope.  Its one-attempt calibration is explicitly
    * not interchangeable with the historical 49×2 formal baseline.
+   *
+   * ADR-058: the search phase's wall clock is 3600 min (60 h) — the post
+   * ADR-054 cadence projection needs ≈45–60 h for 80 children, so the
+   * ADR-048 1800 search share would end the run BUDGET_EXHAUSTED at ~25–40
+   * children. The envelope is 4560 = 3600 search + 960 tournament; the
+   * tournament (960) and sealed (720, sealed-plan.json) phases, the $500
+   * ceiling and the +5pp gate are unchanged.
    */
   k80Repair3: {
     kTarget: 80,
@@ -206,7 +220,8 @@ export const TREE_V2_LIVE_PROFILES: Record<
     discoveryBatchSize: 6,
     proposalWidth: 3,
     taskTrials: 760,
-    wallClockMinutes: 2760,
+    wallClockMinutes: 4560,
+    wallClockSearchMinutes: 3600,
     solverTokens: 1_520_000_000,
     ucbAirAlphaPerMille: 800,
     proposalCalls: 60,
@@ -336,6 +351,11 @@ export function buildTreeV2InitArgs(
     `taskTrials=${String(profile.taskTrials)}`,
     '--set',
     `wallClockMinutes=${String(profile.wallClockMinutes)}`,
+    // ADR-058: the search-phase share is an explicit --set carrier; absent =
+    // the ADR-048 frozen 1800 default (the 49×2 k80 args stay byte-identical).
+    ...(profile.wallClockSearchMinutes !== undefined
+      ? ['--set', `wallClockSearchMinutes=${String(profile.wallClockSearchMinutes)}`]
+      : []),
     '--set',
     `solverTokens=${String(profile.solverTokens)}`,
     // ADR-045: alpha, proposal-call and proposer-token budgets are optional

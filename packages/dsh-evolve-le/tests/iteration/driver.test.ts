@@ -1883,4 +1883,37 @@ describe('iteration driver: champion tournament + triple-hash lock (ADR-047)', (
     expect(provider.counters.launchEffects).toHaveLength(17) // search only
     expect(existsSync(join(fx.runRoot, 'candidate-lock.json'))).toBe(false)
   }, 240_000)
+
+  it('derives the tournament wall budget from the ADR-058 search share (4560 − 3600)', async () => {
+    // repair3 pre-registers wallClockSearchMinutes=3600: the tournament gets
+    // wallClockMinutes − 3600, not the ADR-048 1800 default. The envelope is
+    // the schema-max 4560, so the pre-registered pair itself is exercised.
+    const fx = await formalRun('dsh-drive-tourn-wall-3600-', {
+      ...FORMAL_OVERRIDES,
+      wallClockMinutes: 4560,
+      wallClockSearchMinutes: 3600,
+    })
+    const provider = new FakeProvider({ outcome: 'success' })
+    await scriptMatrixFailures(provider, fx)
+
+    // Once the tournament freezes its start, pretend 961 minutes passed:
+    // more than the 4560 − 3600 = 960 tournament wall budget.
+    let tick = 0
+    const base = 1_700_000_000_000
+    const clock = () => {
+      const t = tick++
+      if (existsSync(join(fx.runRoot, 'tournament-start.json'))) {
+        return new Date(base + t * 1000 + 961 * 60_000).toISOString()
+      }
+      return new Date(base + t * 1000).toISOString()
+    }
+
+    const report = await driverFor(fx, provider, { clock }).drive()
+
+    expect(report.stopReason).toBe('BUDGET_EXHAUSTED')
+    expect(report.status).toBe('STOPPED:BUDGET_EXHAUSTED')
+    expect(report.tournamentTrials).toBe(0)
+    expect(provider.counters.launchEffects).toHaveLength(17) // search only
+    expect(existsSync(join(fx.runRoot, 'candidate-lock.json'))).toBe(false)
+  }, 240_000)
 })

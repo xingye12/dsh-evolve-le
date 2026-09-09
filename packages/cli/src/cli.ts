@@ -198,6 +198,9 @@ function searchBudgetOverrides(sets: Record<string, number>): Partial<RunConfig[
     'proposalCalls',
     'taskTrials',
     'wallClockMinutes',
+    // ADR-058: the search phase's share of wallClockMinutes (absent = the
+    // ADR-048 frozen 1800 default; the repair3 pre-registration sets 3600).
+    'wallClockSearchMinutes',
     // ADR-030: valid only in a config that also sets solverRoute (semantic
     // check in run-config.ts rejects the unpaired document).
     'solverTokens',

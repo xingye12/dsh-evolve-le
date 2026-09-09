@@ -399,10 +399,12 @@ export const SEALED_RECEIPT = {
 }
 /** The full benchmark-baseline matrix: 14 development tasks × 1 attempt. */
 export const TOUR_MATRIX = { taskCount: 14, attemptsPerTask: 1, batchSize: 4 }
-/** Formal profile. Wall clock 2770 = the pre-registered 1800 search + 970
- * tournament minutes (ADR-048): the driver checks the tournament phase
- * against wallClockMinutes − 1800. Search spends 14 matrix + 3 cold-start
- * trials; the child enters the tournament with its 3 observations. */
+/** Formal profile. Wall clock 2770 = the ADR-048 1800 search + 970
+ * tournament minutes: the driver checks the tournament phase against
+ * wallClockMinutes − wallClockSearchMinutes (absent = the frozen 1800
+ * default; ADR-058 pre-registers 3600 for repair3). Search spends 14 matrix
+ * + 3 cold-start trials; the child enters the tournament with its 3
+ * observations. */
 export const FORMAL_OVERRIDES: Partial<RunConfig['search']> & Partial<RunConfig['budget']> = {
   kTarget: 1,
   proposalWidth: 2,
