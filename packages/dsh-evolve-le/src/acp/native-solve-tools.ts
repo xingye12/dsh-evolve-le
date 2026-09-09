@@ -47,6 +47,19 @@ interface NativeSolveToolOptions {
   sessionId: string
   cwd: string
   commandTimeoutMs?: number
+  /** TCB-owned, content-free tool facts for the bounded solve-policy hook. */
+  observation?: NativeSolveToolObservationSink
+}
+
+/**
+ * Tool facts exposed to the trusted solve-policy input builder. Raw commands,
+ * paths, file contents and terminal output never leave this tool layer.
+ */
+export interface NativeSolveToolObservationSink {
+  execStarted(input: { command: string; args?: readonly string[] }): void
+  execFinished(outcome: 'succeeded' | 'failed' | 'empty-output' | 'timed-out' | 'unknown'): void
+  readCompleted(): void
+  writeCompleted(): void
 }
 
 function signalOf(exec: unknown): AbortSignal | undefined {
@@ -90,12 +103,24 @@ export function installNativeSolveTools(
       }
       const signal = signalOf(exec)
       if (signal?.aborted) throw new Error('solve_exec aborted before terminal creation')
-      const handle = await options.connection.createTerminal({
-        sessionId: options.sessionId,
-        command: input.command,
-        ...(input.args === undefined ? {} : { args: input.args as string[] }),
-        cwd: options.cwd,
+      const command = input.command
+      const commandArgs = input.args as string[] | undefined
+      options.observation?.execStarted({
+        command,
+        ...(commandArgs === undefined ? {} : { args: commandArgs }),
       })
+      let handle: Awaited<ReturnType<AgentSideConnection['createTerminal']>>
+      try {
+        handle = await options.connection.createTerminal({
+          sessionId: options.sessionId,
+          command,
+          ...(commandArgs === undefined ? {} : { args: commandArgs }),
+          cwd: options.cwd,
+        })
+      } catch (error) {
+        options.observation?.execFinished('unknown')
+        throw error
+      }
       let timer: NodeJS.Timeout | undefined
       let abortListener: (() => void) | undefined
       let killPromise: Promise<void> | undefined
@@ -140,15 +165,20 @@ export function installNativeSolveTools(
           await killOnce()
           await handle.waitForExit().catch(() => undefined)
           const output = await handle.currentOutput().catch(() => ({ output: '' }))
+          options.observation?.execFinished('timed-out')
           return `[exec TIMEOUT after ${String(commandTimeoutMs)}ms, killed]\n${output.output}`
         }
         if (exit.kind === 'aborted') {
           await killOnce()
           await handle.waitForExit().catch(() => undefined)
+          options.observation?.execFinished('unknown')
           throw new Error('solve_exec aborted and terminal was killed')
         }
         const output = await handle.currentOutput().catch(() => ({ output: '' }))
         const code = (exit.value as { exitCode?: number | null }).exitCode
+        options.observation?.execFinished(
+          code === 0 ? (output.output.length > 0 ? 'succeeded' : 'empty-output') : 'failed',
+        )
         return `[exec exitCode=${String(code)}]\n${output.output}`
       } finally {
         if (timer !== undefined) clearTimeout(timer)
@@ -170,6 +200,7 @@ export function installNativeSolveTools(
       }
       if (signalOf(exec)?.aborted) throw new Error('solve_read aborted before file read')
       const result = await options.connection.readTextFile({ sessionId: options.sessionId, path })
+      options.observation?.readCompleted()
       return `[read ${path}]\n${result.content}`
     },
   })
@@ -191,6 +222,7 @@ export function installNativeSolveTools(
         path: input.path,
         content: input.content,
       })
+      options.observation?.writeCompleted()
       return `[write ${input.path}] wrote ${String(input.content.length)} chars`
     },
   })

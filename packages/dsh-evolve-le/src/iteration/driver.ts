@@ -67,6 +67,7 @@ import { solverRoutePlan } from '../proposer/remote-runner.js'
 import { remoteRoutePlanHash } from '../proposer/remote-gateway.js'
 import {
   FAILURE_ATTRIBUTION_MEDIA_TYPE,
+  selectDebuggerTraces,
   type DebuggerTraceInput,
   type DurableFailureAttributor,
   type FailureAttributor,
@@ -2363,22 +2364,13 @@ export class IterationDriver {
         const durable = attributor as Partial<DurableFailureAttributor>
         if (durable.attributeWithReceipt !== undefined && this.config.agentDebugger !== undefined) {
           const envelope = this.config.agentDebugger
-          const selected: DebuggerTraceInput[] = []
-          let bytes = 0
-          for (const trace of traces.sort((a, b) =>
-            a.diagnosticTraceDigest < b.diagnosticTraceDigest ? -1 : 1,
-          )) {
-            const size = Buffer.byteLength(JSON.stringify(trace), 'utf8')
-            // A bounded debugger envelope is a hard safety limit. Do not let
-            // the first selected trace bypass it (nor issue an empty request
-            // if every available trace is individually too large).
-            if (size > envelope.maxInputBytes || bytes + size > envelope.maxInputBytes) continue
-            selected.push(trace)
-            bytes += size
-          }
+          const selected = selectDebuggerTraces(traces, envelope.maxInputBytes)
           if (selected.length > 0) {
-            const route = this.config.modelRoutes.find((candidate) => candidate.id === envelope.route)
-            if (route === undefined) throw new IterationDriverError('agentDebugger route disappeared')
+            const route = this.config.modelRoutes.find(
+              (candidate) => candidate.id === envelope.route,
+            )
+            if (route === undefined)
+              throw new IterationDriverError('agentDebugger route disappeared')
             const inputTokens = Math.ceil(envelope.maxInputBytes / 4)
             const totalTokens = inputTokens + envelope.maxOutputTokens
             const usd = Math.ceil(

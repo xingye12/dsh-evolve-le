@@ -286,6 +286,7 @@ async function main(argv: string[]): Promise<number> {
           ...(config.nativeDsh.maxTokens === undefined
             ? {}
             : { maxTokens: config.nativeDsh.maxTokens }),
+          ...(config.maxTurns === undefined ? {} : { maxTurns: config.maxTurns }),
           prompt: buildNativeProposalInstruction({
             parentSourceHash: config.parentSourceHash,
             width: config.width,

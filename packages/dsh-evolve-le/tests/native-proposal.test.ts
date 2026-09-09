@@ -176,9 +176,9 @@ describe('native proposal tools', () => {
     // At the hard boundary the authoring tools refuse, naming the submit tool.
     state.calls = refuseAtCalls
     await expect(list.execute({ path: 'p' })).rejects.toThrow(/call proposal_finish/)
-    await expect(
-      write.execute({ childName: 'c', path: 'f.ts', content: 'x' }),
-    ).rejects.toThrow(/tool-call budget exhausted/)
+    await expect(write.execute({ childName: 'c', path: 'f.ts', content: 'x' })).rejects.toThrow(
+      /tool-call budget exhausted/,
+    )
     // proposal_finish stays usable at every count.
     state.calls = refuseAtCalls + 7
     await expect(
@@ -309,8 +309,76 @@ describe('native proposal tools', () => {
     disposeNativeProposalTools(state)
   })
 })
-
 describe('native proposal runner: failure transcripts (ADR-035)', () => {
+  it('rejects a native proposal step past maxTurns through the agent/pre-step waterfall', async () => {
+    const scratch = await mkdtemp(join(tmpdir(), 'dsh-native-proposal-cap-'))
+    const proposalPath = join(scratch, 'work', 'proposal.json')
+    let preStep:
+      | ((
+          payload: { step?: unknown },
+          next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
+        ) => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>)
+      | undefined
+    let admitted = 0
+    const ctx = {
+      agents: {
+        async create(options: { setup?: (agentCtx: object) => void | Promise<void> }) {
+          await options.setup?.({
+            tools: { register: () => () => undefined },
+            on(event: string, listener: typeof preStep) {
+              if (event === 'agent/pre-step') preStep = listener
+            },
+          })
+          return {
+            agent: {
+              followup() {},
+              async whenIdle() {
+                const first = await preStep?.({ step: 48 }, async () => {
+                  admitted += 1
+                  return { kind: 'enter' as const, messages: [] }
+                })
+                expect(first).toEqual({ kind: 'enter', messages: [] })
+                const overCap = await preStep?.({ step: 49 }, async () => {
+                  admitted += 1
+                  return { kind: 'enter' as const, messages: [] }
+                })
+                expect(overCap).toEqual({ kind: 'reject' })
+              },
+              session: { events: [] },
+            },
+            async dispose() {},
+          }
+        },
+      },
+    } as unknown as Context
+    await expect(
+      runNativeProposal({
+        ctx,
+        backend: {
+          async listInput() {
+            return []
+          },
+          async readInput() {
+            return ''
+          },
+          async writeChildFile() {},
+          async finalizeProposal(proposal) {
+            return proposal as never
+          },
+        },
+        sessionId: 'native-proposal-cap-test',
+        cwd: scratch,
+        prompt: 'propose a child',
+        proposalPath,
+        provider: 'test',
+        model: 'test',
+        maxTurns: 48,
+      }),
+    ).rejects.toThrow('agent exited without proposal_finish')
+    expect(admitted).toBe(1)
+    await rm(scratch, { recursive: true, force: true })
+  })
+
   it('writes the session chronology before throwing when proposal_finish never runs', async () => {
     const scratch = await mkdtemp(join(tmpdir(), 'dsh-fail-transcript-'))
     const proposalPath = join(scratch, 'work', 'proposal.json')
@@ -379,4 +447,3 @@ describe('native proposal runner: failure transcripts (ADR-035)', () => {
     await rm(scratch, { recursive: true, force: true })
   })
 })
-

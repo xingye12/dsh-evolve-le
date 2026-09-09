@@ -38,6 +38,22 @@ const FORBIDDEN_SCRIPT_KEYS = [
 /** Timer/microtask globals that would escape candidate Fiber ownership. */
 const LEAKY_GLOBALS = new Set(['setInterval', 'setTimeout', 'setImmediate', 'queueMicrotask'])
 
+/** Fields invented by earlier proposer outputs but absent from the v2 contract. */
+const UNAVAILABLE_SOLVE_POLICY_FIELDS = new Set([
+  'artifactChanged',
+  'artifactExecuted',
+  'artifactWritten',
+  'consecutiveFailures',
+  'deliverableReady',
+  'finishing',
+  'lastCommand',
+  'lastOutputSeen',
+  'outputSeen',
+  'repeatedProbe',
+  'repeats',
+  'verificationPending',
+])
+
 /** Node builtin module names (importable without the `node:` prefix). */
 const NODE_BUILTINS = new Set([
   'assert',
@@ -485,6 +501,17 @@ function scanModule(
             path,
             offsetToLine(text, current.start),
             'direct process.* access is forbidden; candidates never touch process state',
+          )
+        }
+        if (
+          property?.type === 'Identifier' &&
+          UNAVAILABLE_SOLVE_POLICY_FIELDS.has(String(property.name))
+        ) {
+          add(
+            'workflow/unavailable-state',
+            path,
+            offsetToLine(text, current.start),
+            `candidate workflow references unavailable runtime field "${String(property.name)}"; use only the documented v2 observation`,
           )
         }
         break

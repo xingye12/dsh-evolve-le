@@ -84,7 +84,10 @@ export {
 export {
   ACP_RUNTIME_PACKAGE,
   ACP_RUNTIME_VENV_PATH,
+  HARBOR_ACP_APT_SHIM_PATH,
   VERIFIER_IMAGE_PROTOCOL,
+  harborAcpAptShim,
+  preparedAptInstallCommand,
   prepareOfflineVerifierTasks,
   rewriteVerifierOffline,
   rewriteVerifierGitClones,

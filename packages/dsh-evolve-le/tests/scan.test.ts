@@ -77,4 +77,24 @@ describe('findings are auditable', () => {
     const report = await scanCase('node-fs')
     expect(report.findings.some((finding) => finding.rule === 'import/node-builtin')).toBe(true)
   })
+
+  it('rejects a workflow branch on a state field the runtime never supplies', async () => {
+    const source = await captureCanonicalSource(resolve(casesDir, 'golden'))
+    const mutated = {
+      ...source,
+      files: source.files.map((file) =>
+        file.path === 'src/index.ts'
+          ? {
+              ...file,
+              content: Buffer.from(
+                `${file.content.toString('utf8')}\nconst impossible = input.deliverableReady\n`,
+                'utf8',
+              ),
+            }
+          : file,
+      ),
+    }
+    const report = scanCanonicalSource(mutated, defaultScanPolicy())
+    expect(report.findings.map((finding) => finding.rule)).toContain('workflow/unavailable-state')
+  })
 })

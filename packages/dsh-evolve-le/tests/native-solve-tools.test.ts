@@ -107,4 +107,77 @@ describe('native DSH solve tools', () => {
     expect(reads).toBe(0)
     expect(writes).toBe(0)
   })
+
+  it('emits only a bounded, content-free solve observation to the trusted caller', async () => {
+    const definitions: Definition[] = []
+    const observed: Array<{ type: string; value?: unknown }> = []
+    const ctx = {
+      tools: {
+        register(definition: Definition) {
+          definitions.push(definition)
+          return () => undefined
+        },
+      },
+    } as never
+    const terminal = {
+      async waitForExit() {
+        return { exitCode: 0 }
+      },
+      async currentOutput() {
+        return { output: '' }
+      },
+      async release() {},
+    }
+    const connection = {
+      async createTerminal() {
+        return terminal
+      },
+      async readTextFile() {
+        return { content: 'untrusted file content' }
+      },
+      async writeTextFile() {},
+    } as never
+    installNativeSolveTools(ctx, {
+      connection,
+      sessionId: 'session-1',
+      cwd: '/workspace',
+      observation: {
+        execStarted(input) {
+          observed.push({ type: 'execStarted', value: input })
+        },
+        execFinished(outcome) {
+          observed.push({ type: 'execFinished', value: outcome })
+        },
+        readCompleted() {
+          observed.push({ type: 'readCompleted' })
+        },
+        writeCompleted() {
+          observed.push({ type: 'writeCompleted' })
+        },
+      },
+    })
+    await definitions
+      .find((definition) => definition.name === 'solve_write')!
+      .execute({
+        path: '/workspace/a',
+        content: 'secret content',
+      })
+    await definitions
+      .find((definition) => definition.name === 'solve_exec')!
+      .execute({
+        command: 'printf',
+        args: ['secret output'],
+      })
+    await definitions
+      .find((definition) => definition.name === 'solve_read')!
+      .execute({
+        path: '/workspace/a',
+      })
+    expect(observed).toEqual([
+      { type: 'writeCompleted' },
+      { type: 'execStarted', value: { command: 'printf', args: ['secret output'] } },
+      { type: 'execFinished', value: 'empty-output' },
+      { type: 'readCompleted' },
+    ])
+  })
 })

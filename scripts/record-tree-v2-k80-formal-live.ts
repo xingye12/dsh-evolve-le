@@ -64,7 +64,7 @@
  * process death mid-run restarts with `run` replaced by `resume` and the
  * sealed evaluation resumes from its 0600 trial rows.
  *
- * Usage: node --import tsx/esm scripts/record-tree-v2-k80-formal-live.ts
+ * Usage: DSH_TREE_V2_FORMAL_VARIANT=repair5 node --import tsx/esm scripts/record-tree-v2-k80-formal-live.ts
  * @module scripts/record-tree-v2-k80-formal-live
  */
 
@@ -95,7 +95,54 @@ import {
 
 const exec = promisify(execFile)
 
-const evidenceDir = resolve(repoRoot, 'evidence/tree-v2/k80-formal-repair-3')
+/**
+ * A stopped formal run is immutable.  The selector makes the successor an
+ * explicit fresh identity instead of resuming repair3 under altered code.
+ * Defaulting to repair3 preserves the original command's meaning for audit
+ * and its final-record guard still prevents an overwritten formal document.
+ */
+const FORMAL_RUNS = {
+  repair3: {
+    runId: 'tree-v2-k80-formal-repair-3',
+    masterSeed: 'tree-v2-k80-formal-repair-3-master-seed-1',
+    profileName: 'k80Repair3',
+    evidenceDirectory: 'evidence/tree-v2/k80-formal-repair-3',
+    scratch: '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-3',
+    profileLabel: '49×1 baseline calibration (ADR-057); 60h search wall clock (ADR-058)',
+    statusProfile:
+      'k80Repair3 / terminal-bench-formal (ADR-057 successor-only 49×1; ADR-058 60h search)',
+  },
+  repair4: {
+    runId: 'tree-v2-k80-formal-repair-4',
+    masterSeed: 'tree-v2-k80-formal-repair-4-master-seed-1',
+    profileName: 'k80Repair4',
+    evidenceDirectory: 'evidence/tree-v2/k80-formal-repair-4',
+    scratch: '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-4',
+    profileLabel:
+      '49×1 baseline calibration; v2 solve observations, 48-step proposer, 32k debugger (ADR-063)',
+    statusProfile:
+      'k80Repair4 / terminal-bench-formal (ADR-063 successor-only v2 observations; 48-step proposer; 32k debugger)',
+  },
+  repair5: {
+    runId: 'tree-v2-k80-formal-repair-5',
+    masterSeed: 'tree-v2-k80-formal-repair-5-master-seed-1',
+    profileName: 'k80Repair5',
+    evidenceDirectory: 'evidence/tree-v2/k80-formal-repair-5',
+    scratch: '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-5',
+    profileLabel:
+      '49×1 baseline; v2 solve observations; offline ACP bootstrap and 12-network preflight (ADR-064)',
+    statusProfile:
+      'k80Repair5 / terminal-bench-formal (ADR-064 successor-only offline ACP bootstrap and Docker network-capacity preflight)',
+  },
+} as const
+const requestedVariant = process.env['DSH_TREE_V2_FORMAL_VARIANT'] ?? 'repair3'
+if (!(requestedVariant in FORMAL_RUNS)) {
+  throw new Error(
+    `tree-v2 k80 formal: DSH_TREE_V2_FORMAL_VARIANT must be repair3, repair4, or repair5, got ${requestedVariant}`,
+  )
+}
+const formalRun = FORMAL_RUNS[requestedVariant as keyof typeof FORMAL_RUNS]
+const evidenceDir = resolve(repoRoot, formalRun.evidenceDirectory)
 const CLI_BIN = resolve(repoRoot, 'packages/cli/lib/main.js')
 const TARBALL = resolve(repoRoot, '.references/terminal-bench-2-1-7131e43.tar.gz')
 const ARTIFACT_HOST = process.env['TREE_V2_ARTIFACT_HOST'] ?? '172.17.0.1'
@@ -108,15 +155,15 @@ const EGRESS_PROBE_URL =
   process.env['TREE_V2_EGRESS_PROBE_URL'] ??
   'http://archive.ubuntu.com/ubuntu/dists/noble/InRelease'
 const EGRESS_FORWARDER = resolve(repoRoot, 'scripts/lib/trial-egress-forwarder.py')
-const RUN_ID = 'tree-v2-k80-formal-repair-3'
-const MASTER_SEED = 'tree-v2-k80-formal-repair-3-master-seed-1'
+const RUN_ID = formalRun.runId
+const MASTER_SEED = formalRun.masterSeed
 // ADR-057 successor-only repair3 protocol: a fresh identity once more — the
 // 49×1 baseline calibration, the ADR-054 q0 wave fix and the ADR-056
 // bounded LLM Agent Debugger all change the runtime, so this is never a
 // mutation of any earlier formal manifest. The 12-way wave width and the
 // 49×1×12 matrix ride the pre-registered k80Repair3 profile; no paid launch
 // occurs without this script's confirmation gate.
-const PROFILE = TREE_V2_LIVE_PROFILES.k80Repair3
+const PROFILE = TREE_V2_LIVE_PROFILES[formalRun.profileName]
 // The native DSH runtime lock materialized by docs/configuration.md §Native
 // DSH runtime lock (pinned upstream, built copy in scratch, inspected lock).
 const NATIVE_DSH_CATALOG_ROOT = '/root/vibe/dsh/scratch/native-dsh-catalog'
@@ -204,7 +251,7 @@ if (credential.length === 0) {
 // sealed split store (0600): it is state, never evidence, so the whole tree
 // lives in scratch and only sanitized copies land under evidence/. The path
 // is fixed (not mkdtemp) so a killed process resumes the same run.
-const scratch = '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-3'
+const scratch = formalRun.scratch
 await mkdir(scratch, { recursive: true })
 const runsRoot = resolve(scratch, 'runs')
 const jobsRoot = resolve(scratch, 'jobs')
@@ -1357,8 +1404,8 @@ const document = {
     },
   },
   profile: {
-    name: 'k80Repair3',
-    label: '49×1 baseline calibration (ADR-057); 60h search wall clock (ADR-058)',
+    name: formalRun.profileName,
+    label: formalRun.profileLabel,
     ...PROFILE,
   },
   route: {
@@ -1549,7 +1596,7 @@ const statusDocument = {
   summary: {
     route: `solver+proposer deepseek/zen-compatible → ${modelName}`,
     protocol: 'tree-v2 (migration root, resultsInherited:false)',
-    profile: 'k80Repair3 / terminal-bench-formal (ADR-057 successor-only 49×1; ADR-058 60h search)',
+    profile: formalRun.statusProfile,
     scope: 'formal',
     stopReason: report.stopReason,
     trials: report.trials,
@@ -1569,7 +1616,7 @@ const statusDocument = {
   allPassed,
   evidence: {
     run: {
-      path: 'evidence/tree-v2/k80-formal-repair-3/k80-formal-run.json',
+      path: `${formalRun.evidenceDirectory}/k80-formal-run.json`,
       sha256: documentSha,
     },
   },

@@ -117,7 +117,7 @@ export interface TreeV2LiveProfile {
  * solver-token dimension can never trip before task-trials.
  */
 export const TREE_V2_LIVE_PROFILES: Record<
-  'k3' | 'k10' | 'k80' | 'k80Repair3' | 'treeV2Smoke',
+  'k3' | 'k10' | 'k80' | 'k80Repair3' | 'k80Repair4' | 'k80Repair5' | 'treeV2Smoke',
   TreeV2LiveProfile
 > = {
   /** Stable-demo envelope: the smallest paid run that exercises the full loop. */
@@ -244,6 +244,88 @@ export const TREE_V2_LIVE_PROFILES: Record<
     agentDebugger: {
       route: 'deepseek/zen-compatible',
       maxOutputTokens: 8_192,
+      requestTimeoutMs: 180_000,
+      maxInputBytes: 524_288,
+    },
+    attributionCalls: 80,
+    attributionTokens: 16_000_000,
+  },
+  /**
+   * ADR-063 successor-only repair4 protocol.  This is a fresh formal run
+   * identity: repair3's manifest and 8,192-token attribution envelope remain
+   * historical evidence.  The search/tournament envelope is intentionally
+   * unchanged so the only runtime deltas are the v2 solve-policy observation
+   * surface, 48-step native proposer cap, and the 32,768-token debugger
+   * completion envelope.
+   */
+  k80Repair4: {
+    kTarget: 80,
+    coldStartTrials: 3,
+    shortlistSize: 5,
+    maxSolverTrials: 400,
+    maxDiscoveryTrials: 12,
+    discoveryBatchSize: 6,
+    proposalWidth: 3,
+    taskTrials: 760,
+    wallClockMinutes: 4560,
+    wallClockSearchMinutes: 3600,
+    solverTokens: 1_520_000_000,
+    ucbAirAlphaPerMille: 800,
+    proposalCalls: 60,
+    proposerTokens: 60_000_000,
+    concurrentTrials: 12,
+    benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
+    tournament: {
+      minEligibilityTrials: 12,
+      coverageAttemptsPerTask: 1,
+      maxTrials: 360,
+      bootstrapResamples: 100_000,
+    },
+    runProfile: 'terminal-bench-formal',
+    // 524,288 / 4 + 32,768 = 163,840 reserved tokens/call; 80 calls reserve
+    // 13,107,200, leaving 2,892,800 tokens of pre-registered headroom.
+    agentDebugger: {
+      route: 'deepseek/zen-compatible',
+      maxOutputTokens: 32_768,
+      requestTimeoutMs: 180_000,
+      maxInputBytes: 524_288,
+    },
+    attributionCalls: 80,
+    attributionTokens: 16_000_000,
+  },
+  /**
+   * ADR-064 successor-only repair5 protocol.  The search envelope stays
+   * fixed; the TCB changes are a pre-paid-wave Docker bridge-capacity probe
+   * and an offline Harbor ACP bootstrap baked into every derived task image.
+   * repair4's contaminated baseline is retained as audit evidence only.
+   */
+  k80Repair5: {
+    kTarget: 80,
+    coldStartTrials: 3,
+    shortlistSize: 5,
+    maxSolverTrials: 400,
+    maxDiscoveryTrials: 12,
+    discoveryBatchSize: 6,
+    proposalWidth: 3,
+    taskTrials: 760,
+    wallClockMinutes: 4560,
+    wallClockSearchMinutes: 3600,
+    solverTokens: 1_520_000_000,
+    ucbAirAlphaPerMille: 800,
+    proposalCalls: 60,
+    proposerTokens: 60_000_000,
+    concurrentTrials: 12,
+    benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
+    tournament: {
+      minEligibilityTrials: 12,
+      coverageAttemptsPerTask: 1,
+      maxTrials: 360,
+      bootstrapResamples: 100_000,
+    },
+    runProfile: 'terminal-bench-formal',
+    agentDebugger: {
+      route: 'deepseek/zen-compatible',
+      maxOutputTokens: 32_768,
       requestTimeoutMs: 180_000,
       maxInputBytes: 524_288,
     },

@@ -23,7 +23,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { AgentSideConnection, SessionNotification } from '@agentclientprotocol/sdk'
-import { createNativeSolveAgent, type NativeSolveUsageSink } from '../src/acp/native-solve-agent.js'
+import {
+  createCandidateSolveObservationTracker,
+  createNativeSolveAgent,
+  type NativeSolveUsageSink,
+} from '../src/acp/native-solve-agent.js'
 import type { LiveSolveRuntimeLimits } from '../src/acp/solve-protocol.js'
 
 type CapturedUpdate = {
@@ -167,6 +171,22 @@ function makeFixture(options: {
 }
 
 describe('native solve agent usage reporting', () => {
+  it('derives only bounded prior-tool facts for candidate workflow input', () => {
+    const tracker = createCandidateSolveObservationTracker()
+    tracker.writeCompleted()
+    tracker.execStarted({ command: 'ls', args: ['-la'] })
+    tracker.execFinished('empty-output')
+    tracker.execStarted({ command: 'ls', args: ['-la'] })
+    tracker.execFinished('failed')
+    tracker.readCompleted()
+    expect(tracker.snapshot()).toEqual({
+      toolCalls: { exec: 2, read: 1, write: 1 },
+      previousAction: 'read',
+      lastExec: { outcome: 'failed', consecutiveRepeated: 1 },
+      writesSinceLastExec: 0,
+    })
+  })
+
   it('emits one usage_update and PromptResponse.usage from session events plus the receipt sink', async () => {
     const sink: NativeSolveUsageSink = { costUsdMicros: 1_140 }
     const { agent, updates } = makeFixture({
@@ -376,7 +396,17 @@ describe('native solve agent runtime limits', () => {
     )
 
     expect(calls).toEqual([
-      { protocol: 'dsh-evolve-le/candidate-solve-policy/v1', turn: 1, step: 2 },
+      {
+        protocol: 'dsh-evolve-le/candidate-solve-policy/v2',
+        turn: 1,
+        step: 2,
+        observation: {
+          toolCalls: { exec: 0, read: 0, write: 0 },
+          previousAction: 'none',
+          lastExec: { outcome: 'none', consecutiveRepeated: 0 },
+          writesSinceLastExec: 0,
+        },
+      },
     ])
     expect(decision).toMatchObject({ kind: 'enter' })
     expect(JSON.stringify((decision as { messages: unknown[] }).messages)).toContain(
@@ -472,7 +502,17 @@ describe('native solve agent runtime limits', () => {
     )
 
     expect(calls).toEqual([
-      { protocol: 'dsh-evolve-le/candidate-solve-policy/v1', turn: 1, step: 2 },
+      {
+        protocol: 'dsh-evolve-le/candidate-solve-policy/v2',
+        turn: 1,
+        step: 2,
+        observation: {
+          toolCalls: { exec: 0, read: 0, write: 0 },
+          previousAction: 'none',
+          lastExec: { outcome: 'none', consecutiveRepeated: 0 },
+          writesSinceLastExec: 0,
+        },
+      },
     ])
     expect(decision).toMatchObject({ kind: 'enter' })
     expect(JSON.stringify((decision as { messages: unknown[] }).messages)).toContain(

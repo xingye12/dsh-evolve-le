@@ -69,6 +69,33 @@ describe('tree-v2 live run profiles', () => {
       wallClockMinutes: 4560,
       wallClockSearchMinutes: 3600,
     })
+    // repair4 is a fresh run profile: it keeps repair3's search envelope but
+    // freezes the successor debugger envelope rather than rewriting repair3.
+    expect(TREE_V2_LIVE_PROFILES.k80Repair4).toMatchObject({
+      kTarget: 80,
+      coldStartTrials: 3,
+      concurrentTrials: 12,
+      benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
+      wallClockMinutes: 4560,
+      wallClockSearchMinutes: 3600,
+      agentDebugger: {
+        route: 'deepseek/zen-compatible',
+        maxOutputTokens: 32_768,
+        requestTimeoutMs: 180_000,
+        maxInputBytes: 524_288,
+      },
+      attributionCalls: 80,
+      attributionTokens: 16_000_000,
+    })
+    expect(TREE_V2_LIVE_PROFILES.k80Repair3.agentDebugger?.maxOutputTokens).toBe(8_192)
+    expect(TREE_V2_LIVE_PROFILES.k80Repair5).toMatchObject({
+      kTarget: 80,
+      concurrentTrials: 12,
+      benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
+      agentDebugger: { maxOutputTokens: 32_768 },
+      attributionCalls: 80,
+      attributionTokens: 16_000_000,
+    })
     expect(TREE_V2_LIVE_PROFILES.k80.wallClockSearchMinutes).toBeUndefined()
   })
 
@@ -205,12 +232,14 @@ describe('tree-v2 live run profiles', () => {
     expect(concurrentIndex).toBeGreaterThanOrEqual(0)
     expect(k80[concurrentIndex + 1]).toBe('8')
     const repair3 = buildTreeV2InitArgs(TREE_V2_LIVE_PROFILES.k80Repair3, input)
+    const repair4 = buildTreeV2InitArgs(TREE_V2_LIVE_PROFILES.k80Repair4, input)
     expect(repair3).toContain('baselineTaskCount=49')
     expect(repair3).toContain('baselineAttemptsPerTask=1')
     expect(repair3).toContain('baselineBatchSize=12')
     // ADR-058: the search share rides the flat --set surface for repair3;
     // the preserved 49×2 k80 args stay byte-identical without it.
     expect(repair3).toContain('wallClockSearchMinutes=3600')
+    expect(repair4).toContain('wallClockSearchMinutes=3600')
     expect(k80).not.toContain('wallClockSearchMinutes=')
     // ADR-059: the smoke emits the 2×1×1 matrix and serial concurrency,
     // stays stable-demo class (no --profile carrier).

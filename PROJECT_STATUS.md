@@ -3,6 +3,106 @@
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
 **更新时间：2026-09-09（Asia/Shanghai）**
 
+## 2026-09-09 repair3 已停止；repair4 启动前预注册（历史记录）
+
+用户要求停止 repair3 后，已向其专属 `setsid` 进程组 PGID 10597 发送 `SIGTERM`，并确认
+launcher、CLI controller 和活跃 proposer worker 均已退出。`repair3` 的 scratch、run manifest、
+journal 和 evidence 都保留在原路径，未删除、改写、重放或晋升其部分结果；该 run 是未完成/取消的
+formal search，**没有新的 development 或 sealed 结论**。
+
+新的 `k80Repair4` 已单独预注册：RUN_ID `tree-v2-k80-formal-repair-4`、MASTER_SEED
+`tree-v2-k80-formal-repair-4-master-seed-1`、evidence 根
+`evidence/tree-v2/k80-formal-repair-4/`、scratch 根
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-4/`。它保留 repair3 的 49×1×12 baseline、
+400/360 formal envelope、12-way concurrency 与 16M attribution budget，但冻结后继 runtime：
+solve-policy v2、native proposer `maxTurns=48`、Agent Debugger `maxOutputTokens=32,768`
+（524,288-byte input / 180,000-ms timeout）。80 个 attribution call 的完整信封预留为
+13,107,200 token，仍在 16M 内。record 脚本必须以
+`DSH_TREE_V2_FORMAL_VARIANT=repair4` 选择该 identity；paid confirmation gate 未给出，**未启动
+任何 repair4 付费调用**。
+
+## 2026-09-10 repair4 infrastructure failure；repair5 已预注册、未启动
+
+repair4 的 baseline 结束后发现 14 个 Harbor `RuntimeError` 在 agent 启动前因 Docker Compose
+无法创建 bridge network 而失败（`all predefined address pools have been fully subnetted`）；另有一个
+pre-agent `NetworkConnectionError`，因为 Harbor installed ACP agent 在 trial 内执行 `apt-get update`
+时 Debian mirror 超时。它们按 repair4 冻结 retry policy 仍是 FAIL，不能事后删除、改分或重试；因此
+repair4 已按用户授权 `SIGTERM` 停止，scratch/journal/Harbor 原始结果完整保留，**没有 development /
+sealed 结论，且不得 resume**。
+
+已移除 18 个无容器连接的旧 Terminal-Bench compose network（其它服务 network 未动），并新增两项
+TCB 前置防线：live provider preflight 在付费前实际 allocate+release 全 `concurrentTrials` 数量的
+bridge network，失败即 `docker-network-capacity` fail-closed；v4 derived verifier/task image 在预处理时
+装入 Harbor ACP 固定 bootstrap 依赖，并只在 Harbor 的 noninteractive root 环境下 bypass 两条固定 apt
+调用，普通 agent 的 `apt-get` 仍执行真实二进制。非付费 doctor 已实测 12 个 bridge probe 全部
+allocate/release 成功；真实 `qemu-startup` 派生镜像已从其声明的 Debian snapshot 构建，并在
+`--network none` 下完成这两条调用及 `import acp`，bullseye Python 3.13 runtime 亦能在该 glibc 2.31
+镜像启动。
+
+`k80Repair5` 已独立预注册：RUN_ID `tree-v2-k80-formal-repair-5`、MASTER_SEED
+`tree-v2-k80-formal-repair-5-master-seed-1`、evidence 根
+`evidence/tree-v2/k80-formal-repair-5/`、scratch 根
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-5/`。保留 repair4 的 49×1×12/K=80/12-way
+预算和 v2 observation、48-step proposer、32k debugger；因 TCB/derived image 变化，它必须运行新的
+baseline，repair4 结果仅供审计。**尚未启动 repair5，也未产生 repair5 付费调用。**
+
+预注册验证：tree-v2 profile + recorder concealment 47 tests 通过；`pnpm exec tsc -b` 通过。
+这不证明 debugger 已在真实模型返回 JSON，也不证明子代成功率或 development/sealed 分数改善；仍需
+repair5 的常规 preflight 与新的 paid baseline。
+
+## 2026-09-10 Agent Debugger v2：短 trace ID 修复（repair5 尚未启动）
+
+repair4 的首个非空 debugger 调用因 `unknown diagnosticTraceDigest` 被拒绝。已核实 controller 的请求中
+确有 10 个有效 digest；问题在 v1 设计要求模型逐字回填 71 字符的 `sha256:` 标识，单字符转录差异就会使
+有效诊断整体 fail-closed，而非 evidence 丢失。修复后，TCB 按 digest 排序为本次调用生成 `trace-001` 等
+短暂 alias；模型只接收 alias 与 diagnostic bundle、只返回 `traceId`，TCB 验证后映射回真实 digest 写入
+归因 artifact。模型请求不再含真实 digest；unknown/repeated alias 或不存在的 event/test anchor 仍 fail-closed。
+
+Agent Debugger artifact protocol 升为 v2。repair4 保持冻结审计证据；repair5 尚未启动，故其预注册源码直接
+采用 v2，但启动前仍须提交以冻结源码身份。验证通过：attributor HTTP 契约覆盖无 digest prompt、正确映射、
+伪造短 ID 与伪造 anchor 拒绝；durable iteration attribution 路径、`pnpm exec tsc -b` 通过。这只证明协议
+可靠性，不证明 live model 的诊断质量或子代成功率。
+
+**启动记录（2026-09-09，用户授权）**：以独立 session 启动
+`DSH_TREE_V2_FORMAL_VARIANT=repair4` + `DSH_TREE_V2_LIVE_CONFIRM=confirm`
+的 `record-tree-v2-k80-formal-live.ts`（launcher PID 622816）。启动日志已依次确认 pinned
+task extraction、offline verifier image build、`dsh-evolve init`、`doctor`，并进入
+`dsh-evolve run`。冻结 `run.config.json` 已核对为 repair4 的 runId/masterSeed、Agent Debugger
+`maxOutputTokens=32768`、`attributionTokens=16000000`、`attributionCalls=80` 与
+`wallClockSearchMinutes=3600`。该记录只说明 run 已启动；尚无 baseline/search/admission 或效能结论。
+
+## 2026-09-09 repair3 搜索观察与后继修复（历史观察；run 已停止、未改写）
+
+运行中的 `tree-v2-k80-formal-repair-3` 保持原 manifest、journal 和 evidence；本次只修改
+工作树，**不会注入、重启、停止或改写该 run**。截至观察时，前 4 次 Agent Debugger action
+均为已结算的 empty-content 失败（每次用尽冻结的 8,192 completion-token 信封），因此没有
+admitted `failure-attribution+json`；proposer 使用的是普通 failure index、raw trajectory 和
+diagnostic bundles，而不是 debugger 诊断。原始证据仍完整保留，问题是归因调用的输出信封被
+过大的历史 trace 批次耗尽。
+
+另发现 native proposer 的单一 DSH session 未把 profile 的 `maxTurns=24` 绑定到
+`agent/pre-step`，故不能限制 session 内的模型/工具步骤；以及 native prompt 没有明说
+solve-policy 的唯一输入是 `{ protocol, turn, step }`，使子代错误地设计为依赖工具历史、写入数、
+deliverable/verifier/controller 状态的门控（该状态在 runtime 中不存在）。
+
+后继 runtime 修复记录于 ADR-061：native proposal 现有 48-step fail-closed pre-step 上限；prompt
+明示真实 workflow 协议；debugger 对单请求保留所有能放入冻结输入信封的 trace，并将后继默认
+输出信封由 8,192 提至 32,768 token；完整 trace inventory 仍照常导出。repair3 的 8,192-token
+profile 保持冻结不变。
+
+**ADR-062 后继 solve-policy 修复**：此前子代虽由真实 Loader 装载，但其 workflow 只收到
+`{protocol,turn,step}`，而多种 gate 读取并不存在的 retry/output/deliverable 字段，故在 live solve
+退化。后继协议升至 `candidate-solve-policy/v2`：TCB 在不暴露命令、路径、文件/终端内容或
+verifier/controller/budget 的前提下，提供 prior-tool 的计数、动作类型、粗粒度 exec outcome、连续重复
+exec 与写后未 exec 摘要。候选仍只能输出 bounded checkpoint。此为新 runtime/new run 的协议变更，
+repair3 不改写或重评。验证：scanner 新增 unavailable-state 拒绝契约；native tool/agent 测试覆盖
+内容不泄露、v2 input、重复 exec/写后 exec 摘要；targeted 49 tests、`pnpm exec tsc -b`、真实 Loader
+subprocess 2/2 均通过。native live-solve E2E 因本机未设置其显式 integration gate 而跳过，尚未形成
+新的 paid live efficacy 结论。
+已通过 targeted Vitest（native-proposal、agent-debugger、feedback、iteration/driver）与
+`pnpm exec tsc -b`。这只验证后继代码路径；必须以新的冻结 run 的 paid attribution smoke
+验证真实模型能返回 JSON，不能把它当作 repair3 或子代成功率已提升的证据。
+
 ## 2026-09-09 ADR-057：repair3 单次 baseline 与 failure pool 冻结（未启动）
 
 用户授权为新的 repair3 search run 将 baseline 从 49×2（98 次）暂时改为 **49×1（49 次）**：
@@ -59,6 +159,7 @@ children 处以 BUDGET_EXHAUSTED 终止（repair-2 即此路径，12/80 停止�
 ## 2026-09-09 ADR-059：付费 Harbor smoke 预注册 + sealed one-shot 处置接受（smoke 已授权）
 
 用户两项裁决（2026-09-09）：
+
 1. **付费 harbor smoke 跑一下**——正式启动前先执行一个预注册的最小付费 live run，
    验证完整 tree-v2 trial 路径端到端可用（真实 Harbor job → tree-v2 baseline capsule →
    17897 egress 代理 → TCB gateway → 真实 deepseek-v4-flash route → 任务自带 verifier →

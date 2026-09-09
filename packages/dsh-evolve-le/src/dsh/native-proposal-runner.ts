@@ -46,6 +46,13 @@ export interface NativeProposalRunOptions {
   provider: string
   model: string
   maxTokens?: number
+  /**
+   * Hard cap on upstream native-agent steps.  Native DSH treats one proposal
+   * as a single session turn which can contain many model/tool steps, so this
+   * must be enforced at the `agent/pre-step` waterfall rather than reported
+   * as the runner's (always-one) session-turn count.
+   */
+  maxTurns?: number
   signal?: AbortSignal
   /** Candidate hook captured from the parent Loader composition. */
   candidateSetup?: (agentCtx: Context) => void | Promise<void>
@@ -99,6 +106,30 @@ export async function runNativeProposal(
       }
       await candidateSetup?.(agentCtx)
       installNativeProposalTools(agentCtx, options.backend, state)
+      if (options.maxTurns !== undefined) {
+        const runtime = agentCtx as unknown as {
+          on?: (
+            event: string,
+            listener: (
+              payload: { step?: unknown },
+              next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
+            ) => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
+          ) => void
+        }
+        if (typeof runtime.on !== 'function') {
+          throw new NativeProposalError('native proposal agent scope lacks agent/pre-step support')
+        }
+        runtime.on('agent/pre-step', async (payload, next) => {
+          const step = payload.step
+          if (typeof step !== 'number' || !Number.isSafeInteger(step) || step < 1) {
+            throw new NativeProposalError(
+              'native proposal agent emitted an invalid step coordinate',
+            )
+          }
+          if (step > options.maxTurns!) return { kind: 'reject' }
+          return next()
+        })
+      }
     },
   })
 

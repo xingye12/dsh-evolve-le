@@ -109,6 +109,18 @@ describe('run config schema (specs/07 §7)', () => {
     expect(accepted.ok).toBe(true)
   })
 
+  it('gives a newly composed Agent Debugger enough output room for anchored JSON', () => {
+    const config = defaultRunConfig({
+      runId: 'debugger-output-envelope-test',
+      masterSeed: 'debugger-output-envelope-seed',
+      tasksRoot: '/tmp/dsh-tasks',
+      baselineSourceDir: '/repo/packages/candidate-baseline',
+      jobsRoot: '/tmp/dsh-jobs',
+      agentDebuggerRoute: 'deepseek/zen-compatible',
+    })
+    expect(config.agentDebugger?.maxOutputTokens).toBe(32_768)
+  })
+
   it('requires an explicit legacy source when tree-v2 migration is selected', () => {
     const withoutLegacy = defaultRunConfig({
       runId: 'tree-v2-no-legacy',
@@ -378,6 +390,7 @@ describe('proposal sandbox limits by proposer route (Gate 8)', () => {
     // Real-model turns are slow (Gate 8 smoke: >120s requests, ~10 min per
     // proposal) — the sandbox must not kill the worker at the 300s default.
     expect(proposalSandboxLimits(document)).toEqual({ ...REMOTE_PROPOSAL_SANDBOX_LIMITS })
+    expect(REMOTE_PROPOSAL_SANDBOX_LIMITS.maxTurns).toBe(48)
     expect(REMOTE_PROPOSAL_SANDBOX_LIMITS.timeoutMs).toBeGreaterThan(300_000)
   })
 

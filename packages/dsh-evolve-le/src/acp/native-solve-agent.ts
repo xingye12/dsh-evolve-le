@@ -23,7 +23,10 @@ import {
   nativeUserMessage,
   type NativeDshAgent,
 } from '../dsh/native-composition.js'
-import { installNativeSolveTools } from './native-solve-tools.js'
+import {
+  installNativeSolveTools,
+  type NativeSolveToolObservationSink,
+} from './native-solve-tools.js'
 import { promptText } from './replay-agent.js'
 import type { LiveSolveRuntimeLimits } from './solve-protocol.js'
 
@@ -47,7 +50,69 @@ export const NATIVE_SOLVE_POLICY_SECTION = {
  * the verifier, or change controller limits.
  */
 export const CANDIDATE_SOLVE_POLICY_WORKFLOW = 'candidate-workflow:solve-policy' as const
-export const CANDIDATE_SOLVE_POLICY_PROTOCOL = 'dsh-evolve-le/candidate-solve-policy/v1' as const
+export const CANDIDATE_SOLVE_POLICY_PROTOCOL = 'dsh-evolve-le/candidate-solve-policy/v2' as const
+
+/** Content-free, TCB-derived facts from prior tool effects in this session. */
+export interface CandidateSolveObservation {
+  toolCalls: { exec: number; read: number; write: number }
+  previousAction: 'none' | 'exec' | 'read' | 'write'
+  lastExec: {
+    outcome: 'none' | 'succeeded' | 'failed' | 'empty-output' | 'timed-out' | 'unknown'
+    consecutiveRepeated: number
+  }
+  writesSinceLastExec: number
+}
+
+type CandidateSolveObservationTracker = NativeSolveToolObservationSink & {
+  snapshot(): CandidateSolveObservation
+}
+
+const observationCount = (value: number): number => Math.min(value, 1_000_000)
+
+/**
+ * Keep raw tool data private to the TCB while deriving a small deterministic
+ * observation that a candidate may only turn into a bounded checkpoint.
+ */
+export function createCandidateSolveObservationTracker(): CandidateSolveObservationTracker {
+  let exec = 0
+  let read = 0
+  let write = 0
+  let previousAction: CandidateSolveObservation['previousAction'] = 'none'
+  let lastCommandKey: string | undefined
+  let consecutiveRepeated = 0
+  let lastOutcome: CandidateSolveObservation['lastExec']['outcome'] = 'none'
+  let writesSinceLastExec = 0
+  return {
+    execStarted(input) {
+      const key = JSON.stringify([input.command, input.args ?? []])
+      consecutiveRepeated = key === lastCommandKey ? observationCount(consecutiveRepeated + 1) : 0
+      lastCommandKey = key
+      exec = observationCount(exec + 1)
+      writesSinceLastExec = 0
+      previousAction = 'exec'
+    },
+    execFinished(outcome) {
+      lastOutcome = outcome
+    },
+    readCompleted() {
+      read = observationCount(read + 1)
+      previousAction = 'read'
+    },
+    writeCompleted() {
+      write = observationCount(write + 1)
+      writesSinceLastExec = observationCount(writesSinceLastExec + 1)
+      previousAction = 'write'
+    },
+    snapshot() {
+      return {
+        toolCalls: { exec, read, write },
+        previousAction,
+        lastExec: { outcome: lastOutcome, consecutiveRepeated },
+        writesSinceLastExec,
+      }
+    },
+  }
+}
 
 type CandidateWorkflow = {
   name: string
@@ -110,9 +175,9 @@ function installCandidateWorkflowRegistry(agentCtx: Context): {
 
 function inheritedCandidateWorkflows(agentCtx: Context): CandidateWorkflowRegistry | undefined {
   try {
-    const service = (
-      agentCtx as unknown as { get?: (name: string) => unknown }
-    ).get?.('candidateWorkflows')
+    const service = (agentCtx as unknown as { get?: (name: string) => unknown }).get?.(
+      'candidateWorkflows',
+    )
     return service !== null && typeof service === 'object'
       ? (service as CandidateWorkflowRegistry)
       : undefined
@@ -271,6 +336,7 @@ export function createNativeSolveAgent(
     async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
       const sessionId = randomUUID()
       const limits = options.limits
+      const observation = createCandidateSolveObservationTracker()
       const handle = await createNativeDshAgent(ctx, {
         sessionId,
         cwd: params.cwd,
@@ -290,6 +356,7 @@ export function createNativeSolveAgent(
             connection,
             sessionId,
             cwd: params.cwd,
+            observation,
             ...(limits === undefined ? {} : { commandTimeoutMs: limits.commandTimeoutMs }),
           })
           const solvePolicies = workflowRegistry.workflows().filter(
@@ -318,6 +385,7 @@ export function createNativeSolveAgent(
                     protocol: CANDIDATE_SOLVE_POLICY_PROTOCOL,
                     turn: payload.turn,
                     step: (payload as { step?: number }).step ?? 0,
+                    observation: observation.snapshot(),
                   }),
                 )
                 if (checkpoint !== undefined) checkpoints.push(checkpoint)

@@ -20,11 +20,58 @@ import { parseDockerImage } from './image-cache.js'
 
 const execFile = promisify(execFileCallback)
 
-export const VERIFIER_IMAGE_PROTOCOL = 'dsh-evolve-le/verifier-image/v1'
-const PYTHON_RUNTIME_IMAGE = 'python:3.13-slim-bookworm'
+export const VERIFIER_IMAGE_PROTOCOL = 'dsh-evolve-le/verifier-image/v4'
+// Build Python 3.13 against the oldest glibc used by the frozen TB task
+// images.  A bullseye-built runtime runs on newer Debian/Ubuntu bases, while
+// the previous bookworm runtime required GLIBC_2.32+ and could not launch in
+// qemu-startup's bullseye image.
+const PYTHON_RUNTIME_IMAGE = 'python:3.13-slim-bullseye'
 /** Frozen ACP Python runner location consumed by Harbor's installed ACP agent. */
 export const ACP_RUNTIME_VENV_PATH = '/opt/harbor-acp-venv'
 export const ACP_RUNTIME_PACKAGE = 'agent-client-protocol'
+/**
+ * Harbor 0.21.0 unconditionally runs its ACP dependency bootstrap before it
+ * notices the already-provisioned venv.  The derived task image contains all
+ * of those dependencies, so this narrow wrapper makes only Harbor's exact
+ * fixed apt invocations no-ops, and only under Harbor's noninteractive root
+ * environment.  Other apt-get calls delegate to the real binary unchanged.
+ */
+export const HARBOR_ACP_APT_SHIM_PATH = '/usr/local/sbin/apt-get'
+export function harborAcpAptShim(): string {
+  return `#!/bin/sh
+# dsh-evolve-le: Harbor installed ACP bootstrap is already in this image.
+case "$*" in
+  'update -qq'|'install -y python3 python3-pip python3-venv curl ca-certificates tar unzip bzip2 xz-utils')
+    if [ "\${DEBIAN_FRONTEND:-}" = "noninteractive" ]; then exit 0; fi
+    ;;
+esac
+exec /usr/bin/apt-get "$@"
+`
+}
+/** Packages Harbor's fixed ACP bootstrap needs before extracting the capsule. */
+const ACP_BOOTSTRAP_SYSTEM_PACKAGES = [
+  'python3',
+  'python3-pip',
+  'python3-venv',
+  'curl',
+  'ca-certificates',
+  'tar',
+  'unzip',
+  'bzip2',
+  'xz-utils',
+]
+/**
+ * A few frozen TB base images ship their original Debian snapshot URLs as
+ * commented lines next to now-stale live mirrors.  Prefer that immutable
+ * snapshot during preparation.  The image digest is then frozen in the
+ * receipt; signature verification remains enabled.  Never do this at trial
+ * time.
+ */
+export function preparedAptInstallCommand(packages: readonly string[]): string {
+  if (packages.length === 0) throw new Error('verifier-image: no apt packages to install')
+  return `RUN if grep -q '^# deb http://snapshot.debian.org/' /etc/apt/sources.list; then sed -i -e 's|^# deb http://snapshot.debian.org/|deb http://snapshot.debian.org/|' -e '\\|^deb http://deb.debian.org/|d' /etc/apt/sources.list; fi && apt-get -o Acquire::Check-Valid-Until=false update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ${packages.join(' ')} && rm -rf /var/lib/apt/lists/*`
+}
+const ACP_BOOTSTRAP_IMAGE_CONTRACT = `v4\n${ACP_BOOTSTRAP_SYSTEM_PACKAGES.join('\n')}\n${preparedAptInstallCommand(ACP_BOOTSTRAP_SYSTEM_PACKAGES)}\n${harborAcpAptShim()}`
 
 export interface VerifierImageRecord {
   task: string
@@ -376,7 +423,7 @@ export async function prepareOfflineVerifierTasks(input: {
       await run(dockerBin, ['pull', item.baseRef])
     }
     const taskKey = digest(
-      `${runtimeImageId}\n${item.baseRef}\n${item.requirements.join('\n')}\n${item.systemRequirements.join('\n')}\n${item.gitSources
+      `${ACP_BOOTSTRAP_IMAGE_CONTRACT}\n${runtimeImageId}\n${item.baseRef}\n${item.requirements.join('\n')}\n${item.systemRequirements.join('\n')}\n${item.gitSources
         .map((source) => `${source.url}\n${source.branch}`)
         .join('\n')}\n${item.rewrittenTest}\n${item.rewrittenFiles
         .map((file) => `${file.relativePath}\n${file.content}`)
@@ -387,6 +434,10 @@ export async function prepareOfflineVerifierTasks(input: {
     if (derivedImageId === null) {
       const context = `/tmp/dsh-verifier-task-${taskKey.slice(0, 16)}`
       await mkdir(context, { recursive: true })
+      // The task image is where Harbor executes its installed ACP setup.  Put
+      // every fixed bootstrap prerequisite here during trusted preparation;
+      // a network outage during a paid trial must not decide its outcome.
+      await writeFile(join(context, 'dsh-harbor-acp-apt-get'), harborAcpAptShim(), 'utf8')
       await writeFile(
         join(context, 'Dockerfile'),
         [
@@ -399,11 +450,11 @@ export async function prepareOfflineVerifierTasks(input: {
               ]
             : []),
           'FROM dsh_task_base',
+          // Harbor's binary ACP setup always asks apt for this fixed list.
+          // Install it once in the derived image, before the shim below.
+          preparedAptInstallCommand(ACP_BOOTSTRAP_SYSTEM_PACKAGES),
           ...(item.systemRequirements.length > 0
-            ? [
-                'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ' +
-                  `${item.systemRequirements.join(' ')} && rm -rf /var/lib/apt/lists/*`,
-              ]
+            ? [preparedAptInstallCommand(item.systemRequirements)]
             : []),
           ...item.gitSources.map(
             (source) =>
@@ -411,6 +462,12 @@ export async function prepareOfflineVerifierTasks(input: {
           ),
           `COPY --from=${item.requirements.length > 0 ? 'dsh_task_runtime' : 'dsh_verifier_runtime'} /usr/local /usr/local`,
           `COPY --from=dsh_verifier_runtime ${ACP_RUNTIME_VENV_PATH} ${ACP_RUNTIME_VENV_PATH}`,
+          // Do not mask task-agent package management: this shim recognizes
+          // only Harbor's exact pre-agent bootstrap commands and delegates all
+          // other calls to /usr/bin/apt-get.
+          'COPY dsh-harbor-acp-apt-get /usr/local/sbin/apt-get',
+          'RUN if test -x /usr/bin/apt-get; then chmod 0755 /usr/local/sbin/apt-get; else rm -f /usr/local/sbin/apt-get; fi',
+          'ENV PATH=/usr/local/sbin:${PATH}',
           `ENV DSH_ACP_RUNTIME_READY=1 DSH_ACP_RUNTIME_VENV=${ACP_RUNTIME_VENV_PATH}`,
           'ENV DSH_OFFLINE_VERIFIER=1 UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never',
           `LABEL org.dsh-evolve-le.verifier-task="${item.task}"`,

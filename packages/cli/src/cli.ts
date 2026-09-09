@@ -46,6 +46,7 @@ import {
   configCheck,
   credentialChecks,
   dockerCheck,
+  dockerNetworkCapacityCheck,
   harborVersionCheck,
   IterationDriver,
   nativeDshCatalogCheck,
@@ -546,6 +547,7 @@ function providerPreflight(env: RunEnv): PreflightCheck[] {
     // closed here (1501 > 400), exactly as the clause mandates.
     searchCalibrationCheck(env.config, env.handles),
     dockerCheck(),
+    dockerNetworkCapacityCheck(env.config.benchmark.harbor.concurrentTrials),
     harborVersionCheck(env.config.benchmark.harbor.bin, env.config.benchmark.harbor.version),
   ]
   if (env.config.benchmark.legacyBaselineSourceDir !== undefined) {
@@ -610,7 +612,10 @@ async function composeReal(env: RunEnv, io: CliIo): Promise<Composition> {
     const receipt = await readJsonFile(verifierReceiptPath)
     const value = receipt as { protocol?: unknown; tasks?: unknown }
     if (
-      value.protocol !== 'dsh-evolve-le/verifier-image/v1' ||
+      (value.protocol !== 'dsh-evolve-le/verifier-image/v1' &&
+        value.protocol !== 'dsh-evolve-le/verifier-image/v2' &&
+        value.protocol !== 'dsh-evolve-le/verifier-image/v3' &&
+        value.protocol !== 'dsh-evolve-le/verifier-image/v4') ||
       !Array.isArray(value.tasks) ||
       value.tasks.length === 0
     ) {

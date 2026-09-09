@@ -1,13 +1,20 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
-import { AgentDebuggerError, remoteAgentDebugger, type RemoteRoutePlan } from '../src/index.js'
+import {
+  AgentDebuggerError,
+  remoteAgentDebugger,
+  selectDebuggerTraces,
+  type RemoteRoutePlan,
+} from '../src/index.js'
 
 let server: Server | undefined
+let requestBody: string | undefined
 
 afterEach(async () => {
   if (server !== undefined) await new Promise<void>((resolve) => server!.close(() => resolve()))
   server = undefined
+  requestBody = undefined
 })
 
 function plan(baseUrl: string): RemoteRoutePlan {
@@ -24,14 +31,19 @@ function plan(baseUrl: string): RemoteRoutePlan {
 }
 
 async function endpoint(reply: unknown): Promise<string> {
-  server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'application/json' })
-    response.end(
-      JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(reply) } }],
-        usage: { prompt_tokens: 17, completion_tokens: 19 },
-      }),
-    )
+  server = createServer((request, response) => {
+    const chunks: Buffer[] = []
+    request.on('data', (chunk: Buffer) => chunks.push(chunk))
+    request.on('end', () => {
+      requestBody = Buffer.concat(chunks).toString('utf8')
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(reply) } }],
+          usage: { prompt_tokens: 17, completion_tokens: 19 },
+        }),
+      )
+    })
   })
   await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()))
   const address = server.address() as AddressInfo
@@ -64,11 +76,26 @@ const trace = {
 }
 
 describe('LLM Agent Debugger', () => {
+  it('keeps every input-envelope-fitting trace in deterministic order', () => {
+    const traces = Array.from({ length: 5 }, (_unused, index) => ({
+      ...trace,
+      diagnosticTraceDigest: `sha256:${String(index).padStart(64, '0')}`,
+    }))
+    const selected = selectDebuggerTraces(traces.reverse(), 1_000_000)
+    expect(selected).toHaveLength(5)
+    expect(selected.map((entry) => entry.diagnosticTraceDigest)).toEqual(
+      traces
+        .map((entry) => entry.diagnosticTraceDigest)
+        .sort()
+        .slice(0, 5),
+    )
+  })
+
   it('accepts only an anchored diagnosis and emits a receipt without prompt text', async () => {
     const baseUrl = await endpoint({
       diagnoses: [
         {
-          diagnosticTraceDigest: trace.diagnosticTraceDigest,
+          traceId: 'trace-001',
           summary: 'The test was not run after the final tool mutation.',
           failureModes: ['incomplete-verification'],
           confidence: 0.8,
@@ -85,10 +112,13 @@ describe('LLM Agent Debugger', () => {
       traces: [trace],
     })
     const artifact = result.artifact.toString('utf8')
-    expect(artifact).toContain('dsh-evolve-le/agent-debugger/v1')
+    expect(artifact).toContain('dsh-evolve-le/agent-debugger/v2')
+    expect(artifact).toContain(trace.diagnosticTraceDigest)
     expect(artifact).toContain('incomplete-verification')
     expect(artifact).not.toContain('secret')
     expect(artifact).not.toContain('agent-debugger-contract')
+    expect(requestBody).toContain('trace-001')
+    expect(requestBody).not.toContain(trace.diagnosticTraceDigest)
     expect(JSON.parse(artifact)).toMatchObject({
       aggregate: {
         failureModes: [{ mode: 'incomplete-verification', count: 1 }],
@@ -101,7 +131,7 @@ describe('LLM Agent Debugger', () => {
     const baseUrl = await endpoint({
       diagnoses: [
         {
-          diagnosticTraceDigest: trace.diagnosticTraceDigest,
+          traceId: 'trace-001',
           summary: 'Unsupported.',
           failureModes: ['unknown'],
           confidence: 0.1,
@@ -116,6 +146,27 @@ describe('LLM Agent Debugger', () => {
         traces: [trace],
       }),
     ).rejects.toBeInstanceOf(AgentDebuggerError)
+  })
+
+  it('fails closed when the model invents a short trace id', async () => {
+    const baseUrl = await endpoint({
+      diagnoses: [
+        {
+          traceId: 'trace-999',
+          summary: 'Unsupported.',
+          failureModes: ['unknown'],
+          confidence: 0.1,
+          evidence: [{ source: 'events', index: 0 }],
+          suggestedSurfaces: [],
+          insufficientEvidence: true,
+        },
+      ],
+    })
+    await expect(
+      remoteAgentDebugger({ plan: plan(baseUrl), credential: 'secret' }).attribute({
+        traces: [trace],
+      }),
+    ).rejects.toThrow(/unknown traceId/)
   })
 
   it('persists known usage for an empty reasoning-model answer instead of treating it as free', async () => {

@@ -469,7 +469,7 @@ describe('iteration driver: closed loop', () => {
             outcome: 'ok' as const,
             artifact: Buffer.from(
               JSON.stringify({
-                protocol: 'dsh-evolve-le/agent-debugger/v1',
+                protocol: 'dsh-evolve-le/agent-debugger/v2',
                 source: 'test',
                 traces: input.traces.map((trace) => ({
                   diagnosticTraceDigest: trace.diagnosticTraceDigest,
@@ -527,7 +527,7 @@ describe('iteration driver: closed loop', () => {
       expect(index?.entries).toHaveLength(2)
       expect(index?.attributionDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
       expect(index?.entries?.every((entry) => entry.diagnosticTraceDigest !== undefined)).toBe(true)
-      expect(objectBytes.join('\n')).toContain('dsh-evolve-le/agent-debugger/v1')
+      expect(objectBytes.join('\n')).toContain('dsh-evolve-le/agent-debugger/v2')
     }
   }, 120_000)
 

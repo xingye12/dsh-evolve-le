@@ -668,7 +668,7 @@ export function defaultRunConfig(input: {
       : {
           agentDebugger: {
             route: input.agentDebuggerRoute,
-            maxOutputTokens: 8_192,
+            maxOutputTokens: 32_768,
             requestTimeoutMs: 180_000,
             maxInputBytes: 524_288,
           },
@@ -719,7 +719,7 @@ export function defaultRunConfig(input: {
  * fast default (it finishes in seconds and must keep failing fast).
  */
 export const REMOTE_PROPOSAL_SANDBOX_LIMITS = {
-  maxTurns: 24,
+  maxTurns: 48,
   timeoutMs: 3_600_000,
 } as const
 

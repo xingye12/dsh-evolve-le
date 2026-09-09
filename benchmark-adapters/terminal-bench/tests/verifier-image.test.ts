@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   ACP_RUNTIME_PACKAGE,
   ACP_RUNTIME_VENV_PATH,
+  HARBOR_ACP_APT_SHIM_PATH,
+  harborAcpAptShim,
+  preparedAptInstallCommand,
   rewriteVerifierOffline,
   rewriteVerifierGitClones,
   verifierRequirements,
@@ -12,6 +15,22 @@ describe('offline verifier image preparation', () => {
   it('freezes the Harbor ACP runner in the prepared runtime contract', () => {
     expect(ACP_RUNTIME_PACKAGE).toBe('agent-client-protocol')
     expect(ACP_RUNTIME_VENV_PATH).toBe('/opt/harbor-acp-venv')
+  })
+
+  it("bypasses only Harbor's already-provisioned ACP apt bootstrap", () => {
+    expect(HARBOR_ACP_APT_SHIM_PATH).toBe('/usr/local/sbin/apt-get')
+    const shim = harborAcpAptShim()
+    expect(shim).toContain("'update -qq'")
+    expect(shim).toContain('python3-pip python3-venv curl ca-certificates tar unzip bzip2 xz-utils')
+    expect(shim).toContain('DEBIAN_FRONTEND:-')
+    expect(shim).toContain('exec /usr/bin/apt-get "$@"')
+  })
+
+  it('prefers a frozen Debian snapshot only while preparing the image', () => {
+    expect(preparedAptInstallCommand(['python3', 'python3-venv'])).toBe(
+      "RUN if grep -q '^# deb http://snapshot.debian.org/' /etc/apt/sources.list; then sed -i -e 's|^# deb http://snapshot.debian.org/|deb http://snapshot.debian.org/|' -e '\\|^deb http://deb.debian.org/|d' /etc/apt/sources.list; fi && apt-get -o Acquire::Check-Valid-Until=false update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-venv && rm -rf /var/lib/apt/lists/*",
+    )
+    expect(() => preparedAptInstallCommand([])).toThrow(/no apt packages/)
   })
 
   it('extracts the exact pinned uvx requirements', () => {

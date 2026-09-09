@@ -21,6 +21,7 @@ import {
   configCheck,
   credentialChecks,
   dockerCheck,
+  dockerNetworkCapacityCheck,
   harborVersionCheck,
   nativeDshCatalogCheck,
   proposalWorkerIdentityCheck,
@@ -187,6 +188,38 @@ describe('preflight checks', () => {
     expect(wrong.detail).toContain(version)
     const right = await harborVersionCheck(nodeBin, version)()
     expect(right.ok).toBe(true)
+  })
+
+  it('proves the full frozen Harbor wave can allocate bridge networks and releases probes', async () => {
+    const calls: Array<readonly string[]> = []
+    const finding = await dockerNetworkCapacityCheck(3, 'docker', async (_bin, args) => {
+      calls.push(args)
+      return { stdout: '', stderr: '' }
+    })()
+    expect(finding).toEqual({
+      name: 'docker-network-capacity',
+      ok: true,
+      detail: '3 isolated bridge networks allocated and released',
+    })
+    expect(calls.filter((args) => args[1] === 'create')).toHaveLength(3)
+    expect(calls.filter((args) => args[1] === 'rm')).toHaveLength(3)
+  })
+
+  it('fails closed and cleans already-created probes when Docker exhausts its address pool', async () => {
+    const calls: Array<readonly string[]> = []
+    let creates = 0
+    const finding = await dockerNetworkCapacityCheck(3, 'docker', async (_bin, args) => {
+      calls.push(args)
+      if (args[1] === 'create') {
+        creates += 1
+        if (creates === 2) throw new Error('all predefined address pools have been fully subnetted')
+      }
+      return { stdout: '', stderr: '' }
+    })()
+    expect(finding.ok).toBe(false)
+    expect(finding.detail).toContain('2/3')
+    expect(finding.detail).toContain('address pools')
+    expect(calls.filter((args) => args[1] === 'rm')).toHaveLength(1)
   })
 
   it('tasksRootCheck verifies a task.toml per planned handle', async () => {

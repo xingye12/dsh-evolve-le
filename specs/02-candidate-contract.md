@@ -68,12 +68,24 @@ boundary.
 
 The successor baseline exposes one solve-only workflow named
 `candidate-workflow:solve-policy`. The native solve runtime invokes that exact
-name at every admitted `agent/pre-step` with only `{ protocol, turn, step }`.
-Its result MAY contain one bounded `checkpoint` string (at most 2,048 chars),
-which the TCB appends to that step's model context. It cannot execute ACP tools,
-read verifier/controller state, alter model routing or budgets, or replace a
-TCB instruction. This is an executable, per-step strategy seam; it is not a
+name at every admitted `agent/pre-step` with
+`{ protocol:"dsh-evolve-le/candidate-solve-policy/v2", turn, step, observation }`.
+`observation` is a bounded TCB-derived summary of prior tool effects in the
+same session: total `toolCalls` by `exec/read/write`, `previousAction`, the
+last exec's coarse `outcome` plus `consecutiveRepeated`, and
+`writesSinceLastExec`. It contains no raw command, path, argument, file content,
+terminal output, task/verifier/controller state, route or budget. Its result MAY
+contain one bounded `checkpoint` string (at most 2,048 chars), which the TCB
+appends to that step's model context. It cannot execute ACP tools, read
+verifier/controller state, alter model routing or budgets, or replace a TCB
+instruction. This is an executable, per-step strategy seam; it is not a
 permission for candidates to intercept arbitrary host events.
+
+Admission MUST reject a candidate workflow that references a named runtime
+state outside this v2 observation contract (including legacy invented fields
+such as `deliverableReady`, `repeatedProbe`, `outputSeen`, or
+`consecutiveFailures`). Candidate-owned tests may exercise the documented
+observation shape, but fabricated extra fields do not establish live behavior.
 
 ## 3. DSH bundle shape
 

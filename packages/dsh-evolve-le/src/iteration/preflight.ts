@@ -12,6 +12,7 @@
  */
 
 import { execFile as execFileCb } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -166,6 +167,61 @@ export function dockerCheck(bin = 'docker'): PreflightCheck {
     return result instanceof Error
       ? { name: 'docker', ok: false, detail: result.message.slice(0, 300) }
       : { name: 'docker', ok: true, detail: result.stdout.trim() }
+  }
+}
+
+export interface DockerNetworkCommandRunner {
+  (bin: string, args: readonly string[]): Promise<{ stdout: string; stderr: string }>
+}
+
+const defaultDockerNetworkRunner: DockerNetworkCommandRunner = async (bin, args) =>
+  exec(bin, [...args], { timeout: 30_000, maxBuffer: 1024 * 1024 })
+
+/**
+ * Prove that the daemon can allocate the full frozen Harbor wave before any
+ * paid action exists.  A cancelled Harbor process can leave empty compose
+ * networks behind; checking only `docker info` lets the next run poison its
+ * baseline with reward-blind provisioning failures.  Every probe network is
+ * removed in a finally block and a failure stops before run state is created.
+ */
+export function dockerNetworkCapacityCheck(
+  requiredNetworks: number,
+  bin = 'docker',
+  run: DockerNetworkCommandRunner = defaultDockerNetworkRunner,
+): PreflightCheck {
+  if (!Number.isSafeInteger(requiredNetworks) || requiredNetworks < 1) {
+    throw new Error('dockerNetworkCapacityCheck: requiredNetworks must be a positive integer')
+  }
+  return async () => {
+    const prefix = `dsh-evolve-le-preflight-${randomUUID()}`
+    const created: string[] = []
+    try {
+      for (let index = 0; index < requiredNetworks; index += 1) {
+        const name = `${prefix}-${String(index + 1)}`
+        try {
+          await run(bin, ['network', 'create', '--driver', 'bridge', name])
+          created.push(name)
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error)
+          return {
+            name: 'docker-network-capacity',
+            ok: false,
+            detail:
+              `could allocate ${String(index + 1)}/${String(requiredNetworks)} isolated bridge networks: ` +
+              detail.slice(0, 400),
+          }
+        }
+      }
+      return {
+        name: 'docker-network-capacity',
+        ok: true,
+        detail: `${String(requiredNetworks)} isolated bridge networks allocated and released`,
+      }
+    } finally {
+      for (const name of created.reverse()) {
+        await run(bin, ['network', 'rm', name]).catch(() => undefined)
+      }
+    }
   }
 }
 

@@ -214,7 +214,7 @@ const result = await controller.runProposal({
     entries: [],
   },
   canaryTokens,
-  maxTurns: 24,
+  maxTurns: 48,
   timeoutMs: 3_600_000,
 })
 const budgetAfter = controller.status().budget

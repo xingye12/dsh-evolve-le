@@ -2414,11 +2414,12 @@ unchanged.
 
 **Context.** repair2 stopped at 12/80 children after 30 h of search. The
 post-ADR-054 cadence arithmetic: one 3-child cycle ≈ 1.6–2.2 h (one proposal
-+ one mixed q0 wave at 12-way concurrency); 80 children ≈ 27 cycles ≈ 45–60 h
-of search. The ADR-048/057 envelope froze the search share at 1800 min (30 h)
-— the same wall-clock wall that makes repair2's CHAMPION_LOCKED path
-BUDGET_EXHAUSTED at ~25–40 children. The user authorized raising the repair3
-search phase to 3600 min (60 h).
+
+- one mixed q0 wave at 12-way concurrency); 80 children ≈ 27 cycles ≈ 45–60 h
+  of search. The ADR-048/057 envelope froze the search share at 1800 min (30 h)
+  — the same wall-clock wall that makes repair2's CHAMPION_LOCKED path
+  BUDGET_EXHAUSTED at ~25–40 children. The user authorized raising the repair3
+  search phase to 3600 min (60 h).
 
 **Decision.** repair3 search share 1800 → 3600 min; the run-config envelope
 wallClockMinutes 2760 → 4560 (3600 search + 960 tournament). Tournament
@@ -2459,6 +2460,7 @@ path** (the ADR-048 pre-registered 23×5×2 evaluation with a single reveal)
 with no further gate.
 
 **Decision.**
+
 1. New pre-registered profile `treeV2Smoke` plus a dedicated record script
    `scripts/record-tree-v2-smoke-live.ts`: a 2×1 benchmark-baseline matrix
    (the first two observed handles of the frozen ceremony), one live
@@ -2488,6 +2490,7 @@ with no further gate.
    NO_REAL_FAILURE_SIGNAL at trials=2. The record script's verifier
    allowlist now derives from `benchmarkBaseline.taskCount` (the 1×1
    draft had sliced by discoveryBatchSize).
+
 2. Sealed disposition: repair-3 keeps the ADR-048 pre-registered one-shot
    sealed evaluation (23 tasks × 5 attempts × 2 sides = 230 trials, 720
    min, one reveal, CHAMPION_LOCKED only) unchanged; the acceptance is
@@ -2540,3 +2543,188 @@ path executes the solve-policy checkpoint through the outer registry
 without re-providing; a declaration-only record installs no listener);
 full suite + real Loader E2E; then smoke attempt 3 re-runs the real
 mockReplay path end to end against the fixed build.
+
+## ADR-061 (2026-09-09): repair3 search observations — successor-only proposal and attribution hardening
+
+**Context.** The active `tree-v2-k80-formal-repair-3` search run exposed two
+TCB defects without changing its frozen manifest or evidence. Its first four
+Agent Debugger actions each settled as an HTTP-success empty-content error
+after consuming the frozen 8,192 completion-token envelope. Their inputs
+contained the complete currently actionable trace set, so the reasoning route
+could consume the whole output budget before emitting the required JSON. No
+`failure-attribution+json` artifact was admitted for those actions; the
+proposer therefore saw the ordinary failure index and raw diagnostic bundles,
+not debugger diagnoses.
+
+The same run also showed that a native proposal can make substantially more
+upstream agent steps than the configured `maxTurns`: the native runner passed
+only model and token fields into the DSH session. Unlike the recorded agent
+loop, its single `followup()` session did not enforce the per-step budget.
+Finally, generated children tried to branch their solve-policy workflow on
+tool/write/deliverable and verifier state, while the normative interface has
+always supplied only `{ protocol, turn, step }`; those fields can never be
+observed by the candidate workflow.
+
+**Decision.** This is a successor-only repair. The active repair3 process,
+manifest, journal and immutable evidence remain untouched. Future native
+proposal sessions receive `maxTurns` and install a fail-closed
+`agent/pre-step` waterfall guard: steps `1..maxTurns` enter and the next step
+is rejected. The native proposer instruction now repeats the exact
+solve-policy input and expressly forbids claims of unavailable state.
+
+The debugger keeps the full immutable diagnostic inventory in the ordinary
+proposer export and sends every trace bundle that fits the frozen input
+envelope to one attribution call; it no longer has an arbitrary three-trace
+limit. The successor default raises the output envelope from 8,192 to 32,768
+tokens, leaving room for reasoning plus the anchored JSON response. This does
+not give the debugger selection authority over reward, task choice, archive
+admission or the full evidence export. The repair3 8,192-token profile remains
+frozen. A future run must freeze the revised runtime and perform a paid
+attribution smoke before treating the empty-output failure as empirically
+resolved.
+
+**Verification.** Regression tests prove the 49th step is rejected under a
+48-step cap and that debugger selection is deterministic and preserves all
+input-envelope-fitting traces;
+the existing driver attribution path exercises the selected-batch seam.
+Targeted Vitest suites (`native-proposal`, `agent-debugger`, `feedback`, and
+`iteration/driver`) and `pnpm exec tsc -b` pass. This verifies the code path,
+not a success-rate improvement or live-model attribution quality.
+
+## ADR-062 (2026-09-09): content-free solve-policy observation protocol
+
+**Context.** repair3 admitted children whose workflow modules branch on
+invented `repeatedProbe`, `outputSeen`, `deliverableReady`,
+`consecutiveFailures`, or `artifactExecuted` fields. The v1 workflow contract
+provided only a turn/step coordinate, so those branches were dead in a real
+solve session even though candidate-owned unit tests could fabricate the
+fields. This is a contract/design failure, not evidence that the candidate
+bundle was skipped by the Loader.
+
+**Decision.** The successor-only workflow protocol is
+`dsh-evolve-le/candidate-solve-policy/v2`. At each admitted pre-step the TCB
+passes the coordinate plus a content-free summary of prior tool effects in the
+same session: counts by tool kind, prior action kind, coarse last-exec outcome,
+consecutive identical exec count, and writes since the last exec. The native
+tool bridge keeps raw command/path/argument/file/terminal bytes private while
+deriving these facts. Candidate code still receives no verifier/controller/
+route/budget state and can only return its existing bounded checkpoint.
+
+The proposer prompt and normative candidate contract enumerate the exact v2
+shape, and admission's AST policy scan rejects legacy invented state fields.
+Thus a future proposal can make a retry/deliverable gate depend on a real fact,
+while a proposed branch on any unlisted legacy state fails before build.
+Existing repair3 artifacts retain their frozen v1 runtime and are not
+rewritten or re-evaluated.
+
+**Verification.** Tool-layer tests assert that observation callbacks disclose
+only bounded kinds/outcomes, not file or terminal content; native-agent tests
+assert the v2 input and deterministic repeated-exec/write facts. TypeScript,
+candidate contract and real Loader tests must pass before a successor run; a
+paid smoke is still required to establish efficacy.
+
+## ADR-063 (2026-09-09): terminate repair3 and pre-register repair4
+
+**Context.** At the user's instruction, the incomplete
+`tree-v2-k80-formal-repair-3` search was stopped after the successor-only
+ADR-061/062 code path was verified. Its controller, CLI and active proposer
+worker belonged to the dedicated `setsid` process group 10597; a `SIGTERM` to
+that group ended all three processes. The repair3 scratch root, run root,
+journal, manifest and evidence directory were deliberately retained. No
+partial result is promoted, replayed under new code, or used as a repair4
+baseline.
+
+**Decision.** Pre-register the new, distinct `k80Repair4` formal profile and
+run identity `tree-v2-k80-formal-repair-4` with fresh master seed
+`tree-v2-k80-formal-repair-4-master-seed-1`, scratch
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-4/`, and evidence root
+`evidence/tree-v2/k80-formal-repair-4/`. It retains repair3's 49×1×12
+baseline matrix, 400/360 search+tournament envelope, 12-way Harbor
+concurrency, 60 proposal calls and all formal/sealed gates. The deliberately
+changed successor runtime is: solve-policy protocol v2, native proposer
+`maxTurns=48`, and Agent Debugger `maxOutputTokens=32,768` with the unchanged
+524,288-byte input and 180,000-ms timeout. Its 80 attribution calls reserve
+at most 13,107,200 tokens, within the pre-registered 16,000,000-token budget.
+
+The formal recorder selects the identity only through
+`DSH_TREE_V2_FORMAL_VARIANT=repair4`; it continues to retain the repair3
+selector for audit/resume compatibility. The paid confirmation gate remains
+separate and no paid action is launched by this pre-registration.
+
+**Verification.** Profile and recorder concealment contracts pass (47 tests)
+and `pnpm exec tsc -b` passes. This validates configuration and does not
+demonstrate debugger JSON completion, child quality, or a development/sealed
+improvement; repair4 still needs its normal preflight and a paid attribution
+smoke before any such claim.
+
+## ADR-064 (2026-09-10): repair4 infrastructure invalidation and offline trial preflight
+
+**Context.** repair4's 49×1 baseline contains 14 pre-agent Harbor
+`RuntimeError` results whose Docker Compose setup failed with `all predefined
+address pools have been fully subnetted`. The host retained empty compose
+networks from earlier stopped trial runs, exhausting Docker's default bridge
+allocation. A separate pre-agent `NetworkConnectionError` occurred because
+Harbor 0.21.0's installed ACP agent unconditionally runs `apt-get update` and
+an ACP dependency install before it notices the already-derived ACP venv;
+the Debian mirror timed out. These results are failure evidence under the
+frozen repair4 retry policy, not solver capability evidence. They cannot be
+removed or retroactively retried.
+
+**Decision.** Stop repair4 as `OPERATOR_STOPPED`, preserving its scratch,
+journal and raw Harbor results. Do not resume it. Before any future live
+provider launch, the TCB allocates and removes exactly the frozen Harbor wave
+width of isolated bridge networks; any allocation failure is a pre-paid
+fail-closed `docker-network-capacity` finding. The run-scoped derived task
+image now installs Harbor's fixed ACP bootstrap prerequisites during trusted
+image preparation and contains a narrow apt shim that no-ops only Harbor's two
+fixed bootstrap invocations under Harbor's noninteractive root environment;
+other task-agent `apt-get` calls reach the real binary. The verifier-image
+protocol is v4 and its content key binds this bootstrap and ABI contract, so
+stale v1-v3 images cannot be reused.
+
+`k80Repair5` is a fresh successor: run id
+`tree-v2-k80-formal-repair-5`, fresh master seed, scratch/evidence roots with
+the repair5 suffix, and the unchanged 49×1×12 / K=80 formal envelope. Its
+new TCB behavior requires a new baseline; repair4 results are audit-only.
+
+**Verification.** Unit contracts cover full-wave probe allocation/release and
+cleanup after address-pool failure, and the exact narrow ACP apt shim. A
+non-paid doctor check after removal of 18 verified-empty project trial
+networks successfully allocated and released all 12 bridge probes. The real
+`qemu-startup` v4 derived image was built from its declared 2025-10-20 Debian
+snapshot and, with `--network none`, completed Harbor's two exact ACP apt
+commands plus `/opt/harbor-acp-venv/bin/python -c 'import acp'`. The shared
+runtime is Python 3.13 built on bullseye so it also launches in this
+glibc-2.31 task image. A paid repair5 baseline remains the only efficacy
+check; it has not been launched.
+
+## ADR-065 (2026-09-10): short-lived Agent Debugger trace aliases
+
+**Context.** repair4's first non-empty Agent Debugger response was rejected as
+`diagnosis cites an unknown diagnosticTraceDigest`, despite the controller's
+request containing ten valid trace digests. The v1 prompt asked the model to
+copy one opaque 71-character `sha256:` identifier for every diagnosis. That
+identifier has no diagnostic meaning and a one-character model transcription
+error makes an otherwise evidence-anchored response unusable. The event is
+therefore a debugger protocol design defect, not missing trace evidence or a
+reason to weaken anchor validation.
+
+**Decision.** Agent Debugger v2 assigns deterministic, call-local aliases
+`trace-001`, `trace-002`, … after sorting the selected trace digests. The
+remote prompt contains only each alias and its untrusted diagnostic bundle;
+the model must return `traceId`, not a content address. The TCB maps the
+validated alias back to its original digest before writing the attribution
+artifact. Long digests remain in controller request receipts, failure-index
+entries and the artifact, but never cross the model-output boundary. Unknown
+or repeated aliases and nonexistent event/test indexes still fail closed.
+
+repair4 remains frozen audit evidence. Repair5 had not started, so its
+pre-registered source is amended in place; its eventual manifest must freeze
+this v2 protocol and source commit before any paid action.
+
+**Verification.** The attributor HTTP contract asserts that the prompt has
+`trace-001` and no real diagnostic digest, that the output maps it back to the
+original digest, and that invented short aliases or evidence indexes are
+rejected. The iteration durable-attribution path passes with the v2 artifact,
+alongside TypeScript compilation. This proves protocol handling only, not
+the live model's diagnostic quality.
