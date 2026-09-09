@@ -51,6 +51,11 @@ children 处以 BUDGET_EXHAUSTED 终止（repair-2 即此路径，12/80 停止�
 720min、$500 与 +5pp 门不变。这是 specs/00 §6.3 的第三次显式修订（ADR-045、ADR-048 之后），
 未静默缩小协议（rule 9）；60h 是投影上界，run 仍可能在 K=80 前合法 BUDGET_EXHAUSTED。
 
+**启动门记录（2026-09-09）**：修订提交 `a9b04b3`（13 files / +219 −32，凭据扫描 0 匹配）；
+`pnpm build`（tsc -b）通过；vitest 全绿 787 passed / 29 skipped（71 files，~6.7min）；
+真实 Loader E2E 单独复跑通过（17 tests）；diff 自查仅含 ADR-058 改动（无 codex 并发产物）。
+**尚未启动**（等用户确认）。
+
 ## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
 
 已为后继 run 实现可注入的 TypeScript Agent Debugger：Harbor collect 将 ACP
