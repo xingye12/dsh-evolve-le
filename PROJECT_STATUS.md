@@ -56,6 +56,41 @@ children 处以 BUDGET_EXHAUSTED 终止（repair-2 即此路径，12/80 停止�
 真实 Loader E2E 单独复跑通过（17 tests）；diff 自查仅含 ADR-058 改动（无 codex 并发产物）。
 **尚未启动**（等用户确认）。
 
+## 2026-09-09 ADR-059：付费 Harbor smoke 预注册 + sealed one-shot 处置接受（smoke 已授权）
+
+用户两项裁决（2026-09-09）：
+1. **付费 harbor smoke 跑一下**——正式启动前先执行一个预注册的最小付费 live run，
+   验证完整 tree-v2 trial 路径端到端可用（真实 Harbor job → tree-v2 baseline capsule →
+   17897 egress 代理 → TCB gateway → 真实 deepseek-v4-flash route → 任务自带 verifier →
+   receipt chain settle）。
+2. **接受 sealed one-shot 路径在 repair-3 的处置**——repair-3 沿用 ADR-048 已预注册的
+   one-shot 处置（CANDIDATE_LOCKED 后 sealed 一次性揭盲、绝不测第二名）；不新增门，
+   本文档只记录接受。
+
+**smoke 预注册（新 profile `treeV2Smoke`，scripts/lib/tree-v2-live-profile.ts）**：
+K=1、coldStartTrials 1、shortlistSize 2、maxSolverTrials 4、maxDiscoveryTrials 1、
+discoveryBatchSize 1、proposalWidth 2、taskTrials 4、wallClockMinutes 120、
+solverTokens 8 000 000、concurrentTrials 1、benchmarkBaseline
+{taskCount:1, attemptsPerTask:1, batchSize:1}（冻结 ceremony 的首个 observed handle）。
+无 tournament / sealed / debugger（stable-demo profile 类）。合法终止态
+K_REACHED（trials=2：1 矩阵 + 1 冷启动）或 NO_REAL_FAILURE_SIGNAL（trials=1：矩阵全成、
+pool 空）。最坏 ≈ 4 trials：solver 单试次被冻结 gateway 独立封顶（48 requests / 2M tokens /
+$0.30）→ $1.20，加一次真实 proposal（proposalCalls=20、proposerTokens=20M 上限）。
+
+身份与证据：RUN_ID `tree-v2-smoke-live-1`、MASTER_SEED `tree-v2-smoke-live-1-master-seed-1`、
+evidence `evidence/tree-v2/smoke-live-1/`（smoke-live-run.json + STATUS.json，kind
+`smoke-live-run`）。record 脚本 `scripts/record-tree-v2-smoke-live.ts`（k3 脚本克隆）：
+付费门（DSH_TREE_V2_LIVE_CONFIRM=confirm）、credential 0600 门、scratch mkdtemp
+（`dsh-tree-v2-smoke-live-1-`）、≤1800s 过滤（89→72）、ceremony + verifier 镜像
+allowlist=首个 observed handle、init 冻结 config 与 smoke profile 逐字比对
+（含 1×1×1 矩阵与 concurrentTrials=1）、doctor、run（进程包装 2.5h，run 自身 2h 信封
+先触发）、逐 trial receipt chain 校验、trajectory 非空且非 replay 标记、
+receiptUsageMatchesSettlement、oneTokenFilePerTrial、证据消毒复制 + 凭据/token
+redaction 扫描。smoke 的单次 development trial 不进 repair-3 的 proposer/archive，
+不构成任何提升声明（ADR-059 明确 scope.smokeFor='tree-v2-k80-formal-repair-3'）。
+
+**smoke 结果**：（运行后回填：stopReason/trials/$/record failures/evidence 哈希）
+
 ## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
 
 已为后继 run 实现可注入的 TypeScript Agent Debugger：Harbor collect 将 ACP

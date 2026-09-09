@@ -117,7 +117,7 @@ export interface TreeV2LiveProfile {
  * solver-token dimension can never trip before task-trials.
  */
 export const TREE_V2_LIVE_PROFILES: Record<
-  'k3' | 'k10' | 'k80' | 'k80Repair3',
+  'k3' | 'k10' | 'k80' | 'k80Repair3' | 'treeV2Smoke',
   TreeV2LiveProfile
 > = {
   /** Stable-demo envelope: the smallest paid run that exercises the full loop. */
@@ -249,6 +249,32 @@ export const TREE_V2_LIVE_PROFILES: Record<
     },
     attributionCalls: 80,
     attributionTokens: 16_000_000,
+  },
+  /**
+   * ADR-059 paid 1-job Harbor smoke (the repair-3 launch gate): the smallest
+   * pre-registered live run that exercises the full tree-v2 trial path —
+   * real Harbor job → capsule boot through the egress proxy → TCB solve
+   * gateway → live route → task verifier → receipt-chain settle. One
+   * benchmark-baseline matrix trial (the first observed handle of the frozen
+   * ceremony), one live expansion/proposal and one q0 cold start; every
+   * trial funds at the frozen 2M gateway cap (solverTokens = taskTrials ×
+   * 2M, so the dimension never trips before task-trials). Worst case ≈ 4
+   * trials / $1.20 solver + one live proposal; stable-demo profile class —
+   * no tournament, no sealed demands. Claims no improvement signal.
+   */
+  treeV2Smoke: {
+    kTarget: 1,
+    coldStartTrials: 1,
+    shortlistSize: 2,
+    maxSolverTrials: 4,
+    maxDiscoveryTrials: 1,
+    discoveryBatchSize: 1,
+    proposalWidth: 2,
+    taskTrials: 4,
+    wallClockMinutes: 120,
+    solverTokens: 8_000_000,
+    concurrentTrials: 1,
+    benchmarkBaseline: { taskCount: 1, attemptsPerTask: 1, batchSize: 1 },
   },
 }
 

@@ -71,6 +71,25 @@ describe('tree-v2 live run profiles', () => {
     expect(TREE_V2_LIVE_PROFILES.k80.wallClockSearchMinutes).toBeUndefined()
   })
 
+  it('pins the ADR-059 1-job harbor smoke envelope', () => {
+    expect(TREE_V2_LIVE_PROFILES.treeV2Smoke).toMatchObject({
+      kTarget: 1,
+      coldStartTrials: 1,
+      shortlistSize: 2,
+      maxSolverTrials: 4,
+      taskTrials: 4,
+      wallClockMinutes: 120,
+      solverTokens: 8_000_000,
+      concurrentTrials: 1,
+      benchmarkBaseline: { taskCount: 1, attemptsPerTask: 1, batchSize: 1 },
+    })
+    // The smoke is stable-demo class: no tournament, no formal profile
+    // demands, no debugger — the smallest paid run that exists.
+    expect(TREE_V2_LIVE_PROFILES.treeV2Smoke.tournament).toBeUndefined()
+    expect(TREE_V2_LIVE_PROFILES.treeV2Smoke.runProfile).toBeUndefined()
+    expect(TREE_V2_LIVE_PROFILES.treeV2Smoke.agentDebugger).toBeUndefined()
+  })
+
   it('funds every trial at the gateway per-trial token cap', () => {
     // The controller reserves floor(solverTokens / taskTrials) per trial and
     // the ledger fails closed when a receipt-verified settle exceeds its
@@ -192,6 +211,16 @@ describe('tree-v2 live run profiles', () => {
     // the preserved 49×2 k80 args stay byte-identical without it.
     expect(repair3).toContain('wallClockSearchMinutes=3600')
     expect(k80).not.toContain('wallClockSearchMinutes=')
+    // ADR-059: the smoke emits the 1×1×1 matrix and serial concurrency,
+    // stays stable-demo class (no --profile carrier).
+    const smoke = buildTreeV2InitArgs(TREE_V2_LIVE_PROFILES.treeV2Smoke, input)
+    expect(smoke).toContain('baselineTaskCount=1')
+    expect(smoke).toContain('baselineAttemptsPerTask=1')
+    expect(smoke).toContain('baselineBatchSize=1')
+    expect(smoke).not.toContain('--profile')
+    expect(smoke).not.toContain('tournamentMinEligibilityTrials=')
+    const smokeConcurrentIndex = smoke.indexOf('--concurrent-trials')
+    expect(smoke[smokeConcurrentIndex + 1]).toBe('1')
     const repair3ConcurrentIndex = repair3.indexOf('--concurrent-trials')
     expect(repair3[repair3ConcurrentIndex + 1]).toBe('12')
     // k3/k10 keep the frozen defaults: no alpha/call/token/concurrency carriers.
@@ -403,6 +432,51 @@ describe('tree-v2 live run profiles', () => {
       )
       expect(verdict.ok).toBe(false)
       expect(verdict.problems.join('; ')).toMatch(/benchmark baseline matrix 49×2=98/)
+    })
+
+    it('accepts the smoke terminal shapes: K_REACHED (2) and NO_REAL_FAILURE_SIGNAL (1)', () => {
+      // ADR-059: one matrix trial; a real failure funds one expansion with
+      // one q0 cold start (trials=2, K=1 reached), an all-success matrix
+      // stops NO_REAL_FAILURE_SIGNAL (trials=1). Both are the only funded
+      // shapes.
+      const smoke = TREE_V2_LIVE_PROFILES.treeV2Smoke
+      const reached = trialShapeWithinPreRegisteredEnvelope(
+        {
+          trials: 2,
+          discoveryTrials: 1,
+          expansionAttempts: 1,
+          admittedNonBaseline: 1,
+          proposalCalls: 1,
+        },
+        smoke,
+      )
+      expect(reached.ok, reached.problems.join('; ')).toBe(true)
+      const noSignal = trialShapeWithinPreRegisteredEnvelope(
+        {
+          trials: 1,
+          discoveryTrials: 1,
+          expansionAttempts: 0,
+          admittedNonBaseline: 0,
+          proposalCalls: 0,
+        },
+        smoke,
+      )
+      expect(noSignal.ok, noSignal.problems.join('; ')).toBe(true)
+    })
+
+    it('rejects a smoke baseline above the pre-registered 1×1 matrix', () => {
+      const verdict = trialShapeWithinPreRegisteredEnvelope(
+        {
+          trials: 2,
+          discoveryTrials: 2,
+          expansionAttempts: 0,
+          admittedNonBaseline: 0,
+          proposalCalls: 0,
+        },
+        TREE_V2_LIVE_PROFILES.treeV2Smoke,
+      )
+      expect(verdict.ok).toBe(false)
+      expect(verdict.problems.join('; ')).toMatch(/benchmark baseline matrix 1×1=1/)
     })
 
     it('accepts repair3’s one-attempt matrix and rejects a partial one', () => {

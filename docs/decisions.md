@@ -2446,3 +2446,42 @@ driver tournament wall derivation for both the default-1800 fixture and the
 explicit pre-registered pair (4560 − 3600 = 960); k80Repair3 profile
 freezes 4560/3600 and emits the --set carrier while the k80 profile stays
 2760 without the field.
+
+## ADR-059 (2026-09-09): pre-registered paid 1-job Harbor smoke + repair3 sealed disposition
+
+**Context.** The repair-3 launch gate (ADR-057/058) left two user rulings
+open: (1) whether to run a dedicated paid Harbor smoke before the 76h run —
+ADR-049 had explicitly waived it with a rule-9 disclosure (the run's own
+first matrix wave carried the smoke, attributable + retryable under
+ADR-028); (2) the sealed one-shot disposition on repair-3. The user ruled
+on 2026-09-09: **run the paid smoke**, and **accept the sealed one-shot
+path** (the ADR-048 pre-registered 23×5×2 evaluation with a single reveal)
+with no further gate.
+
+**Decision.**
+1. New pre-registered profile `treeV2Smoke` plus a dedicated record script
+   `scripts/record-tree-v2-smoke-live.ts`: one benchmark-baseline matrix
+   trial (the first observed handle of the frozen ceremony), one live
+   expansion/proposal and one q0 cold start. Envelope: kTarget 1,
+   taskTrials 4, wallClockMinutes 120, solverTokens 8M, concurrentTrials 1,
+   stable-demo profile class (no tournament, no sealed demands). Worst case
+   ≈ 4 trials / $1.20 solver + one live proposal. It proves the current
+   tree-v2 live path — Harbor job launch, capsule boot through the
+   172.17.0.1:17897 egress proxy, the TCB solve gateway, the live route,
+   the task verifier, receipt-chain settle — before the 76h run commits.
+   Identity: RUN_ID `tree-v2-smoke-live-1`, MASTER_SEED
+   `tree-v2-smoke-live-1-master-seed-1`; evidence
+   `evidence/tree-v2/smoke-live-1/`. It is a separately pre-registered paid
+   run, not part of the formal run's trial count, and claims no improvement
+   signal; its single development trial never feeds repair-3's proposer or
+   archive (fresh run root).
+2. Sealed disposition: repair-3 keeps the ADR-048 pre-registered one-shot
+   sealed evaluation (23 tasks × 5 attempts × 2 sides = 230 trials, 720
+   min, one reveal, CHAMPION_LOCKED only) unchanged; the acceptance is
+   recorded here instead of a new ADR gate.
+
+**Verification.** Profile contract tests (1×1×1 carriers; both terminal
+shapes — K_REACHED at trials=2..3 and NO_REAL_FAILURE_SIGNAL at trials=1 —
+inside the envelope); full suite green; then the live smoke itself recorded
+with the k3-style machine gates (receipt chain per trial, Harbor usage
+cross-check, redaction scan, registered terminal states).
