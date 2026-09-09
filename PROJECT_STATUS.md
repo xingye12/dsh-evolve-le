@@ -107,7 +107,32 @@ lock/harbor 就绪、fwd 容器 Up、17897 egress 代理在听、evidence/tree-v
 
 **smoke 结果**：attempt 1（PID 459427，2026-09-09）：doctor `search-calibration` ✗ →
 fail closed，$0，无 evidence 写入；scratch 保留于
-`/root/vibe/dsh/scratch/dsh-tree-v2-smoke-live-1-DaONEB`。attempt 2（修订提交后）：（回填）
+`/root/vibe/dsh/scratch/dsh-tree-v2-smoke-live-1-DaONEB`。attempt 2（PID 472999）：
+doctor 绿（2×1 修订通过校准）→ `run` 在 `ensureBaseline`/`mockReplay` 崩：
+`service "candidateWorkflows" has been registered at
+<dsh-evolve-le:candidate-workflow-stub>`——ADR-054 的外层 stub 与 native-solve-agent
+的 per-Fiber 新鲜 registry 在 Cordis 禁止祖先服务重 provide 语义下结构互斥；**$0**，
+无 evidence 写入；76h run 的每个 live trial 都会在同一行崩——smoke 抓到了全量套件
+（从不真正执行 native-turn-probe）漏掉的断路。已修复：ADR-060（runner 复用外层 registry、
+stub 保留完整 workflow 对象）。attempt 3（ADR-060 后）：（回填）
+
+## 2026-09-09 ADR-060：外层 workflow stub × per-Fiber registry 冲突修复（smoke 抓获）
+
+ADR-054（82dbbe8）给 native capsule 加了外层 `candidate-workflow-stub`（候选插件在
+Loader 激活时可发布 workflow 声明），native-solve-agent 仍按 82dbbe8 前的设计在每个
+agent Fiber 上新鲜 provide `candidateWorkflows`——Cordis 的 Fiber state 复制根作用域且
+禁止对祖先已有服务重复 provide，两者互斥。任何单测/Loader 测试都没有同时 boot 过 stub
+与 solve agent（builder 测试只断言 probe 文件被打包、从不执行），套件因此一直绿；付费
+smoke attempt 2 在 mockReplay 抓到（$0）。
+
+**修复**：native-solve-agent 检测到继承的 registry 时直接复用（register/snapshot 走
+stub；继承服务不可用则显式 fail closed）；stub 保留完整 workflow 对象（name +
+description + run），固定 solve-policy 钩子仍可执行；declaration-only 记录在 TCB
+过滤器跳过。TCB 仍只执行 `candidate-workflow:solve-policy`；候选注册/反注册语义不变
+（effect-scoped unregister 使 stub 数组回到基线，mockReplay 的 unload 检查保持诚实）。
+无 stub 的作用域（单测 fixture、82dbbe8 前 capsule）保留新鲜 provide 路径。
+native-solve-agent 单测 12/12（新增 2 个：复用路径经外层 registry 执行 solve-policy
+checkpoint 且不重复 provide；declaration-only 记录不装 listener）。
 
 ## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
 

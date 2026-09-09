@@ -2500,3 +2500,43 @@ NO_REAL_FAILURE_SIGNAL at trials=2 — inside the envelope); full suite
 green; then the live smoke itself recorded with the k3-style machine gates
 (receipt chain per trial, Harbor usage cross-check, redaction scan,
 registered terminal states).
+
+## ADR-060 (2026-09-09): outer-scope candidate-workflow-stub × per-Fiber registry conflict (caught by the ADR-059 smoke)
+
+**Context.** ADR-054 (82dbbe8) added the outer-scope
+`candidate-workflow-stub` to native capsule assemblies so candidate plugins
+can publish workflow declarations at Loader activation, while
+native-solve-agent kept installing a fresh `candidateWorkflows` registry in
+each agent Fiber. The two coexist only if the Fiber may re-provide the
+service — it may not: Cordis forbids re-providing a service present in an
+ancestor scope (the Fiber state copies the root), so `ctx.provide` throws
+`service "candidateWorkflows" has been registered at
+<dsh-evolve-le:candidate-workflow-stub>`. No unit or Loader test had ever
+booted the stub together with the solve agent (builder tests only assert
+the probe files are packed, never execute them), so the full suite stayed
+green after 82dbbe8.
+
+The ADR-059 paid smoke caught it on attempt 2: doctor green (the amended
+2×1 matrix passed search-calibration), then `run` crashed at
+`ensureBaseline`/`mockReplay` with the duplicate-provision throw — **zero
+paid calls**, and every live solve trial of the 76h repair-3 run would have
+crashed at the same line. Exactly the breakage the smoke gate exists to
+find.
+
+**Decision.** native-solve-agent reuses the inherited outer-scope registry
+when it is present (register/snapshot through the stub; fail closed with an
+explicit error if the inherited service is not a usable registry).
+Stub-free scopes (unit fixtures, pre-ADR-054 capsules) keep the fresh
+provision. The stub retains the full workflow objects (name, description,
+run) so the fixed solve-policy hook stays executable through it;
+declaration-only records without a run hook are skipped at the TCB filter.
+The TCB still executes only `candidate-workflow:solve-policy`; candidate
+registration/disposal semantics are unchanged (effect-scoped unregister
+returns the stub array to baseline, keeping the mockReplay unload checks
+honest).
+
+**Verification.** native-solve-agent unit tests 12/12 (two new: the reuse
+path executes the solve-policy checkpoint through the outer registry
+without re-providing; a declaration-only record installs no listener);
+full suite + real Loader E2E; then smoke attempt 3 re-runs the real
+mockReplay path end to end against the fixed build.

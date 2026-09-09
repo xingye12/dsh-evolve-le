@@ -12,8 +12,17 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 
+/**
+ * ADR-060: registrations retain the full candidate workflow object — name,
+ * description and the bounded run hook — not just the name. The native solve
+ * runner reuses this outer-scope registry when it is present (Cordis forbids
+ * re-providing an ancestor service on the agent Fiber), so the fixed
+ * solve-policy workflow must remain executable through the stub.
+ */
 interface CandidateWorkflowRegistration {
   name: string
+  description?: string
+  run?: (input: unknown) => Promise<unknown>
 }
 
 export interface StubCandidateWorkflowsService {

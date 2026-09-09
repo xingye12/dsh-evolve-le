@@ -43,8 +43,10 @@ type PreStepListener = (
 
 type MockAgentCtx = {
   on: (event: string, listener: PreStepListener) => void
+  get?: (name: string) => unknown
   provide: (name: string, value: unknown) => void
   systemPrompt: { section: () => () => undefined }
+  candidateWorkflows?: unknown
   tools: { register: (definition: { name: string; timeoutMs?: number }) => () => undefined }
 }
 
@@ -72,6 +74,13 @@ function makeFixture(options: {
   limits?: LiveSolveRuntimeLimits
   now?: () => number
   candidateSetup?: (agentCtx: MockAgentCtx) => Promise<void> | void
+  /** Simulates the outer-scope candidate-workflow-stub (ADR-060). */
+  preinstalledCandidateWorkflows?: {
+    register(workflow: { name: string; run?: (input: unknown) => Promise<unknown> }): () => void
+    snapshot(): Array<{ name: string; run?: (input: unknown) => Promise<unknown> }>
+  }
+  /** Records every `provide` the runner makes on the agent context. */
+  providedNames?: string[]
 }): {
   agent: ReturnType<typeof createNativeSolveAgent>
   updates: CapturedUpdate[]
@@ -116,9 +125,14 @@ function makeFixture(options: {
             if (event === 'agent/pre-step') preStepListeners.push(listener)
           },
           systemPrompt: { section: () => () => undefined },
+          get: (name) => (agentCtx as unknown as Record<string, unknown>)[name],
           provide(name, value) {
+            options.providedNames?.push(name)
             ;(agentCtx as unknown as Record<string, unknown>)[name] = value
           },
+          ...(options.preinstalledCandidateWorkflows === undefined
+            ? {}
+            : { candidateWorkflows: options.preinstalledCandidateWorkflows }),
           tools: {
             register: (definition) => {
               toolRegistrations.push({ name: definition.name, timeoutMs: definition.timeoutMs })
@@ -406,5 +420,96 @@ describe('native solve agent runtime limits', () => {
 
     expect(calls).toEqual(['solve'])
     expect(decision).toEqual({ kind: 'enter', messages: ['task'] })
+  })
+
+  it('reuses the outer-scope stub registry instead of re-providing on the agent context (ADR-060)', async () => {
+    // The capsule's outer scope ships candidate-workflow-stub (ADR-054);
+    // Cordis forbids re-providing an ancestor service, so the runner must
+    // reuse it. The ADR-059 smoke's mockReplay turn crashed here with a
+    // duplicate-provision throw before this fix.
+    const registrations: Array<{ name: string; run?: (input: unknown) => Promise<unknown> }> = []
+    const stub = {
+      register(workflow: { name: string; run?: (input: unknown) => Promise<unknown> }) {
+        registrations.push(workflow)
+        return () => {
+          const at = registrations.indexOf(workflow)
+          if (at >= 0) registrations.splice(at, 1)
+        }
+      },
+      snapshot() {
+        return [...registrations]
+      },
+    }
+    const providedNames: string[] = []
+    const calls: unknown[] = []
+    const { agent, preStepListeners } = makeFixture({
+      events: [],
+      providedNames,
+      preinstalledCandidateWorkflows: stub,
+      candidateSetup: (agentCtx) => {
+        const registry = (
+          agentCtx as unknown as {
+            candidateWorkflows?: typeof stub
+          }
+        ).candidateWorkflows
+        registry?.register({
+          name: 'candidate-workflow:solve-policy',
+          description: 'checkpoint policy through the outer scope',
+          async run(input: unknown) {
+            calls.push(input)
+            return { checkpoint: 'Outer-scope registry checkpoint.' }
+          },
+        })
+      },
+    })
+    await agent.newSession({ cwd: '/workspace', mcpServers: [] })
+    expect(providedNames).not.toContain('candidateWorkflows')
+    expect(preStepListeners).toHaveLength(1)
+
+    const decision = await (preStepListeners[0] as PreStepListener)(
+      { turn: 1, step: 2, messages: ['task'] },
+      () => enter(['task']),
+    )
+
+    expect(calls).toEqual([
+      { protocol: 'dsh-evolve-le/candidate-solve-policy/v1', turn: 1, step: 2 },
+    ])
+    expect(decision).toMatchObject({ kind: 'enter' })
+    expect(JSON.stringify((decision as { messages: unknown[] }).messages)).toContain(
+      'Outer-scope registry checkpoint.',
+    )
+  })
+
+  it('skips a declaration-only stub record that carries no runnable solve-policy hook (ADR-060)', async () => {
+    const registrations: Array<{ name: string; run?: (input: unknown) => Promise<unknown> }> = []
+    const stub = {
+      register(workflow: { name: string; run?: (input: unknown) => Promise<unknown> }) {
+        registrations.push(workflow)
+        return () => {
+          const at = registrations.indexOf(workflow)
+          if (at >= 0) registrations.splice(at, 1)
+        }
+      },
+      snapshot() {
+        return [...registrations]
+      },
+    }
+    const { agent, preStepListeners } = makeFixture({
+      events: [],
+      preinstalledCandidateWorkflows: stub,
+      candidateSetup: (agentCtx) => {
+        const registry = (
+          agentCtx as unknown as {
+            candidateWorkflows?: typeof stub
+          }
+        ).candidateWorkflows
+        // Declaration-only: the fixed name without an executable hook must
+        // never be invoked.
+        registry?.register({ name: 'candidate-workflow:solve-policy' })
+      },
+    })
+    await agent.newSession({ cwd: '/workspace', mcpServers: [] })
+    // No executable solve policy → no pre-step listener is installed.
+    expect(preStepListeners).toHaveLength(0)
   })
 })

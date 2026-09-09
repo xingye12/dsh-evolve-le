@@ -57,11 +57,33 @@ type CandidateWorkflow = {
 
 type CandidateWorkflowRegistry = {
   register(workflow: CandidateWorkflow): () => void
+  snapshot(): readonly CandidateWorkflow[]
 }
 
+/**
+ * ADR-060: the capsule's outer scope carries the candidate-workflow-stub
+ * (ADR-054) so candidate plugins can publish workflow declarations at Loader
+ * activation. Cordis forbids re-providing a service that already exists in
+ * an ancestor scope — the agent Fiber's state copies the root, so the
+ * per-Fiber fresh registry the ADR-054 draft assumed is structurally
+ * impossible; the ADR-059 smoke's mockReplay turn proved it with a duplicate
+ * provision throw. When the stub is present the runner reuses it: candidate
+ * registration/disposal stay effect-scoped through the same registry object,
+ * and the TCB still executes only the fixed solve-policy name. Stub-free
+ * scopes (unit fixtures, pre-ADR-054 capsules) keep the fresh provision.
+ */
 function installCandidateWorkflowRegistry(agentCtx: Context): {
-  workflows: readonly CandidateWorkflow[]
+  workflows: () => readonly CandidateWorkflow[]
 } {
+  const inherited = inheritedCandidateWorkflows(agentCtx)
+  if (inherited !== undefined) {
+    if (typeof inherited.register !== 'function' || typeof inherited.snapshot !== 'function') {
+      throw new Error(
+        'native solve: outer-scope candidateWorkflows registry is not usable (missing register/snapshot)',
+      )
+    }
+    return { workflows: () => inherited.snapshot() }
+  }
   const workflows: CandidateWorkflow[] = []
   const provide = (
     agentCtx as unknown as {
@@ -79,8 +101,24 @@ function installCandidateWorkflowRegistry(agentCtx: Context): {
         if (index >= 0) workflows.splice(index, 1)
       }
     },
+    snapshot(): readonly CandidateWorkflow[] {
+      return [...workflows]
+    },
   })
-  return { workflows }
+  return { workflows: () => workflows }
+}
+
+function inheritedCandidateWorkflows(agentCtx: Context): CandidateWorkflowRegistry | undefined {
+  try {
+    const service = (
+      agentCtx as unknown as { get?: (name: string) => unknown }
+    ).get?.('candidateWorkflows')
+    return service !== null && typeof service === 'object'
+      ? (service as CandidateWorkflowRegistry)
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function checkpointOf(value: unknown): string | undefined {
@@ -254,8 +292,12 @@ export function createNativeSolveAgent(
             cwd: params.cwd,
             ...(limits === undefined ? {} : { commandTimeoutMs: limits.commandTimeoutMs }),
           })
-          const solvePolicies = workflowRegistry.workflows.filter(
-            (workflow) => workflow.name === CANDIDATE_SOLVE_POLICY_WORKFLOW,
+          const solvePolicies = workflowRegistry.workflows().filter(
+            // ADR-060: stub-registered records may carry declaration-only
+            // entries; only an executable solve-policy workflow runs.
+            (workflow) =>
+              workflow.name === CANDIDATE_SOLVE_POLICY_WORKFLOW &&
+              typeof workflow.run === 'function',
           )
           if (limits !== undefined || solvePolicies.length > 0) {
             // Turn cap: upstream AgentOptions has no maxTurns, so reject the
