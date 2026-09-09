@@ -114,7 +114,16 @@ doctor 绿（2×1 修订通过校准）→ `run` 在 `ensureBaseline`/`mockRepla
 的 per-Fiber 新鲜 registry 在 Cordis 禁止祖先服务重 provide 语义下结构互斥；**$0**，
 无 evidence 写入；76h run 的每个 live trial 都会在同一行崩——smoke 抓到了全量套件
 （从不真正执行 native-turn-probe）漏掉的断路。已修复：ADR-060（runner 复用外层 registry、
-stub 保留完整 workflow 对象）。attempt 3（ADR-060 后）：（回填）
+stub 保留完整 workflow 对象）。attempt 3（PID 499321，ADR-060 后）：**全绿** ——
+K_REACHED、trials=3（2 矩阵 + 1 冷启动）、expansions=1（真实 proposer）、2950s、
+123 requests / 2 156 366 tokens、record failures=[]、allPassed=true；结算 usd
+516 633 µUSD（$0.52，solver receipts $0.31 + proposer）；矩阵 rewards [0, 1]
+（adaptive-rejection-sampler 失败、break-filter-js-from-html 成功）、冷启动 reward 0；
+evidence 落盘 `evidence/tree-v2/smoke-live-1/`（smoke-live-run.json sha256
+`29051f344c0b61f01ebdf34cba14b68116d059c1007c89224013fd5d97dc88f4`）。smoke 端到端
+验证了完整 live 路径：真实 Harbor job → capsule boot → 17897 egress 代理 → TCB
+gateway → deepseek-v4-flash live 路由 → 任务自带 verifier → receipt chain settle，
+以及真实 proposer 提案 + 子代构建 + q0 冷启动。ADR-060 修复在生产路径验证通过。
 
 ## 2026-09-09 ADR-060：外层 workflow stub × per-Fiber registry 冲突修复（smoke 抓获）
 
