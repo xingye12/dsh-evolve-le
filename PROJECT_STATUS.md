@@ -143,6 +143,23 @@ description + run），固定 solve-policy 钩子仍可执行；declaration-only
 native-solve-agent 单测 12/12（新增 2 个：复用路径经外层 registry 执行 solve-policy
 checkpoint 且不重复 provide；declaration-only 记录不装 listener）。
 
+## 2026-09-09 K=80 正式 run 启动记录（repair-3，用户授权 直接启动）
+
+用户指令「直接启动 k=80 run repair 3，然后每 30 分钟汇报进度」——接受已知容器测试
+超时说明（ADR-060 后全量套件 761s 有 2 个容器测试宿主机争用超时，隔离重跑 5/5 绿）。
+启动门核对：预注册已提交（571e1e6/659d67b/54f9b7b/815f447）、付费 smoke 全绿、
+credential 0600（36B）、egress 代理 172.17.0.1:17897 LISTEN、fwd 容器 Up、工作树
+干净、无残留 scratch/evidence（全新 run）。
+
+启动：`DSH_TREE_V2_LIVE_CONFIRM=confirm TMPDIR=/root/vibe/dsh/scratch/tmp setsid
+nohup node --import tsx/esm scripts/record-tree-v2-k80-formal-live.ts`（PID 10597，
+启动日志 `/root/vibe/dsh/scratch/k80-formal-launch.log`）。RUN_ID
+`tree-v2-k80-formal-repair-3`、MASTER_SEED `…-master-seed-1`、profile
+terminal-bench-formal（K=80/q0=3/shortlist=5/width=3、baseline 49×2×8=98 trials、
+tournament 294、sealed 23×5×2=230、wallClockMinutes 2760）。脚本依次通过
+live-confirm → tarball 提取 → verifier 镜像构建 → init → doctor → `dsh-evolve run`。
+进度每 30 分钟汇报；终止后按 ADR-046..049 记录终局（含 sealed 一次性裁决）。
+
 ## 2026-09-09 ADR-056：LLM Agent Debugger 归因证据与可审计调用
 
 已为后继 run 实现可注入的 TypeScript Agent Debugger：Harbor collect 将 ACP
