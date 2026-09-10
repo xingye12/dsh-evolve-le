@@ -50,12 +50,39 @@ export interface CandidateToolDefinition {
     render(args: unknown, value: unknown): unknown[]
   }
   execute(args: unknown, exec: CandidateToolExecution): Promise<unknown>
+  /** Optional automatic facet; invoked only with TCB-derived state. */
+  strategy?: CandidateToolStrategy
 }
 
 /** Cooperative execution context supplied by the DSH tool runtime. */
 export interface CandidateToolExecution {
   signal?: AbortSignal
   agent?: unknown
+}
+
+export interface CandidateStrategyContext {
+  protocol: 'dsh-evolve-le/candidate-strategy-context/v1'
+  turn: number
+  step: number
+  phase: 'session-start' | 'pre-step' | 'session-end'
+  observation: {
+    toolCalls: { exec: number; read: number; write: number }
+    previousAction: 'none' | 'exec' | 'read' | 'write'
+    lastExec: {
+      outcome: 'none' | 'succeeded' | 'failed' | 'empty-output' | 'timed-out' | 'unknown'
+      consecutiveRepeated: number
+    }
+    writesSinceLastExec: number
+  }
+}
+
+export interface CandidateStrategyOutcome {
+  checkpoint?: string
+}
+
+export interface CandidateToolStrategy {
+  autoInvoke: true
+  run(context: CandidateStrategyContext): Promise<CandidateStrategyOutcome>
 }
 
 /** Candidate-facing view of the DSH tool registry. */
@@ -92,6 +119,14 @@ export interface CandidateEventRegistration {
   /** `candidate:agent/*` or `candidate:session/*`, never a host event name. */
   name: `candidate:${'agent' | 'session'}/${string}`
   handler: (...args: unknown[]) => unknown
+}
+
+export interface CandidateStrategyEventsLike {
+  register(event: CandidateEventRegistration): () => void
+}
+
+export interface CandidateStrategyToolsLike {
+  register(tool: { name: string; run: CandidateToolStrategy['run'] }): () => void
 }
 
 /** A bounded workflow hook published through the trusted candidate registry. */
@@ -398,6 +433,19 @@ function validateEvent(
   return event
 }
 
+function validateToolStrategy(tool: CandidateToolDefinition): CandidateToolDefinition {
+  if (tool.strategy === undefined) return tool
+  if (
+    tool.strategy === null ||
+    typeof tool.strategy !== 'object' ||
+    tool.strategy.autoInvoke !== true ||
+    typeof tool.strategy.run !== 'function'
+  ) {
+    invalid(`tool "${tool.name}" strategy must set autoInvoke:true and provide run(context)`)
+  }
+  return tool
+}
+
 function validateWorkflow(
   workflow: CandidateWorkflowRegistration,
   mode: CandidateMode,
@@ -429,6 +477,11 @@ function registerEvents(
   surface: 'agent' | 'session',
 ): void {
   if (events.length === 0) return
+  const strategyEvents = serviceOf<CandidateStrategyEventsLike>(ctx, 'candidateStrategyEvents')
+  if (strategyEvents !== undefined && strategyEvents !== null) {
+    for (const event of events) ctx.effect(() => strategyEvents.register(event))
+    return
+  }
   const on = (
     ctx as unknown as {
       on?: (name: string, listener: (...args: unknown[]) => unknown) => () => void
@@ -517,7 +570,15 @@ export function defineCandidate<Config extends CandidateRuntime = CandidateRunti
         invalid('tools service unavailable; the plugin must declare inject = ["tools"]')
       }
       if (options.tools !== false) {
-        for (const tool of strategy.tools) ctx.effect(() => tools!.register(tool))
+        const strategyTools = serviceOf<CandidateStrategyToolsLike>(ctx, 'candidateStrategyTools')
+        for (const originalTool of strategy.tools) {
+          const tool = validateToolStrategy(originalTool)
+          ctx.effect(() => tools!.register(tool))
+          const automatic = tool.strategy
+          if (automatic !== undefined && strategyTools !== undefined && strategyTools !== null) {
+            ctx.effect(() => strategyTools.register({ name: tool.name, run: automatic.run }))
+          }
+        }
       }
 
       const skills = serviceOf<SkillsLike>(ctx, 'skills')

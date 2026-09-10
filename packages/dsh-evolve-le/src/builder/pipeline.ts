@@ -30,7 +30,9 @@ import {
   finalizeTreeV2Receipt,
   treeV2Digest,
   treeV2RuntimeFingerprint,
+  treeV2SolvePolicyFingerprint,
   type TreeV2CandidateIntent,
+  type TreeV2ModeFingerprints,
   type TreeV2RequiredParentEvidence,
 } from '../tree-v2/contract.js'
 import {
@@ -112,7 +114,7 @@ export interface BuildInput {
    */
   treeV2ParentEvidence?: {
     requiredParentEvidence: TreeV2RequiredParentEvidence
-    modeFingerprints: Record<'solve' | 'propose', string>
+    modeFingerprints: TreeV2ModeFingerprints
   }
 }
 
@@ -148,7 +150,7 @@ export interface BuildResult {
   manifest: Record<string, unknown>
   treeV2?: {
     protocol: 'dsh-self-evolving-candidate-tree-v2'
-    modeFingerprints: Record<'solve' | 'propose', string>
+    modeFingerprints: TreeV2ModeFingerprints
     receipts: TreeV2BuildReceipts
   }
 }
@@ -241,6 +243,14 @@ interface NativeSolveProbeReport {
     readPaths: string[]
     writes: string[]
     assistantChunks: string[]
+    candidateCheckpointCount: number
+    candidateCheckpointSha256: string
+    strategyUsage: {
+      workflowInvocations: number
+      strategyToolInvocations: number
+      agentEventInvocations: number
+      sessionEventInvocations: number
+    }
   }
   quiescent: boolean
   error?: string
@@ -655,7 +665,7 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
     'workflowNames',
     'propose',
   )
-  let treeV2ModeFingerprints: Record<'solve' | 'propose', string> | undefined
+  let treeV2ModeFingerprints: TreeV2ModeFingerprints | undefined
   if (failed === undefined && source !== undefined && closure !== undefined) {
     // The capsule embeds its own pinned node interpreter (specs/02 §12): the
     // TB task images ship no node, so a missing or drifted reference is
@@ -856,17 +866,6 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
           // fingerprints, and the migration root's fingerprints are what a
           // later child's runtime mode contract is checked against.
           treeV2ModeFingerprints.propose = treeV2RuntimeFingerprint(proposeRun.report, 'propose', { candidateId })
-          if (treeV2Intent.parent !== null) {
-            try {
-              assertTreeV2RuntimeModeContract(
-                treeV2Intent.modeContract,
-                input.treeV2ParentEvidence!.modeFingerprints,
-                treeV2ModeFingerprints,
-              )
-            } catch (error) {
-              failStage('mockReplay', error instanceof Error ? error.message : String(error))
-            }
-          }
         }
       }
       let nativeTurnDetail = ''
@@ -1006,10 +1005,41 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
               'native ACP solve did not complete bounded exec/read/write tool dispatch',
             )
           } else {
+            if (treeV2ModeFingerprints !== undefined && bootSolve !== undefined) {
+              treeV2ModeFingerprints.solve = treeV2RuntimeFingerprint(bootSolve, 'solve', {
+                candidateId,
+                solvePolicyProbe: {
+                  candidateCheckpointCount: solve.candidateCheckpointCount,
+                  candidateCheckpointSha256: solve.candidateCheckpointSha256,
+                  strategyUsage: solve.strategyUsage,
+                },
+              })
+              treeV2ModeFingerprints.solvePolicy = treeV2SolvePolicyFingerprint({
+                candidateCheckpointCount: solve.candidateCheckpointCount,
+                candidateCheckpointSha256: solve.candidateCheckpointSha256,
+                strategyUsage: solve.strategyUsage,
+              })
+            }
             nativeSolveDetail =
               `; native ACP ctx.agents.create() solve emitted ${solve.eventCount} session events` +
               ` and bounded exec/read/write tool calls in ${Math.round(nativeSolve.report.timings.solveMs ?? 0)}ms with clean unload`
           }
+        }
+      }
+      if (
+        failed === undefined &&
+        treeV2Intent !== undefined &&
+        treeV2Intent.parent !== null &&
+        treeV2ModeFingerprints !== undefined
+      ) {
+        try {
+          assertTreeV2RuntimeModeContract(
+            treeV2Intent.modeContract,
+            input.treeV2ParentEvidence!.modeFingerprints,
+            treeV2ModeFingerprints,
+          )
+        } catch (error) {
+          failStage('mockReplay', error instanceof Error ? error.message : String(error))
         }
       }
       if (failed === undefined) {

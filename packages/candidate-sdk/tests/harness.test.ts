@@ -190,6 +190,44 @@ describe('defineCandidate boundaries', () => {
     expect(harness.workflows()).toEqual([])
   })
 
+  it('registers an automatic tool facet with only the typed strategy context', async () => {
+    const candidate = defineCandidate<TestConfig>({
+      solve: {
+        tools: () => [
+          {
+            name: 'candidate_next_step',
+            description: 'Give bounded next-step advice.',
+            parameters: { type: 'object', properties: {}, additionalProperties: false },
+            output: { schema: { type: 'string' }, render: () => [] },
+            execute: async () => 'model-callable',
+            strategy: {
+              autoInvoke: true,
+              run: async (context) => ({ checkpoint: `turn-${String(context.turn)}` }),
+            },
+          },
+        ],
+      },
+      propose: {},
+    })
+    const harness = createHarness()
+    candidate.register(harness.ctx, { mode: 'solve', candidateId: 'c_test' })
+    expect(harness.strategyTools().map((tool) => tool.name)).toEqual(['candidate_next_step'])
+    await expect(
+      harness.strategyTools()[0]!.run({
+        protocol: 'dsh-evolve-le/candidate-strategy-context/v1',
+        turn: 2,
+        step: 1,
+        phase: 'pre-step',
+        observation: {
+          toolCalls: { exec: 0, read: 0, write: 0 },
+          previousAction: 'none',
+          lastExec: { outcome: 'none', consecutiveRepeated: 0 },
+          writesSinceLastExec: 0,
+        },
+      }),
+    ).resolves.toEqual({ checkpoint: 'turn-2' })
+  })
+
   it('fails closed when event or workflow registrations are malformed', () => {
     const badEvent = defineCandidate({
       solve: { agentEvents: () => [{ name: 'agent/update', handler: () => undefined }] },

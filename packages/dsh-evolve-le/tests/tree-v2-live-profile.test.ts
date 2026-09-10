@@ -9,9 +9,19 @@ import {
   REGISTERED_TERMINAL_STOP_REASONS,
 } from '../../../scripts/lib/tree-v2-live-profile.js'
 import { DEFAULT_SOLVE_TRIAL_BUDGET } from '../src/solver/gateway.js'
+import { SOLVE_AGENT_LIMITS } from '../src/acp/solve-protocol.js'
 import { calibrateSearch } from '../src/selection/calibration.js'
 
 describe('tree-v2 live run profiles', () => {
+  it('pins the ADR-066 live-solve ceilings at 150 while preserving spend caps', () => {
+    expect(DEFAULT_SOLVE_TRIAL_BUDGET).toMatchObject({
+      maxRequests: 150,
+      maxTotalTokens: 2_000_000,
+      maxCostUsdMicros: 300_000,
+    })
+    expect(SOLVE_AGENT_LIMITS.maxTurns).toBe(150)
+  })
+
   it('pins K=3 to the stable-demo 15-trial envelope', () => {
     expect(TREE_V2_LIVE_PROFILES.k3).toMatchObject({
       kTarget: 3,
@@ -89,6 +99,14 @@ describe('tree-v2 live run profiles', () => {
     })
     expect(TREE_V2_LIVE_PROFILES.k80Repair3.agentDebugger?.maxOutputTokens).toBe(8_192)
     expect(TREE_V2_LIVE_PROFILES.k80Repair5).toMatchObject({
+      kTarget: 80,
+      concurrentTrials: 12,
+      benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
+      agentDebugger: { maxOutputTokens: 32_768 },
+      attributionCalls: 80,
+      attributionTokens: 16_000_000,
+    })
+    expect(TREE_V2_LIVE_PROFILES.k80Repair6).toMatchObject({
       kTarget: 80,
       concurrentTrials: 12,
       benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },

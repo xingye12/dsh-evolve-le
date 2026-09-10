@@ -464,12 +464,11 @@ async function finalizeChild(
 }
 
 /**
- * ADR-055 diversity gate.  The migration root exposes a bounded solve-policy
- * workflow specifically so the search does not spend every multi-child batch
- * on static prompt text.  Enforce the declaration at the trusted proposal
- * boundary, but only for successor roots which advertise the capability: old
- * recorded runs and their historic parent source remain replayable exactly as
- * they were.
+ * Strategy-diversity gate.  The migration root exposes a bounded solve-policy
+ * workflow so a multi-child batch cannot consist entirely of static prompt
+ * text. Individual prompt, tool, skill, or event experiments remain valid.
+ * The gate applies only when the parent advertises the workflow, leaving
+ * historic recorded roots replayable exactly as they were.
  */
 async function assertSuccessorWorkflowDiversity(
   options: FinalizeTreeV2BundleOptions,

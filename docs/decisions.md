@@ -2728,3 +2728,48 @@ original digest, and that invented short aliases or evidence indexes are
 rejected. The iteration durable-attribution path passes with the v2 artifact,
 alongside TypeScript compilation. This proves protocol handling only, not
 the live model's diagnostic quality.
+
+## ADR-066 (2026-09-10): strategy-first successor and 150-request live solve ceiling
+
+**Context.** repair5 is already running under a frozen 48-request solve
+gateway cap (and a separate 40-turn capsule cap). Its completed descendants
+showed that the existing tree-v2 contract and proposer instruction required
+every child to edit `src/index.ts`, target both modes, and alter mounted prompt
+text. Although descendants also declared a workflow, that structure rewarded
+prompt churn and made a solve-policy-only delta inadmissible. The cap and this
+admission behavior must not be changed in the active run.
+
+**Decision.** Register a fresh `k80Repair6` successor identity. Its live solve
+gateway request ceiling and native capsule turn ceiling are both 150. The
+existing 2M-token, $0.30 per-trial, Harbor wall-clock, trial-count and total
+budget limits remain independent fail-closed boundaries. The successor
+proposer preserves `src/index.ts` and `propose` mode for solve-only strategies.
+For a multi-child batch whose parent exposes `candidate-workflow:solve-policy`,
+at least one child must declare and retain that workflow; prompt, tool, skill,
+agent-event and session-event experiments remain valid siblings. The native ACP
+admission probe records a content-addressed digest and count of bounded
+checkpoint messages actually injected through the real AgentLoop. That probe
+evidence is part of the solve-mode runtime fingerprint, permitting an
+observable strategy-only delta without a cosmetic prompt change.
+
+The successor additionally gives a candidate-owned normal DSH tool an optional
+`strategy:{autoInvoke:true,run(context)}` facet. The TCB invokes at most four
+facets at an admitted pre-step and gives them only the versioned, content-free
+strategy context; their sole effective output is a bounded checkpoint. It also
+dispatches exactly `candidate:agent/pre-step`, `candidate:session/start`, and
+`candidate:session/end`. Only these names are live; all other candidate event
+names remain declarations. Native probe evidence records workflow, automatic
+tool, agent-event, and session-event invocation counts in addition to the
+checkpoint digest, and these counts enter the solve fingerprint. This makes an
+executed non-prompt mechanism observable even when it deliberately emits no
+checkpoint. No facet or event receives ACP, filesystem, network, verifier,
+controller, route, credential, or budget authority.
+
+repair5 remains immutable and continues under its own manifest. repair6 has
+not been launched, initialized, or evaluated; it requires a fresh baseline
+and the normal paid confirmation gate.
+
+**Verification.** TypeScript build and focused tree-v2 contract, finalization,
+profile, native solve and builder tests must pass before any source identity is
+frozen. This validates the successor mechanism only, not child quality,
+baseline performance, development improvement, or sealed results.

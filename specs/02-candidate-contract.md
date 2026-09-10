@@ -87,6 +87,30 @@ such as `deliverableReady`, `repeatedProbe`, `outputSeen`, or
 `consecutiveFailures`). Candidate-owned tests may exercise the documented
 observation shape, but fabricated extra fields do not establish live behavior.
 
+### 2.2 Strategy tools and lifecycle events
+
+The native runner additionally exposes the versioned, content-free
+`dsh-evolve-le/candidate-strategy-context/v1` to two candidate mechanisms:
+
+- a normal candidate-owned DSH tool MAY declare
+  `strategy:{autoInvoke:true,run(context)}`. The TCB invokes at most four such
+  facets at an admitted pre-step and accepts only a bounded `{checkpoint}`
+  outcome. The normal model-callable tool remains optional; the automatic
+  facet has no ACP, filesystem, network, verifier, controller or credential
+  capability.
+- the TCB emits exactly `candidate:agent/pre-step`, `candidate:session/start`
+  and `candidate:session/end`. Registered handlers receive the same context and
+  may return the same bounded outcome. End-of-session outcomes are recorded but
+  cannot modify a closed ACP session. Other `candidate:agent/*` or
+  `candidate:session/*` names are declarations only until a later protocol
+  version pre-registers and emits them.
+
+The context contains only `turn`, `step`, `phase` and the v2 coarse tool
+observation. It excludes raw commands, paths, terminal/file contents, task or
+verifier state, route and budget. The native probe records checkpoint digest
+plus workflow/tool/event invocation counts. Candidates may retain state only
+inside the current agent Fiber; cross-session or cross-trial state is forbidden.
+
 ## 3. DSH bundle shape
 
 `package.json` MUST 声明 DSH bundle，而不是 profile：

@@ -7,6 +7,7 @@ import {
   verifyTreeV2Receipt,
   type TreeV2CandidateIntent,
   type TreeV2ModeContract,
+  type TreeV2ModeFingerprints,
   type TreeV2Receipt,
   type TreeV2ReceiptKind,
   type TreeV2RequiredParentEvidence,
@@ -60,7 +61,7 @@ export type TreeV2AdmissionReceipt = ReceiptBase<'admission-receipt'> & {
   buildDigest: string
   materializationDigest: string
   capabilityCatalogDigest: string
-  modeFingerprints: Record<'solve' | 'propose', string>
+  modeFingerprints: TreeV2ModeFingerprints
   admitted: true
 }
 

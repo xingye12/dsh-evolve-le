@@ -117,7 +117,14 @@ export interface TreeV2LiveProfile {
  * solver-token dimension can never trip before task-trials.
  */
 export const TREE_V2_LIVE_PROFILES: Record<
-  'k3' | 'k10' | 'k80' | 'k80Repair3' | 'k80Repair4' | 'k80Repair5' | 'treeV2Smoke',
+  | 'k3'
+  | 'k10'
+  | 'k80'
+  | 'k80Repair3'
+  | 'k80Repair4'
+  | 'k80Repair5'
+  | 'k80Repair6'
+  | 'treeV2Smoke',
   TreeV2LiveProfile
 > = {
   /** Stable-demo envelope: the smallest paid run that exercises the full loop. */
@@ -300,6 +307,46 @@ export const TREE_V2_LIVE_PROFILES: Record<
    * repair4's contaminated baseline is retained as audit evidence only.
    */
   k80Repair5: {
+    kTarget: 80,
+    coldStartTrials: 3,
+    shortlistSize: 5,
+    maxSolverTrials: 400,
+    maxDiscoveryTrials: 12,
+    discoveryBatchSize: 6,
+    proposalWidth: 3,
+    taskTrials: 760,
+    wallClockMinutes: 4560,
+    wallClockSearchMinutes: 3600,
+    solverTokens: 1_520_000_000,
+    ucbAirAlphaPerMille: 800,
+    proposalCalls: 60,
+    proposerTokens: 60_000_000,
+    concurrentTrials: 12,
+    benchmarkBaseline: { taskCount: 49, attemptsPerTask: 1, batchSize: 12 },
+    tournament: {
+      minEligibilityTrials: 12,
+      coverageAttemptsPerTask: 1,
+      maxTrials: 360,
+      bootstrapResamples: 100_000,
+    },
+    runProfile: 'terminal-bench-formal',
+    agentDebugger: {
+      route: 'deepseek/zen-compatible',
+      maxOutputTokens: 32_768,
+      requestTimeoutMs: 180_000,
+      maxInputBytes: 524_288,
+    },
+    attributionCalls: 80,
+    attributionTokens: 16_000_000,
+  },
+  /**
+   * ADR-066 successor-only repair6 protocol.  repair5 remains immutable:
+   * this fresh identity raises both live-solve request ceilings to 150 and
+   * changes child admission so the default evolution seam is executable
+   * solve-policy behavior rather than prompt-text churn.  Per-trial token,
+   * cost, trial-count, concurrency and wall-clock envelopes are unchanged.
+   */
+  k80Repair6: {
     kTarget: 80,
     coldStartTrials: 3,
     shortlistSize: 5,

@@ -51,6 +51,11 @@ export const NATIVE_SOLVE_POLICY_SECTION = {
  */
 export const CANDIDATE_SOLVE_POLICY_WORKFLOW = 'candidate-workflow:solve-policy' as const
 export const CANDIDATE_SOLVE_POLICY_PROTOCOL = 'dsh-evolve-le/candidate-solve-policy/v2' as const
+export const CANDIDATE_STRATEGY_CONTEXT_PROTOCOL =
+  'dsh-evolve-le/candidate-strategy-context/v1' as const
+export const CANDIDATE_AGENT_PRE_STEP_EVENT = 'candidate:agent/pre-step' as const
+export const CANDIDATE_SESSION_START_EVENT = 'candidate:session/start' as const
+export const CANDIDATE_SESSION_END_EVENT = 'candidate:session/end' as const
 
 /** Content-free, TCB-derived facts from prior tool effects in this session. */
 export interface CandidateSolveObservation {
@@ -123,6 +128,59 @@ type CandidateWorkflow = {
 type CandidateWorkflowRegistry = {
   register(workflow: CandidateWorkflow): () => void
   snapshot(): readonly CandidateWorkflow[]
+}
+
+type CandidateStrategyEvent = { name: string; handler: (...args: unknown[]) => unknown }
+type CandidateStrategyEventsRegistry = {
+  register(event: CandidateStrategyEvent): () => void
+  emit(name: string, input: unknown): Promise<unknown[]>
+  snapshot(): readonly CandidateStrategyEvent[]
+}
+type CandidateStrategyTool = { name: string; run(input: unknown): Promise<unknown> }
+type CandidateStrategyToolsRegistry = {
+  register(tool: CandidateStrategyTool): () => void
+  snapshot(): readonly CandidateStrategyTool[]
+}
+
+function installCandidateStrategyEvents(agentCtx: Context): CandidateStrategyEventsRegistry {
+  const events: CandidateStrategyEvent[] = []
+  const provide = (agentCtx as unknown as { provide?: (name: string, value: unknown) => void }).provide
+  if (typeof provide !== 'function') throw new Error('native solve: agent context cannot provide candidateStrategyEvents')
+  const registry: CandidateStrategyEventsRegistry = {
+    register(event) {
+      events.push(event)
+      return () => {
+        const index = events.indexOf(event)
+        if (index >= 0) events.splice(index, 1)
+      }
+    },
+    async emit(name, input) {
+      const values: unknown[] = []
+      for (const event of events) if (event.name === name) values.push(await event.handler(input))
+      return values
+    },
+    snapshot: () => [...events],
+  }
+  provide.call(agentCtx, 'candidateStrategyEvents', registry)
+  return registry
+}
+
+function installCandidateStrategyTools(agentCtx: Context): CandidateStrategyToolsRegistry {
+  const tools: CandidateStrategyTool[] = []
+  const provide = (agentCtx as unknown as { provide?: (name: string, value: unknown) => void }).provide
+  if (typeof provide !== 'function') throw new Error('native solve: agent context cannot provide candidateStrategyTools')
+  const registry: CandidateStrategyToolsRegistry = {
+    register(tool) {
+      tools.push(tool)
+      return () => {
+        const index = tools.indexOf(tool)
+        if (index >= 0) tools.splice(index, 1)
+      }
+    },
+    snapshot: () => [...tools],
+  }
+  provide.call(agentCtx, 'candidateStrategyTools', registry)
+  return registry
 }
 
 /**
@@ -204,6 +262,14 @@ export interface NativeSolveSession {
   createdAt: number
   /** Wall-clock deadline timer; cleared when the session is disposed. */
   deadlineTimer?: ReturnType<typeof setTimeout> | undefined
+  /** Emits the bounded end-of-session strategy event once, during disposal. */
+  completeStrategySession?: () => Promise<void>
+  strategyUsage: {
+    workflowInvocations: number
+    strategyToolInvocations: number
+    agentEventInvocations: number
+    sessionEventInvocations: number
+  }
 }
 
 /**
@@ -320,7 +386,15 @@ export function createNativeSolveAgent(
     for (const session of live) {
       if (session.deadlineTimer !== undefined) clearTimeout(session.deadlineTimer)
     }
-    await Promise.all(live.map((session) => session.handle.dispose().catch(() => undefined)))
+    await Promise.all(
+      live.map(async (session) => {
+        // Session lifecycle hooks are TCB-dispatched, not arbitrary DSH event
+        // subscriptions.  Their result cannot affect an already-closed ACP
+        // session, but it is included in the per-session execution evidence.
+        await session.completeStrategySession?.().catch(() => undefined)
+        await session.handle.dispose().catch(() => undefined)
+      }),
+    )
   }
 
   return {
@@ -337,6 +411,26 @@ export function createNativeSolveAgent(
       const sessionId = randomUUID()
       const limits = options.limits
       const observation = createCandidateSolveObservationTracker()
+      const strategyUsage = {
+        workflowInvocations: 0,
+        strategyToolInvocations: 0,
+        agentEventInvocations: 0,
+        sessionEventInvocations: 0,
+      }
+      let strategyEvents: CandidateStrategyEventsRegistry | undefined
+      let strategyTools: CandidateStrategyToolsRegistry | undefined
+      let pendingSessionCheckpoints: string[] = []
+      const strategyContext = (
+        phase: 'session-start' | 'pre-step' | 'session-end',
+        turn: number,
+        step: number,
+      ) => ({
+        protocol: CANDIDATE_STRATEGY_CONTEXT_PROTOCOL,
+        turn,
+        step,
+        phase,
+        observation: observation.snapshot(),
+      })
       const handle = await createNativeDshAgent(ctx, {
         sessionId,
         cwd: params.cwd,
@@ -350,6 +444,8 @@ export function createNativeSolveAgent(
           // the fixed solve-policy name below and only as a bounded checkpoint
           // injection; it is not an ACP/tool escape hatch.
           const workflowRegistry = installCandidateWorkflowRegistry(agentCtx)
+          strategyEvents = installCandidateStrategyEvents(agentCtx)
+          strategyTools = installCandidateStrategyTools(agentCtx)
           await candidateStrategySetupOf(ctx)?.(agentCtx)
           installNativePromptSections(agentCtx, [NATIVE_SOLVE_POLICY_SECTION])
           installNativeSolveTools(agentCtx, {
@@ -366,7 +462,14 @@ export function createNativeSolveAgent(
               workflow.name === CANDIDATE_SOLVE_POLICY_WORKFLOW &&
               typeof workflow.run === 'function',
           )
-          if (limits !== undefined || solvePolicies.length > 0) {
+          if (
+            limits !== undefined ||
+            solvePolicies.length > 0 ||
+            strategyTools.snapshot().length > 0 ||
+            strategyEvents
+              .snapshot()
+              .some((event) => event.name === CANDIDATE_AGENT_PRE_STEP_EVENT)
+          ) {
             // Turn cap: upstream AgentOptions has no maxTurns, so reject the
             // proposed step once the loop's own turn counter passes the cap.
             // The loop ends that turn as `blocked` and goes idle; the capsule
@@ -378,8 +481,26 @@ export function createNativeSolveAgent(
               if (limits !== undefined && payload.turn > limits.maxTurns) return { kind: 'reject' }
               const admitted = await next()
               if (admitted.kind === 'reject') return admitted
-              const checkpoints: string[] = []
+              const checkpoints: string[] = [...pendingSessionCheckpoints]
+              pendingSessionCheckpoints = []
+              const input = strategyContext(
+                'pre-step',
+                payload.turn,
+                (payload as { step?: number }).step ?? 0,
+              )
+              const eventValues = await strategyEvents!.emit(CANDIDATE_AGENT_PRE_STEP_EVENT, input)
+              strategyUsage.agentEventInvocations += eventValues.length
+              for (const value of eventValues) {
+                const checkpoint = checkpointOf(value)
+                if (checkpoint !== undefined) checkpoints.push(checkpoint)
+              }
+              for (const tool of strategyTools!.snapshot().slice(0, 4)) {
+                strategyUsage.strategyToolInvocations += 1
+                const checkpoint = checkpointOf(await tool.run(input))
+                if (checkpoint !== undefined) checkpoints.push(checkpoint)
+              }
               for (const policy of solvePolicies) {
+                strategyUsage.workflowInvocations += 1
                 const checkpoint = checkpointOf(
                   await policy.run({
                     protocol: CANDIDATE_SOLVE_POLICY_PROTOCOL,
@@ -409,12 +530,32 @@ export function createNativeSolveAgent(
           }
         },
       })
+      if (strategyEvents !== undefined) {
+        const eventValues = await strategyEvents.emit(
+          CANDIDATE_SESSION_START_EVENT,
+          strategyContext('session-start', 0, 0),
+        )
+        strategyUsage.sessionEventInvocations += eventValues.length
+        for (const value of eventValues) {
+          const checkpoint = checkpointOf(value)
+          if (checkpoint !== undefined) pendingSessionCheckpoints.push(checkpoint)
+        }
+      }
       const session: NativeSolveSession = {
         sessionId,
         cwd: params.cwd,
         handle,
         emittedEvents: 0,
         createdAt: (options.now ?? Date.now)(),
+        strategyUsage,
+        completeStrategySession: async () => {
+          if (strategyEvents === undefined) return
+          const eventValues = await strategyEvents.emit(
+            CANDIDATE_SESSION_END_EVENT,
+            strategyContext('session-end', 0, 0),
+          )
+          strategyUsage.sessionEventInvocations += eventValues.length
+        },
       }
       if (limits !== undefined) {
         // Wall-clock deadline: cancel through the same path ACP session/cancel

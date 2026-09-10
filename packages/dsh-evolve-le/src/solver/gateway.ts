@@ -62,7 +62,10 @@ export const SOLVE_GATEWAY_PATH = '/gateway/complete'
  * stop that fires before a request leaves the controller process.
  */
 export const DEFAULT_SOLVE_TRIAL_BUDGET: GatewayBudget = {
-  maxRequests: 48,
+  // ADR-066: successor runs may spend up to 150 model requests.  This is
+  // deliberately independent of the token/cost caps below: a long but cheap
+  // tool-solving trajectory must still stop before either spend boundary.
+  maxRequests: 150,
   maxTotalTokens: 2_000_000,
   maxCostUsdMicros: 300_000, // $0.30 per trial at frozen prices
 }

@@ -44,6 +44,14 @@ export interface TreeV2ModeContract {
   preservedModes: TreeV2Mode[]
 }
 
+/** Loader fingerprints plus optional native proof of solve-policy behavior. */
+export interface TreeV2ModeFingerprints {
+  solve: string
+  propose: string
+  /** Present for successor builds that execute the native ACP solve probe. */
+  solvePolicy?: string
+}
+
 export interface TreeV2RequiredParentEvidence {
   analysisDigest: string
   mechanismOutcomeDigest: string
@@ -275,13 +283,10 @@ export function assertTreeV2Child(
   if (intent.parent === null) fail('a tree-v2 migration root cannot be validated as a child')
   const diff = diffCanonicalSources(parent, child)
   if (diff.filesChanged === 0) fail('child source is byte-identical to parent')
-  if (
-    !diff.differingFiles.some(
-      (change) => change.path === 'src/index.ts' && change.status === 'modified',
-    )
-  ) {
-    fail('component root src/index.ts must be modified by every child')
-  }
+  // The component root is a stable Loader boundary.  Requiring every child
+  // to touch it made an executable strategy change unnecessarily mutate both
+  // mode projections, which in turn encouraged prompt-text-only deltas.
+  // Children may instead target a mode-specific implementation module.
   if (
     !diff.differingFiles.some(
       (change) =>
@@ -346,7 +351,24 @@ export function assertTreeV2Child(
 export function treeV2RuntimeFingerprint(
   report: unknown,
   mode: TreeV2Mode,
-  options?: { candidateId?: string },
+  options?: {
+    candidateId?: string
+    /**
+     * Native ACP probe evidence for the bounded solve-policy hook.  It is
+     * supplied only after the real AgentLoop probe, so strategy-only changes
+     * are observable without inventing a prompt-text change.
+     */
+    solvePolicyProbe?: {
+      candidateCheckpointCount: number
+      candidateCheckpointSha256: string
+      strategyUsage?: {
+        workflowInvocations: number
+        strategyToolInvocations: number
+        agentEventInvocations: number
+        sessionEventInvocations: number
+      }
+    }
+  },
 ): string {
   const raw = report as Record<string, unknown>
   const strategy = (raw.strategy ?? {}) as Record<string, unknown>
@@ -366,14 +388,31 @@ export function treeV2RuntimeFingerprint(
     mode,
     sections: maskedSurfaces ?? sections.afterBoot,
     strategy,
+    ...(mode === 'solve' && options?.solvePolicyProbe !== undefined
+      ? { solvePolicyProbe: options.solvePolicyProbe }
+      : {}),
   })
+}
+
+/** Stable native-probe projection used to reject a workflow declaration with no behavior change. */
+export function treeV2SolvePolicyFingerprint(probe: {
+  candidateCheckpointCount: number
+  candidateCheckpointSha256: string
+  strategyUsage?: {
+    workflowInvocations: number
+    strategyToolInvocations: number
+    agentEventInvocations: number
+    sessionEventInvocations: number
+  }
+}): string {
+  return treeV2Digest(probe)
 }
 
 /** Runtime half of the mode contract, after isolated Loader probes complete. */
 export function assertTreeV2RuntimeModeContract(
   contract: TreeV2ModeContract,
-  parent: Record<TreeV2Mode, string>,
-  child: Record<TreeV2Mode, string>,
+  parent: TreeV2ModeFingerprints,
+  child: TreeV2ModeFingerprints,
 ): void {
   assertModeContract(contract)
   for (const mode of contract.preservedModes) {

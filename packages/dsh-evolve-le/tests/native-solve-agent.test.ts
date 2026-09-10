@@ -414,6 +414,77 @@ describe('native solve agent runtime limits', () => {
     )
   })
 
+  it('dispatches the bounded automatic-tool and lifecycle-event strategy surfaces', async () => {
+    const calls: Array<{ name: string; phase: string; turn: number; step: number }> = []
+    const { agent, preStepListeners } = makeFixture({
+      events: [],
+      candidateSetup: (agentCtx) => {
+        const services = agentCtx as unknown as {
+          candidateStrategyEvents?: {
+            register(event: { name: string; handler: (input: any) => unknown }): () => void
+          }
+          candidateStrategyTools?: {
+            register(tool: { name: string; run: (input: any) => Promise<unknown> }): () => void
+          }
+        }
+        services.candidateStrategyEvents?.register({
+          name: 'candidate:session/start',
+          handler: (input) => {
+            calls.push({ name: 'start', phase: input.phase, turn: input.turn, step: input.step })
+            return { checkpoint: 'Start by inspecting the workspace state.' }
+          },
+        })
+        services.candidateStrategyEvents?.register({
+          name: 'candidate:agent/pre-step',
+          handler: (input) => {
+            calls.push({ name: 'event', phase: input.phase, turn: input.turn, step: input.step })
+            return { checkpoint: 'Check whether the last action changed the hypothesis.' }
+          },
+        })
+        services.candidateStrategyEvents?.register({
+          name: 'candidate:session/end',
+          handler: (input) => {
+            calls.push({ name: 'end', phase: input.phase, turn: input.turn, step: input.step })
+          },
+        })
+        services.candidateStrategyTools?.register({
+          name: 'candidate_next_step',
+          async run(input) {
+            calls.push({ name: 'tool', phase: input.phase, turn: input.turn, step: input.step })
+            return { checkpoint: 'Use the next tool call to discriminate the leading cause.' }
+          },
+        })
+      },
+    })
+    const created = await agent.newSession({ cwd: '/workspace', mcpServers: [] })
+    const live = agent.sessions.get(created.sessionId)
+    expect(live).toBeDefined()
+    expect(preStepListeners).toHaveLength(1)
+
+    const decision = await (preStepListeners[0] as PreStepListener)(
+      { turn: 3, step: 4, messages: ['task'] },
+      () => enter(['task']),
+    )
+    expect(JSON.stringify(decision)).toContain('Start by inspecting the workspace state.')
+    expect(JSON.stringify(decision)).toContain('Check whether the last action changed the hypothesis.')
+    expect(JSON.stringify(decision)).toContain('Use the next tool call to discriminate the leading cause.')
+    expect(live?.strategyUsage).toEqual({
+      workflowInvocations: 0,
+      strategyToolInvocations: 1,
+      agentEventInvocations: 1,
+      sessionEventInvocations: 1,
+    })
+
+    await agent.dispose()
+    expect(calls).toEqual([
+      { name: 'start', phase: 'session-start', turn: 0, step: 0 },
+      { name: 'event', phase: 'pre-step', turn: 3, step: 4 },
+      { name: 'tool', phase: 'pre-step', turn: 3, step: 4 },
+      { name: 'end', phase: 'session-end', turn: 0, step: 0 },
+    ])
+    expect(live?.strategyUsage.sessionEventInvocations).toBe(2)
+  })
+
   it('executes only the exact solve-policy name and drops an oversized checkpoint', async () => {
     const calls: string[] = []
     const { agent, preStepListeners } = makeFixture({

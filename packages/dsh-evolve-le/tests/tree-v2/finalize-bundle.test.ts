@@ -339,7 +339,7 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
     expect(() => parseProposalOutput(finalized)).not.toThrow()
   })
 
-  it('requires a workflow child in successor multi-child proposals (ADR-055)', async () => {
+  it('requires one workflow child in a successor multi-child proposal (ADR-055)', async () => {
     const root = await freshRoot('dsh-finalize-workflow-required-')
     const raw = rawBundleFixture('child-1')
     const first = (raw.children as Record<string, unknown>[])[0]!
@@ -360,10 +360,11 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
     )
   })
 
-  it('accepts a declared solve-policy workflow child for a successor multi-child proposal', async () => {
+  it('accepts a prompt sibling beside a declared solve-policy workflow child', async () => {
     const root = await freshRoot('dsh-finalize-workflow-ok-')
     const raw = rawBundleFixture('child-1')
     const first = (raw.children as Record<string, unknown>[])[0]!
+    first['strategySurfaces'] = ['system-prompt']
     const second = structuredClone(first)
     second['childName'] = 'child-2'
     second['strategySurfaces'] = ['workflow']

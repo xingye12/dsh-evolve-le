@@ -7,6 +7,7 @@
  * Usage: `node runner/bin/native-solve-probe.js <cordis.yml>`
  */
 
+import { createHash } from 'node:crypto'
 import { isAbsolute, resolve } from 'node:path'
 import type { AgentSideConnection } from '@agentclientprotocol/sdk'
 import { Context } from '@deepseek-ai/cordis'
@@ -38,6 +39,16 @@ interface NativeSolveProbeReport {
     readPaths: string[]
     writes: string[]
     assistantChunks: string[]
+    /** Bounded solve-policy messages injected by the real AgentLoop. */
+    candidateCheckpointCount: number
+    /** Content address of framed checkpoint messages; text is not exposed. */
+    candidateCheckpointSha256: string
+    strategyUsage: {
+      workflowInvocations: number
+      strategyToolInvocations: number
+      agentEventInvocations: number
+      sessionEventInvocations: number
+    }
   }
   phases: { before: CordisInventory; afterBoot?: CordisInventory; afterUnload: CordisInventory }
   handles: { before: ProcessHandleInventory; afterUnload: ProcessHandleInventory }
@@ -49,6 +60,41 @@ interface NativeSolveProbeReport {
 function initializeProtocolStreams(): void {
   void process.stdout
   void process.stderr
+}
+
+function collectStrings(value: unknown, output: string[]): void {
+  if (typeof value === 'string') {
+    output.push(value)
+  } else if (Array.isArray(value)) {
+    for (const item of value) collectStrings(item, output)
+  } else if (value !== null && typeof value === 'object') {
+    for (const item of Object.values(value as Record<string, unknown>)) collectStrings(item, output)
+  }
+}
+
+/** Extract only the TCB wrapper produced by native-solve-agent's pre-step hook. */
+function checkpointDigest(events: readonly unknown[]): { count: number; sha256: string } {
+  const strings: string[] = []
+  for (const event of events) collectStrings(event, strings)
+  const checkpoints: string[] = []
+  const open = '<candidate-solve-checkpoint>'
+  const close = '</candidate-solve-checkpoint>'
+  for (const text of strings) {
+    let from = 0
+    while (true) {
+      const start = text.indexOf(open, from)
+      if (start < 0) break
+      const end = text.indexOf(close, start + open.length)
+      if (end < 0) break
+      checkpoints.push(text.slice(start, end + close.length))
+      from = end + close.length
+    }
+  }
+  const framed = checkpoints.map((checkpoint) => `${String(Buffer.byteLength(checkpoint))}:${checkpoint}`).join('\n')
+  return {
+    count: checkpoints.length,
+    sha256: `sha256:${createHash('sha256').update(framed).digest('hex')}`,
+  }
 }
 
 async function settleTeardown(): Promise<void> {
@@ -218,13 +264,18 @@ async function main(argv: string[]): Promise<number> {
       } as never)
       const live = agent.sessions.get(session.sessionId)
       const events = live?.handle.agent.session?.events ?? []
+      if (live === undefined) throw new Error('native solve session disappeared before probe readout')
       const toolCallEventCount = events.filter((event) => event.type === 'tool/call').length
       const toolResultEventCount = events.filter((event) => event.type === 'tool/result').length
+      const checkpoints = checkpointDigest(events)
       solve = {
         completionCount,
         eventCount: events.length,
         toolCallEventCount,
         toolResultEventCount,
+        candidateCheckpointCount: checkpoints.count,
+        candidateCheckpointSha256: checkpoints.sha256,
+        strategyUsage: live.strategyUsage,
         ...effects,
       }
       if (completionCount !== 4) {

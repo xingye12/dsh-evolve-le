@@ -92,7 +92,7 @@ import { openObjectStore } from '../state/object-store.js'
 import { canonicalHash, canonicalJson } from '../state/canonical.js'
 import { persistTreeV2ReceiptDocument } from '../tree-v2/receipts.js'
 import { persistTreeV2MigrationReceipt } from '../tree-v2/migration.js'
-import type { TreeV2Receipt } from '../tree-v2/contract.js'
+import type { TreeV2ModeFingerprints, TreeV2Receipt } from '../tree-v2/contract.js'
 
 export const ITERATION_PROTOCOL = 'dsh-evolve-le/iteration/v1'
 export const SEARCH_STATE_PROTOCOL = 'dsh-evolve-le/search-state/v1'
@@ -111,7 +111,7 @@ export interface BuiltCapsule {
   /** Capsule tar.gz on disk (content-addressed name). */
   archivePath: string
   treeV2?: {
-    modeFingerprints: Record<'solve' | 'propose', string>
+    modeFingerprints: TreeV2ModeFingerprints
     mechanismOutcomeDigest: string
     admissionReceiptDigest: string
     /** Builder-owned documents copied into the durable run evidence tree. */
@@ -380,7 +380,7 @@ interface CapsuleRecord {
   stagedSourceDir: string
   archivePath: string
   treeV2?: {
-    modeFingerprints: Record<'solve' | 'propose', string>
+    modeFingerprints: TreeV2ModeFingerprints
     mechanismOutcomeDigest: string
     admissionReceiptDigest: string
     /** Content-addressed builder receipts; absent on pre-tree-v2/test records. */

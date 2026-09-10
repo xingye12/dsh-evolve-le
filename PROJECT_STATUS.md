@@ -1,7 +1,54 @@
 # Project status
 
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
-**更新时间：2026-09-09（Asia/Shanghai）**
+**更新时间：2026-09-10（Asia/Shanghai）**
+
+## 2026-09-10 repair6 successor implementation（未启动）
+
+用户要求将后继 live solve ceiling 提升至 150，并把 proposer 从被动的 prompt
+文本变更转向可执行策略变更。实现新增 `k80Repair6` / `repair6` 独立 identity：
+gateway request cap 与 capsule turn cap 均为 150；每 trial 的 2M token、$0.30、
+Harbor wall-clock、总 trial 与总预算边界不变且继续 fail-closed。tree-v2 successor
+admission 不再要求修改 `src/index.ts` 或双 mode prompt；对暴露
+`candidate-workflow:solve-policy` 的 parent，多 child batch 至少包含一个 executable
+workflow child，prompt/tool/skill/event 实验仍可作为 sibling。真实 native ACP probe
+把实际注入的 checkpoint count/digest 纳入 solve runtime fingerprint，因此
+strategy-only delta 可以被验证。
+
+后续实现补充（同一未启动 successor 源码）：candidate tool 可声明受限
+`strategy.autoInvoke` facet；native solve TCB 每个 pre-step 最多自动执行四个 facet，
+只传入 content-free strategy context。TCB 还实际发射
+`candidate:agent/pre-step`、`candidate:session/start` 与 `candidate:session/end`，并在 native probe 写出
+workflow/tool/agent-event/session-event invocation counts。候选没有获得 ACP、文件、网络、
+verifier、controller、route 或预算权限；其它 candidate event 名仍只是声明，未被伪装为可用。
+截至本次源码检查，`pnpm exec tsc -b --pretty false` 及覆盖 SDK、native agent、tree-v2
+contract/profile 的 focused Vitest **92/92** 已通过；这仍只是 successor 实现验证。
+
+这只是未冻结源码的实现/测试状态：**repair6 尚未 init、未启动、未产生任何付费调用或
+baseline；repair5 正在运行的 manifest、预算与证据完全未改写。** 不得据此宣称
+child success 或任何 development/sealed 改善。
+
+## 2026-09-10 repair5 启动记录（用户授权，已点火；尚无 init/run 结论）
+
+启动门核对：预注册提交 `597def3`（ADR-064/065 + k80Repair5 profile，工作树干净）；
+`pnpm build`（tsc -b）绿；全量 vitest 绿 **804 passed / 29 skipped（71 文件，~415s，
+退出码 0）**；真实 Loader E2E 单独复跑 **17/17**；credential 0600（默认
+zen-compatible.key）；egress 代理 172.17.0.1:17897 HTTP 200；fwd 容器 Up；harbor CLI
+0.21.0（/root/.local/bin/harbor）在位；evidence 根 `evidence/tree-v2/k80-formal-repair-5/`
+空闲（无既有 record 可覆盖）；docker 网络仅剩 7 个（ADR-064 已清 18 个陈旧 TB network）。
+
+scratch 根已存在一次 01:51–01:54 中途死亡的尝试产物（提取至部分任务、无 launcher log）；
+record 脚本固定路径且各步骤幂等，本次启动对提取做幂等补完（89 upstream → 72 eligible
+与冻结排除集一致），无需清理。
+
+启动（2026-09-10 ~02:10，用户授权「点火启动」）：
+`DSH_TREE_V2_FORMAL_VARIANT=repair5 DSH_TREE_V2_LIVE_CONFIRM=confirm` +
+持久 `TMPDIR=/root/vibe/dsh/scratch/tmp` + setsid nohup + disown；launcher PID
+1029226（setsid fork 后），launch log
+`/root/vibe/dsh/scratch/k80-formal-repair5-launch.log`。记录时已确认：paid gate 通过、
+提取幂等完成、verifier 镜像构建进行中（49 dev + 23 sealed）。该记录只说明 run 已启动；
+**尚无 init/doctor/run、baseline、search/admission 或效能结论，也未产生任何付费调用
+（镜像构建在付费 trial 之前）**。
 
 ## 2026-09-09 repair3 已停止；repair4 启动前预注册（历史记录）
 

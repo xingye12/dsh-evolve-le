@@ -219,7 +219,10 @@ export const SOLVE_PROTOCOL_SECTION = {
  */
 export const SOLVE_AGENT_LIMITS = {
   /** Model turns per trial (directive execution is bounded by this). */
-  maxTurns: 40,
+  // Keep the capsule-side loop aligned with the authoritative gateway
+  // request ceiling (ADR-066).  A successor run still has independent
+  // token, cost and Harbor wall-clock fail-closed limits.
+  maxTurns: 150,
   /** One exec directive's wall clock before kill(). */
   commandTimeoutMs: 300_000,
   /** Never let one model request run past the live gateway's 10 minute cap. */

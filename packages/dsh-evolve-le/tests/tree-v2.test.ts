@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { captureCanonicalSource } from '../src/candidate/canonical.js'
 import { validateTreeV2 } from '../src/schema.js'
@@ -7,6 +7,7 @@ import {
   assertModeContract,
   assertTreeV2CandidateTree,
   assertTreeV2Child,
+  assertTreeV2RuntimeModeContract,
   finalizeTreeV2Receipt,
   treeV2Digest,
   treeV2RuntimeFingerprint,
@@ -229,6 +230,84 @@ describe('tree-v2 contract', () => {
       { candidateId: 'c_child00000000000000000000000' },
     )
     expect(evolved).not.toBe(child)
+  })
+
+  it('records an executable solve-policy delta without requiring prompt text churn (ADR-066)', () => {
+    const report = {
+      sections: { afterBoot: ['candidate:identity'] },
+      sectionSurfaces: {
+        afterBoot: [{ name: 'candidate:identity', order: 100, text: 'stable solve text' }],
+      },
+      strategy: { workflowsAfterBoot: ['candidate-workflow:solve-policy'] },
+    }
+    const root = treeV2RuntimeFingerprint(report, 'solve', {
+      solvePolicyProbe: {
+        candidateCheckpointCount: 0,
+        candidateCheckpointSha256: `sha256:${'0'.repeat(64)}`,
+      },
+    })
+    const strategyChild = treeV2RuntimeFingerprint(report, 'solve', {
+      solvePolicyProbe: {
+        candidateCheckpointCount: 2,
+        candidateCheckpointSha256: `sha256:${'1'.repeat(64)}`,
+      },
+    })
+    expect(strategyChild).not.toBe(root)
+  })
+
+  it('records an invoked automatic-tool or lifecycle-event delta even without a checkpoint', () => {
+    const report = {
+      sections: { afterBoot: ['candidate:identity'] },
+      sectionSurfaces: {
+        afterBoot: [{ name: 'candidate:identity', order: 100, text: 'stable solve text' }],
+      },
+      strategy: { workflowsAfterBoot: ['candidate-workflow:solve-policy'] },
+    }
+    const noMechanism = treeV2RuntimeFingerprint(report, 'solve', {
+      solvePolicyProbe: {
+        candidateCheckpointCount: 0,
+        candidateCheckpointSha256: `sha256:${'0'.repeat(64)}`,
+        strategyUsage: {
+          workflowInvocations: 0,
+          strategyToolInvocations: 0,
+          agentEventInvocations: 0,
+          sessionEventInvocations: 0,
+        },
+      },
+    })
+    const eventDriven = treeV2RuntimeFingerprint(report, 'solve', {
+      solvePolicyProbe: {
+        candidateCheckpointCount: 0,
+        candidateCheckpointSha256: `sha256:${'0'.repeat(64)}`,
+        strategyUsage: {
+          workflowInvocations: 0,
+          strategyToolInvocations: 1,
+          agentEventInvocations: 1,
+          sessionEventInvocations: 2,
+        },
+      },
+    })
+    expect(eventDriven).not.toBe(noMechanism)
+  })
+
+  it('permits a prompt-only solve target when its native solve-policy proof is unchanged', () => {
+    const contract = { targetModes: ['solve' as const], preservedModes: ['propose' as const] }
+    expect(() =>
+      assertTreeV2RuntimeModeContract(
+        contract,
+        {
+          solve: digest('a'),
+          propose: digest('b'),
+          solvePolicy: digest('c'),
+        },
+        {
+          // Mounted prompt content could differ, but the executable hook did not.
+          solve: digest('d'),
+          propose: digest('b'),
+          solvePolicy: digest('c'),
+        },
+      ),
+    ).not.toThrow()
   })
 
   it('accepts an explicit parentless migration root without fabricated parent evidence', async () => {
@@ -482,6 +561,29 @@ describe('tree-v2 contract', () => {
     const child = await source(childDir, 'export const solve = 2\n', true)
     const childIntent = intent(`sha256:${parent.sha256}`)
     expect(() => assertTreeV2Child(parent, child, childIntent)).not.toThrow()
+  })
+
+  it('allows a mode-specific strategy module to change without editing the component root', async () => {
+    const root = join('/tmp', `tree-v2-strategy-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+    const parentDir = join(root, 'parent')
+    const childDir = join(root, 'child')
+    const parent = await source(parentDir)
+    const child = await source(childDir, 'export const solve = 1\n', true)
+    await writeFile(join(childDir, 'src/index.ts'), await readFile(join(parentDir, 'src/index.ts')))
+    await writeFile(join(childDir, 'src/propose.ts'), 'export const propose = 2\n')
+    const childSource = await captureCanonicalSource(childDir)
+    const { receiptDigest: _receiptDigest, ...unsigned } = intent(`sha256:${parent.sha256}`)
+    const childIntent = finalizeTreeV2Receipt({
+      ...unsigned,
+      runtime: {
+        ...unsigned.runtime,
+        modeComponents: { solve: ['src/propose.ts'], propose: ['src/index.ts'] },
+      },
+    })
+    expect(() => assertTreeV2Child(parent, childSource, childIntent)).not.toThrow()
+    expect(childSource.files.find((file) => file.path === 'src/index.ts')?.sha256).toBe(
+      parent.files.find((file) => file.path === 'src/index.ts')?.sha256,
+    )
   })
 
   it('makes migration results non-inheritable', () => {

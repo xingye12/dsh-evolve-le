@@ -134,11 +134,22 @@ const FORMAL_RUNS = {
     statusProfile:
       'k80Repair5 / terminal-bench-formal (ADR-064 successor-only offline ACP bootstrap and Docker network-capacity preflight)',
   },
+  repair6: {
+    runId: 'tree-v2-k80-formal-repair-6',
+    masterSeed: 'tree-v2-k80-formal-repair-6-master-seed-1',
+    profileName: 'k80Repair6',
+    evidenceDirectory: 'evidence/tree-v2/k80-formal-repair-6',
+    scratch: '/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-6',
+    profileLabel:
+      '49×1 baseline; 150-request live solve; executable solve-policy child gate (ADR-066)',
+    statusProfile:
+      'k80Repair6 / terminal-bench-formal (ADR-066 successor-only 150-request solve and strategy-first proposer admission)',
+  },
 } as const
 const requestedVariant = process.env['DSH_TREE_V2_FORMAL_VARIANT'] ?? 'repair3'
 if (!(requestedVariant in FORMAL_RUNS)) {
   throw new Error(
-    `tree-v2 k80 formal: DSH_TREE_V2_FORMAL_VARIANT must be repair3, repair4, or repair5, got ${requestedVariant}`,
+    `tree-v2 k80 formal: DSH_TREE_V2_FORMAL_VARIANT must be repair3, repair4, repair5, or repair6, got ${requestedVariant}`,
   )
 }
 const formalRun = FORMAL_RUNS[requestedVariant as keyof typeof FORMAL_RUNS]

@@ -16,6 +16,7 @@ import type {
   CandidateEventRegistration,
   CandidateSkillRegistration,
   CandidateToolDefinition,
+  CandidateToolStrategy,
   CandidateWorkflowRegistration,
   PromptSection,
 } from './index.js'
@@ -33,6 +34,10 @@ export interface RecordedTool extends CandidateToolDefinition {}
 export interface RecordedSkill extends CandidateSkillRegistration {}
 export interface RecordedEvent extends CandidateEventRegistration {}
 export interface RecordedWorkflow extends CandidateWorkflowRegistration {}
+export interface RecordedStrategyTool {
+  name: string
+  run: CandidateToolStrategy['run']
+}
 
 /** A mock plugin context plus readouts; `ctx` is cast, the rest is real. */
 export interface CandidateHarness {
@@ -50,6 +55,8 @@ export interface CandidateHarness {
   events(): readonly RecordedEvent[]
   /** Candidate workflows still registered through the trusted registry. */
   workflows(): readonly RecordedWorkflow[]
+  /** Automatic facets registered for TCB lifecycle invocation. */
+  strategyTools(): readonly RecordedStrategyTool[]
   /** Run all effect teardowns in reverse order (simulates Fiber disposal). */
   dispose(): void
 }
@@ -67,6 +74,7 @@ export function createHarness(): CandidateHarness {
   const liveSkills: RecordedSkill[] = []
   const liveEvents: RecordedEvent[] = []
   const liveWorkflows: RecordedWorkflow[] = []
+  const liveStrategyTools: RecordedStrategyTool[] = []
   const teardownFor = new Map<RecordedEffect, () => void>()
 
   const systemPrompt = {
@@ -122,6 +130,15 @@ export function createHarness(): CandidateHarness {
       }
     },
   }
+  const candidateStrategyTools = {
+    register(tool: RecordedStrategyTool): () => void {
+      liveStrategyTools.push(tool)
+      return () => {
+        const at = liveStrategyTools.indexOf(tool)
+        if (at >= 0) liveStrategyTools.splice(at, 1)
+      }
+    },
+  }
   const on = (name: string, handler: (...args: unknown[]) => unknown): (() => void) => {
     const event: RecordedEvent = { name: name as RecordedEvent['name'], handler }
     liveEvents.push(event)
@@ -131,7 +148,21 @@ export function createHarness(): CandidateHarness {
     }
   }
 
-  const ctx = { systemPrompt, tools, skills, candidateWorkflows, effect, on } as unknown as Context
+  const candidateStrategyEvents = {
+    register(event: CandidateEventRegistration): () => void {
+      return on(event.name, event.handler)
+    },
+  }
+  const ctx = {
+    systemPrompt,
+    tools,
+    skills,
+    candidateWorkflows,
+    candidateStrategyTools,
+    candidateStrategyEvents,
+    effect,
+    on,
+  } as unknown as Context
 
   return {
     ctx,
@@ -141,6 +172,7 @@ export function createHarness(): CandidateHarness {
     skills: () => [...liveSkills],
     events: () => [...liveEvents],
     workflows: () => [...liveWorkflows],
+    strategyTools: () => [...liveStrategyTools],
     dispose(): void {
       for (const record of [...effects].reverse()) runTeardown(record)
     },
