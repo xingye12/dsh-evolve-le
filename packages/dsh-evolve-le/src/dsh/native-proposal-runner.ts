@@ -6,6 +6,7 @@
  * candidate-scoped setup and the bounded proposal capability backend. A
  * proposal is successful only when the model invokes `proposal_finish`.
  */
+import { createHash } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -21,6 +22,7 @@ import {
 import {
   disposeNativeProposalTools,
   installNativeProposalTools,
+  NATIVE_PROPOSAL_MAX_FINISH_ATTEMPTS,
   type NativeProposalToolBackend,
   type NativeProposalToolState,
 } from './native-proposal.js'
@@ -92,51 +94,86 @@ export async function runNativeProposal(
 
   const state: NativeProposalToolState = { calls: 0, disposers: [] }
   const candidateSetup = options.candidateSetup ?? candidateStrategySetupOf(options.ctx)
-  const handle = await createNativeDshAgent(options.ctx, {
-    sessionId: options.sessionId,
-    cwd: options.cwd,
-    mode: 'propose',
-    provider: options.provider,
-    model: options.model,
-    ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
-    setup: async (agentCtx) => {
-      if (options.tcbPromptSections !== undefined) {
-        installNativePromptSections(agentCtx, options.tcbPromptSections)
-      }
-      await candidateSetup?.(agentCtx)
-      installNativeProposalTools(agentCtx, options.backend, state)
-      if (options.maxTurns !== undefined) {
-        const runtime = agentCtx as unknown as {
-          on?: (
-            event: string,
-            listener: (
-              payload: { step?: unknown },
-              next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
-            ) => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
-          ) => void
+  const handles: NativeDshAgent[] = []
+  const recoverySessionId = `recovery-${createHash('sha256').update(options.sessionId).digest('hex')}`
+  const createSession = async (sessionId: string): Promise<NativeDshAgent> => {
+    const handle = await createNativeDshAgent(options.ctx, {
+      sessionId,
+      cwd: options.cwd,
+      mode: 'propose',
+      provider: options.provider,
+      model: options.model,
+      ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      setup: async (agentCtx) => {
+        if (options.tcbPromptSections !== undefined) {
+          installNativePromptSections(agentCtx, options.tcbPromptSections)
         }
-        if (typeof runtime.on !== 'function') {
-          throw new NativeProposalError('native proposal agent scope lacks agent/pre-step support')
-        }
-        runtime.on('agent/pre-step', async (payload, next) => {
-          const step = payload.step
-          if (typeof step !== 'number' || !Number.isSafeInteger(step) || step < 1) {
+        await candidateSetup?.(agentCtx)
+        installNativeProposalTools(agentCtx, options.backend, state)
+        if (options.maxTurns !== undefined) {
+          const runtime = agentCtx as unknown as {
+            on?: (
+              event: string,
+              listener: (
+                payload: { step?: unknown },
+                next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
+              ) => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
+            ) => void
+          }
+          if (typeof runtime.on !== 'function') {
             throw new NativeProposalError(
-              'native proposal agent emitted an invalid step coordinate',
+              'native proposal agent scope lacks agent/pre-step support',
             )
           }
-          if (step > options.maxTurns!) return { kind: 'reject' }
-          return next()
-        })
-      }
-    },
-  })
+          runtime.on('agent/pre-step', async (payload, next) => {
+            const step = payload.step
+            if (typeof step !== 'number' || !Number.isSafeInteger(step) || step < 1) {
+              throw new NativeProposalError(
+                'native proposal agent emitted an invalid step coordinate',
+              )
+            }
+            if (step > options.maxTurns!) return { kind: 'reject' }
+            return next()
+          })
+        }
+      },
+    })
+    handles.push(handle)
+    return handle
+  }
 
   try {
+    let handle = await createSession(options.sessionId)
     handle.agent.followup(nativeUserMessage(options.prompt))
     await handle.agent.whenIdle()
-    const events = eventsOf(handle)
+    // Repair15 showed two distinct premature endings: after an actionable
+    // finalizer error, and after child files existed but before submission.
+    // Give one fresh, separately-audited native session exactly one recovery
+    // turn.  It must not share the exhausted native session's model budget:
+    // otherwise a recovery prompt deterministically receives another budget
+    // stop before it can submit the files already written.  The writable
+    // child root and TCB tool state are deliberately shared, while the DSH
+    // session identity is not.  The finalizer remains authoritative and
+    // accepts no invalid bundle.
+    const needsRecoveryTurn =
+      state.proposal === undefined &&
+      ((state.finishAttempts ?? 0) === 1 ||
+        ((state.finishAttempts ?? 0) === 0 && (state.writtenChildFiles ?? 0) > 0))
+    if (needsRecoveryTurn) {
+      const recoveryReason =
+        (state.finishAttempts ?? 0) === 1
+          ? `The first proposal_finish was rejected. Repair only the reported defect, then use the one remaining proposal_finish attempt (maximum ${String(NATIVE_PROPOSAL_MAX_FINISH_ATTEMPTS)}).`
+          : 'Child files were written but no proposal_finish was called. Complete only the minimum remaining work and submit the existing bundle now.'
+      handle = await createSession(recoverySessionId)
+      handle.agent.followup(
+        nativeUserMessage(
+          `[TCB recovery turn] ${recoveryReason} A prose answer cannot complete this action.`,
+        ),
+      )
+      await handle.agent.whenIdle()
+    }
+    const events = handles.flatMap((created) => eventsOf(created))
     const proposal = state.proposal
     // ADR-035: the session events are the only complete record of what the
     // model did, and attempt 8 proved they are lost on failure (the success
@@ -153,6 +190,9 @@ export async function runNativeProposal(
         ok: false,
         eventCount: events.length,
         toolCalls: state.calls,
+        finishAttempts: state.finishAttempts ?? 0,
+        recoveryTurnInjected: needsRecoveryTurn,
+        ...(needsRecoveryTurn ? { recoverySessionId } : {}),
         events,
         error: error instanceof Error ? error.message : String(error),
         ...(options.audits === undefined ? {} : { audits: options.audits }),
@@ -182,6 +222,9 @@ export async function runNativeProposal(
       protocol: NATIVE_PROPOSAL_PROTOCOL,
       eventCount: events.length,
       toolCalls: state.calls,
+      finishAttempts: state.finishAttempts ?? 0,
+      recoveryTurnInjected: needsRecoveryTurn,
+      ...(needsRecoveryTurn ? { recoverySessionId } : {}),
       events,
       proposal,
       ...(options.audits === undefined ? {} : { audits: options.audits }),
@@ -202,6 +245,6 @@ export async function runNativeProposal(
     }
   } finally {
     disposeNativeProposalTools(state)
-    await handle.dispose()
+    await Promise.all(handles.map((handle) => handle.dispose()))
   }
 }

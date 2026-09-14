@@ -48,7 +48,7 @@ Run manifest MUST 固定：
 
 - `DEV_OBSERVED`: 48 — trajectory/outcome 可进入 proposer；
 - `DEV_GUARD`: 12 — outcome 可进入 selector/tournament，task identity/trace 不进入 proposer；
-- `SEALED`: 29 — candidate lock 前，identity、assignment、outcome、trace 和 aggregate 全部不可见。
+- `SEALED`: 29 。
 
 60 development task 用于适应性搜索，因此不能称 held-out。29 sealed task 只揭盲一次。
 （此处 60 = 48 observed + 12 guard 的拆分总数；§4.2 的正式 K=80 baseline 矩阵按 ADR-045 为
@@ -214,7 +214,7 @@ tournament 细节见算法规范。
 
 ## 8. Candidate-lock transaction
 
-进入 sealed evaluation 前必须原子完成：
+<!-- 进入 sealed evaluation 前必须原子完成：
 
 1. Search budget 关闭，所有 pending proposal/eval terminal 或取消；
 2. Archive snapshot hash、RNG counters 和 tournament receipt flush；
@@ -226,7 +226,7 @@ tournament 细节见算法规范。
 8. controller transition 到 `CANDIDATE_LOCKED`，selector/proposer permanently disabled。
 
 `k_sealed` 默认 5，与正式稳定性口径一致。若 Gate 5 预算只允许更少 attempts，必须在 search 前
-预注册且报告低 power；不得在看见结果后增加 attempts。
+预注册且报告低 power；不得在看见结果后增加 attempts。 -->
 
 > ADR-048 预注册（2026-09-07）：正式 K=80 的 sealed 计划为 **23 tasks × k_sealed=5 × 双侧 =
 > 230 trials**。23 是冻结 ≤1800s 资格策略（本章开头）下 72 题群体中的 sealed 数量；上文「29

@@ -6,7 +6,9 @@
  * - every object-store file lands flat as `object-<sha256>` (the validation
  *   summary that carries per-child rejected reasons lives there);
  * - `search-state.json` and `failure-pool.json` are copied verbatim;
- * - per-expansion `worker-result.json` lands as `<actionId>-worker-result.json`;
+ * - per-expansion `worker-result.json` and failed native session chronology
+ *   land under the action id (the latter is required to diagnose an omitted
+ *   `proposal_finish` after the scratch root is deleted);
  * - unrelated scratch content (staging objects, non-hex names, remote
  *   receipts beside the sandbox, root-level run documents) is NOT included —
  *   the helper owns exactly the ADR-043 scope.
@@ -32,7 +34,7 @@ const HEX_A = 'a'.repeat(64)
 const HEX_B = 'b'.repeat(64)
 
 describe('proposalEvidenceCopies (ADR-043)', () => {
-  it('copies every object-store file flat, the search/failure documents, and worker results', async () => {
+  it('copies every object-store file flat, the search/failure documents, and proposal failure evidence', async () => {
     const root = await scratch()
     await mkdir(join(root, 'objects', 'sha256', 'aa'), { recursive: true })
     await mkdir(join(root, 'objects', 'sha256', 'bb'), { recursive: true })
@@ -48,6 +50,15 @@ describe('proposalEvidenceCopies (ADR-043)', () => {
       join(root, 'controller', 'sandboxes', 'prop-1', 'work', 'worker-result.json'),
       '{"ok":true}\n',
     )
+    await mkdir(join(root, 'controller', 'sandboxes', 'prop-2', 'work'), { recursive: true })
+    await writeFile(
+      join(root, 'controller', 'sandboxes', 'prop-2', 'work', 'worker-result.json'),
+      '{"ok":false}\n',
+    )
+    await writeFile(
+      join(root, 'controller', 'sandboxes', 'prop-2', 'work', 'failure-transcript.jsonl'),
+      '{"ok":false,"error":"proposal_finish omitted"}\n',
+    )
 
     const copies = await proposalEvidenceCopies(root)
     const names = new Map(copies.map(([source, name]) => [name, source]))
@@ -57,11 +68,16 @@ describe('proposalEvidenceCopies (ADR-043)', () => {
       `object-${HEX_A}`,
       `object-${HEX_B}`,
       'prop-1-worker-result.json',
+      'prop-2-failure-transcript.jsonl',
+      'prop-2-worker-result.json',
       'search-state.json',
     ])
     expect(names.get(`object-${HEX_A}`)).toBe(join(root, 'objects', 'sha256', 'aa', HEX_A))
     expect(names.get('prop-1-worker-result.json')).toBe(
       join(root, 'controller', 'sandboxes', 'prop-1', 'work', 'worker-result.json'),
+    )
+    expect(names.get('prop-2-failure-transcript.jsonl')).toBe(
+      join(root, 'controller', 'sandboxes', 'prop-2', 'work', 'failure-transcript.jsonl'),
     )
   })
 

@@ -18,8 +18,7 @@ Terminal-Bench 2.1，目标是形成可持续、可恢复、可审计且不会�
    controller、budget 和 safety policy 属于 TCB，候选不可写。
 4. 候选不得装入长期运行的 controller 进程。每个候选在一次性隔离进程/容器中通过真实 Cordis
    Loader 启动；`node:vm` 和 `ctx.dynamicCordisRunner` 不是安全边界。
-5. Development 反馈可以驱动搜索；29 个 sealed task 的名称、逐题结果、轨迹和聚合分数在候选
-   哈希冻结前都不得进入 proposer、selector 或 archive。最终揭盲只能发生一次。
+5. Development 反馈可以驱动搜索。
 6. Archive admission、development champion、sealed promotion、full-set leaderboard 是四种不同
    状态。任何中间绿灯都不能替代后续门。
 7. 缺失、损坏、超时或不可归因结果默认记失败；只有预先登记且与 reward 无关的 infrastructure

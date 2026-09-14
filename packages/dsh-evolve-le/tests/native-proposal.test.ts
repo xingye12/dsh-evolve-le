@@ -131,6 +131,60 @@ describe('native proposal tools', () => {
     disposeNativeProposalTools(state)
   })
 
+  it('permits exactly one feedback-driven repair submission', async () => {
+    const calls: Array<{ name: string; definition: unknown }> = []
+    const ctx = {
+      tools: {
+        register(definition: { name: string }) {
+          calls.push({ name: definition.name, definition })
+          return () => undefined
+        },
+      },
+    } as never
+    const state: NativeProposalToolState = { calls: 0, disposers: [] }
+    let finalizations = 0
+    installNativeProposalTools(
+      ctx,
+      {
+        async listInput() {
+          return []
+        },
+        async readInput() {
+          return ''
+        },
+        async writeChildFile() {},
+        async finalizeProposal(proposal) {
+          finalizations += 1
+          if (finalizations === 1) throw new Error('candidate tests failed: inherited silent shape')
+          return proposal as never
+        },
+      },
+      state,
+    )
+    const finish = calls[3]?.definition as { execute(args: unknown): Promise<unknown> }
+    const proposal = {
+      schemaVersion: 1,
+      protocol: 'dsh-evolve-le/proposal/v1',
+      parentSourceHash: `sha256:${'a'.repeat(64)}`,
+      children: [
+        {
+          childName: 'child-1',
+          hypothesis: 'distinct mechanism hypothesis',
+          donorCandidates: [],
+          evidenceRefs: [],
+          targetFailureModes: ['failure mode'],
+        },
+      ],
+    }
+    await expect(finish.execute({ proposal })).rejects.toThrow('inherited silent shape')
+    expect(state.finishAttempts).toBe(1)
+    await expect(finish.execute({ proposal })).resolves.toBe('submitted')
+    expect(state.finishAttempts).toBe(2)
+    await expect(finish.execute({ proposal })).rejects.toThrow('already submitted')
+    expect(finalizations).toBe(2)
+    disposeNativeProposalTools(state)
+  })
+
   it('applies the tool-call budget: soft reminder, hard refusal, finish exempt (ADR-035)', async () => {
     const { softReminderAtCalls, refuseAtCalls } = NATIVE_PROPOSAL_TOOL_BUDGET
     expect(refuseAtCalls).toBeGreaterThan(softReminderAtCalls)
@@ -310,6 +364,100 @@ describe('native proposal tools', () => {
   })
 })
 describe('native proposal runner: failure transcripts (ADR-035)', () => {
+  it('injects one recovery turn when files were written but the first turn did not submit', async () => {
+    const scratch = await mkdtemp(join(tmpdir(), 'dsh-native-proposal-recovery-'))
+    const proposalPath = join(scratch, 'work', 'proposal.json')
+    const tools = new Map<string, { execute(args: unknown): Promise<unknown> }>()
+    const followups: unknown[] = []
+    const sessionIds: unknown[] = []
+    const proposal = {
+      schemaVersion: 1,
+      protocol: 'dsh-evolve-le/proposal/v1',
+      parentSourceHash: `sha256:${'a'.repeat(64)}`,
+      children: [
+        {
+          childName: 'child-1',
+          hypothesis: 'complete the already written candidate',
+          donorCandidates: [],
+          evidenceRefs: [],
+          targetFailureModes: ['missing submission'],
+        },
+      ],
+    }
+    const ctx = {
+      agents: {
+        async create(options: {
+          sessionId?: unknown
+          setup?: (agentCtx: object) => void | Promise<void>
+        }) {
+          sessionIds.push(options.sessionId)
+          await options.setup?.({
+            tools: {
+              register(definition: { name: string; execute(args: unknown): Promise<unknown> }) {
+                tools.set(definition.name, definition)
+                return () => undefined
+              },
+            },
+          })
+          return {
+            agent: {
+              followup(message: unknown) {
+                followups.push(message)
+              },
+              async whenIdle() {
+                if (followups.length === 1) {
+                  await tools.get('proposal_write_child')!.execute({
+                    childName: 'child-1',
+                    path: 'src/strategy.ts',
+                    content: 'export const checkpoint = 1\n',
+                  })
+                  return
+                }
+                await tools.get('proposal_finish')!.execute({ proposal })
+              },
+              session: { events: [] },
+            },
+            async dispose() {},
+          }
+        },
+      },
+    } as unknown as Context
+    const result = await runNativeProposal({
+      ctx,
+      backend: {
+        async listInput() {
+          return []
+        },
+        async readInput() {
+          return ''
+        },
+        async writeChildFile() {},
+        async finalizeProposal(value) {
+          return value as never
+        },
+      },
+      sessionId: 'recovery-turn-test',
+      cwd: scratch,
+      prompt: 'propose a child',
+      proposalPath,
+      provider: 'test',
+      model: 'test',
+    })
+    expect(result.proposal).toEqual(proposal)
+    expect(followups).toHaveLength(2)
+    expect(sessionIds).toEqual(['recovery-turn-test', expect.any(String)])
+    expect(sessionIds[1]).not.toBe(sessionIds[0])
+    expect(JSON.stringify(followups[1])).toContain('[TCB recovery turn]')
+    const transcript = JSON.parse(await readFile(result.transcriptPath, 'utf8')) as Record<
+      string,
+      unknown
+    >
+    expect(transcript['recoveryTurnInjected']).toBe(true)
+    expect(transcript['recoverySessionId']).toBe(sessionIds[1])
+    expect(transcript['finishAttempts']).toBe(1)
+    await rm(scratch, { recursive: true, force: true })
+  })
+
   it('rejects a native proposal step past maxTurns through the agent/pre-step waterfall', async () => {
     const scratch = await mkdtemp(join(tmpdir(), 'dsh-native-proposal-cap-'))
     const proposalPath = join(scratch, 'work', 'proposal.json')

@@ -13,7 +13,8 @@
  *   intents) and `failure-pool.json` (the frozen pool) verbatim;
  * - per-expansion `worker-result.json` as `<actionId>-worker-result.json`
  *   (boot facts, DAC probes, worker verdict — the one sandbox fact the
- *   store does not persist).
+ *   store does not persist), plus `failure-transcript.jsonl` when native
+ *   proposal execution failed before `proposal_finish`.
  *
  * Scope is deliberately exact: staged/non-digest object files, the sandbox
  * dirs themselves (hundreds of MB of staged capsule inputs) and the
@@ -54,9 +55,14 @@ export async function proposalEvidenceCopies(
   const sandboxesRoot = join(runRoot, 'controller', 'sandboxes')
   const sandboxDirs = await readdir(sandboxesRoot).catch(() => [] as string[])
   for (const dir of sandboxDirs.sort()) {
-    const source = join(sandboxesRoot, dir, 'work', 'worker-result.json')
-    if ((await stat(source).catch(() => undefined))?.isFile() === true) {
-      copies.push([source, `${dir}-worker-result.json`])
+    for (const [file, destination] of [
+      ['worker-result.json', `${dir}-worker-result.json`],
+      ['failure-transcript.jsonl', `${dir}-failure-transcript.jsonl`],
+    ] as const) {
+      const source = join(sandboxesRoot, dir, 'work', file)
+      if ((await stat(source).catch(() => undefined))?.isFile() === true) {
+        copies.push([source, destination])
+      }
     }
   }
 

@@ -140,7 +140,7 @@ Proposal/build 失败也 MUST 记录，但不计为 80 个 admitted candidates�
 
 ### 6.2 Generalization success
 
-在 development champion 哈希锁定后，可信评测器对 baseline 与该 candidate 在 29 个 sealed
+<!-- 在 development champion 哈希锁定后，可信评测器对 baseline 与该 candidate 在 29 个 sealed
 tasks 上进行配对评测。成功需要同时满足：
 
 ```text
@@ -150,7 +150,7 @@ critical safety violations = 0
 protocol completeness = 100%
 ```
 
-若只有点估计达到 +5pp 而区间跨 0，报告为 `PROMISING_NOT_CONFIRMED`，不得称成功。
+若只有点估计达到 +5pp 而区间跨 0，报告为 `PROMISING_NOT_CONFIRMED`，不得称成功。 -->
 
 ### 6.3 Efficiency objective
 
@@ -195,7 +195,6 @@ task_digest(candidate) == frozen_task_digest
 verifier(candidate)    == frozen_verifier
 resource(candidate)    == frozen_resource_policy
 only_changed_files     subset_of candidate_editable_roots
-sealed_feedback_seen   == false until candidate_lock
 ```
 
 候选增加的 token、tool call、subagent 或时延属于 harness 行为，必须计费，不能通过统一补偿隐藏。

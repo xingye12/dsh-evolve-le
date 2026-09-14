@@ -19,8 +19,15 @@ export interface NativeProposalToolBackend {
 export interface NativeProposalToolState {
   proposal?: ProposalOutput
   calls: number
+  /** One initial submission plus one feedback-driven repair submission. */
+  finishAttempts?: number
+  /** Number of files authored in a child root during this session. */
+  writtenChildFiles?: number
   disposers: Array<() => void>
 }
+
+/** A finalizer error may be repaired once, never silently accepted. */
+export const NATIVE_PROPOSAL_MAX_FINISH_ATTEMPTS = 2
 
 /**
  * Tool-call budget for the native proposal session (ADR-035). The tree-v2
@@ -160,6 +167,7 @@ export function installNativeProposalTools(
         throw new Error('childName, path and content are required')
       }
       await backend.writeChildFile(input.childName, input.path, input.content)
+      state.writtenChildFiles = (state.writtenChildFiles ?? 0) + 1
       assertNotAborted(exec, 'proposal_write_child')
       return `ok${budgetNote(state)}`
     },
@@ -172,7 +180,14 @@ export function installNativeProposalTools(
     async execute(args, exec) {
       assertNotAborted(exec, 'proposal_finish')
       state.calls += 1
-      if (state.proposal !== undefined) throw new Error('proposal_finish may only be called once')
+      if (state.proposal !== undefined) throw new Error('proposal_finish is already submitted')
+      const attempts = state.finishAttempts ?? 0
+      if (attempts >= NATIVE_PROPOSAL_MAX_FINISH_ATTEMPTS) {
+        throw new Error(
+          `proposal_finish may be called at most ${String(NATIVE_PROPOSAL_MAX_FINISH_ATTEMPTS)} times`,
+        )
+      }
+      state.finishAttempts = attempts + 1
       const proposal = (args as { proposal?: unknown }).proposal
       if (proposal === null || typeof proposal !== 'object' || Array.isArray(proposal)) {
         throw new Error('proposal must be an object')

@@ -1,4 +1,0 @@
-[dsh-evolve-le replay] no recorded response for prompt sha256:357c0630104064f2c33e10f55233a076d86ca5ae78d7d06ca5c01b14c73ed92d (workspace: /app); composed sections:
-[candidate:identity]
-You are executing under self-evolving candidate c_bi7tfxq6rk5sefcmuxmlckhkee in solve mode. You may use every tool and file the harness provides; the candidate policy neither removes nor forbids any of them. The "no tools and no protocol" baseline statement is about the candidate plugin only, not about your task actions. Activate the relevant task tools and use them.
-dsh-evolve-le-runner-report:{"config":"/opt/harbor-acp-agent/dist/cordis.yml","sections":{"afterBoot":["candidate:identity"],"afterUnload":[]},"quiescent":true,"timings":{"bootMs":58.058007,"unloadMs":1.6514609999999834}}

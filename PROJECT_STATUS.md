@@ -3,7 +3,124 @@
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
 **更新时间：2026-09-10（Asia/Shanghai）**
 
-## 2026-09-10 repair6 successor implementation（未启动）
+## 2026-09-13 repair24 terminal diagnosis；successor-only recovery fix（未启动）
+
+`tree-v2-k80-formal-repair-24` 已在 SEARCHING 阶段以
+`STOPPED:NO_ADMISSIBLE_CHILD` 终止：`drive-report.json` / `search-state.json` 共同记录
+45 个 admitted non-baseline candidate、365 observations、13 次 expansion，且最后三次
+连续 expansion failure 已到冻结的 `maxConsecutiveExpansionFailures=3`。这三个 action
+（`prop-11`、`prop-12`、`prop-13`）的 native proposal worker 都在写入 child 文件后因
+`agent exited without proposal_finish` 失败；原始 failure transcript 表明先前的
+“recovery turn”被追加到同一 native session，而该 session 的模型 token/cost 上限已耗尽，
+故恢复回合立即再次 budget-stop。它们不是 Harbor trial 或候选评测的可重试基础设施失败。
+
+后继源码将这一次恢复改为一个新的、内容寻址的 native DSH session；共享的仅是受限
+proposal tool state 和 child staging root，两个 session 的 events 和 recovery session ID
+都持久化进同一 transcript。`pnpm exec tsc -b --pretty false` 与
+`packages/dsh-evolve-le/tests/native-proposal.test.ts` 9/9 通过。该改动会改变 proposer
+执行，因此 repair24 的 terminal state、manifest、失败计数和证据均不得改写或 resume；如要
+继续，必须预注册 successor，并逐一证明 45 个 candidate/capsule 和已完成 observation 的
+identity、solver route、task/verifier、scorer、split、budget 语义完全兼容后才能导入。
+尚未创建 successor、未启动任何新的 Harbor job 或模型调用，也没有 tournament/sealed 结论。
+
+## 2026-09-13 repair26 WSL 重启中断后的恢复（用户授权「恢复repair26」，已恢复运行）
+
+`tree-v2-k80-formal-repair-26`（从 repair-24 45/50 恢复启动）在 prop-1 三子代全部
+admitted（48/50）后于 2026-09-13 09:26 被宿主机 WSL 重启杀死：record 脚本与 controller
+进程消失、无终态 verdict，journal 冻结在 02:37（7 个 trial job 在飞、orphaned）。
+恢复前校验（全部通过后才启动）：journal 全链（2000 事件，eventHash 不变式 canonical
+JSON、previousHash 链与 HEAD 完全一致，seg1 merkleRoot 与 closed.json 一致）；stale
+lock（pid 2344102、bootId 9f26fca9 ≠ 当前）；search-state 非终态
+（expansionAttempts=1、consecFail=0）。启动器为 presearch-import checkout
+`/root/vibe/dsh/scratch/dsh-evolve-le-presearch-import`（HEAD e4cb68a，主仓库的
+record 脚本只有 repair3–6），`DSH_TREE_V2_FORMAL_VARIANT=repair26` +
+`DSH_TREE_V2_LIVE_CONFIRM=confirm`，未设 `TREE_V2_TRIAL_CONTAINER_PROXY`（冻结配置
+trialContainerProxy 为 null，设置会触发一致性检查安全停止）；日志追加到
+`k80-formal-repair26-launch.log`。恢复结果：doctor 通过后 `run`（幂等 resume）接管，
+seg2 封口、seg3 开启，锁由新进程（CLI pid 9640、新 bootId）重取，搜索循环恢复
+cold-start 规划，0 条 FAILED。7 个 orphaned trial 按 rule 7 默认记失败；2 个带
+finished_at 的走 row-6 receipt-without-commit 重取。无 tournament/sealed 结论；
+30 分钟监督汇报已恢复。
+
+**终态（2026-09-13 12:17 CST）**：`STOPPED:NO_ADMISSIBLE_CHILD` —
+trials=410（discovery 14、导入 365、live 45）、admittedNonBaseline=48/50、
+expansionAttempts=4、tournament=0，恢复后运行 9721s，终值 ~$113.71。
+prop-1 成功（3 子代准入达 48/50）；prop-2（tool calls=50）、prop-3（66）、
+prop-4 全部以与 repair-24/25 相同的模式失败："agent exited without
+proposal_finish"（native proposer 写出 children 文件后未发 proposal_finish，
+prop-4 的 3 个 children 名为 edit-readback-breaker、variant-loop-breaker、
+verification-gap-breaker，failure-transcript 均在 sandboxes/prop-N/work/）。
+consecFail 触顶 3/3。record 脚本自身 post-check FAILED：
+trialDirsMatchReportIncludingTournament（38 dirs vs 45 live）、
+receiptUsageMatchesSettlement（32,731,773 vs 34,568,858）、
+oneTokenFilePerTrial（43 vs 45，2 个 pre-reboot token 文件缺失）。scratch
+与 evidence 保留在 `/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-26`；
+不得改写。proposer 批量错误已是连续三个 K=50 run（repair-24/25/26）的
+决定性死因，repair-27 若启动须先修复该模式。
+
+## 2026-09-13/14 repair27 终态（用户授权启动；BUDGET_EXHAUSTED 于 tournament 中段）
+
+`tree-v2-k80-formal-repair-27`（K=50，2026-09-13 ~14:59 CST 由用户授权启动，
+presearch checkout HEAD `e78f97d`「compact native proposal recovery」修复了
+proposer 死因；导入 repair-26 全部 410 观测与 49 capsules，身份兼容性校验通过）。
+**该修复一次验证成功**：prop-1 产出 3 子代全部 admitted（51/50），
+`K_REACHED` 触发——这是 K=50 系列第一个达成 K 的 run；expansionAttempts=1、
+consecutiveExpansionFailures=0，无 rebuild rejection。
+
+Tournament（baseline + 5 强 shortlist × 49 任务 = 294 场，短list 经
+HMAC-SHA256 抽签冻结，receipt 落 journal）按节点顺序执行：
+baseline 27/49（55.1%）、`c_y2vhojev…` 31/49（63.3%）、`c_c5cyx2ud…` 28/49
+（57.1%）、`c_jabosn6c…` 24/49（49.0%）、`c_g65rjtqg…` 30/49（61.2%），
+第 6 个节点 `c_gvspit6u…` 只完成 12/49（7 solved）。
+
+**终态（2026-09-14 07:10 CST）**：`STOPPED:BUDGET_EXHAUSTED` —— wall-clock
+预算在最后一节点覆盖中途耗尽（运行 61901s ≈ 17.2h；tournament 起于 14:47，
+ADR-048/058 的 search-share 扣完后 tournament 壁钟预算到顶，属合法 SEARCHING
+边缘）。trials=419（discovery 14、导入 410、live 9）、admittedNonBaseline=51/50、
+tournament=257/294。**champion 判定（paired-delta + 90% cluster-bootstrap LCB）
+未运行**：无 champion、无 sealed promotion、不得宣称任何 development/sealed
+改善。实际结算 $36.96（task-trials 266；导入 410 不重复计费）。
+
+record 脚本 post-check FAILED 3 项（与 repair-26 的 3 项不同）：
+trialCountWithinThePreRegisteredEnvelope（liveTrials=9 的口径与 trial 总量不闭合，
+envelope 复核问题连续第 4 个 run 出现）、attributionCallsSettledWithinBudget: null、
+attributionTokensSettledWithinBudget: null。scratch 与 evidence 保留在
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-27`；不得改写。
+主要教训：K 达成后 tournament 294 场的 wall 预算远超预留，下一 successor 若
+要跑完 tournament，须把 search-share 之外的 tournament 壁钟预算上调或缩减
+coverage；慢任务（break-filter-js-from-html、count-dataset-tokens、rstan-to-pystan、
+extract-moves-from-video、torch-pipeline-parallelism 等反复逼近 1h solve-agent
+超时上界）是 wall 消耗的主因。
+
+## 2026-09-14 repair30 启动与 WSL 重启恢复（用户授权；tournament 延续，运行中）
+
+tree-v2-k80-formal-repair-30（用户授权启动，launcher checkout
+`/root/vibe/dsh/scratch/dsh-evolve-le-repair28` @ 4d82fbe，variant repair30）
+是 ADR-090/091 的 frozen tournament 延续：import 携带 repair-27 的 419 开发
+观测 + 257 tournament 观测（--include-tournament）、52 capsules、同一 frozen
+shortlist（y2vhojev、c5cyx2ud、jabosn6c、g65rjtqg、gvspit6u）+ baseline；
+gvspit6u 从 12/49 续跑。k80Repair30 profile 将 tournament 壁钟份额提到 24h
+（wallClockSearchMinutes=3600 / wallClockMinutes=5040，taskTrials=960），
+针对 repair-27 BUDGET_EXHAUSTED 的修正。终态尚未来临：champion
+paired-delta + 90% cluster bootstrap LCB 需在 gvspit6u 49/49 后运行，结果
+待 drive-report.json 落盘后记录。
+
+2026-09-14 11:28:56 WSL 重启中断了 mid-wave-2（tournament-5-2-1）的运行。
+用户授权恢复（「帮我恢复repair30的运行」）：journal 3599 事件全链哈希校验
+通过（own-hash、previousHash 链、段 merkleRoot、HEAD 全部一致）、stale lock
+按 bootId 判定后接管、run 身份与协议输入复核一致（runId/masterSeed 未变、
+trialContainerProxy 保持 null 未设代理、checkout 4d82fbe 干净）。11:32:43
+以 detached 方式重启（record PID 3835），lock 重新获取（bootId b3d750fe），
+12 个 wave-2 trial 容器重启，journal 增长 3599→3758，0 FAILED。
+
+2026-09-14 15:33 CST 终态：STOPPED:NO_DEVELOPMENT_IMPROVEMENT（fail closed，非
+预算死亡）。tournament 294/294 全覆盖、0 failed；短名单终分：baseline 28/49、
+y2vhojev 33/49、g65rjtqg 32/49、c5cyx2ud 30/49、gvspit6u 30/49、jabosn6c
+26/49。paired-delta + 90% cluster-bootstrap LCB（100000 resamples，rng.drawn
+bootstrap 收据已入账）：y2vhojev 均值 +10.2pp baseline 赢得
+champion tournament。sealed评测结果：y2vhojev 78/115、baseline 66/115
+
+
 
 用户要求将后继 live solve ceiling 提升至 150，并把 proposer 从被动的 prompt
 文本变更转向可执行策略变更。实现新增 `k80Repair6` / `repair6` 独立 identity：
@@ -24,9 +141,14 @@ verifier、controller、route 或预算权限；其它 candidate event 名仍只
 截至本次源码检查，`pnpm exec tsc -b --pretty false` 及覆盖 SDK、native agent、tree-v2
 contract/profile 的 focused Vitest **92/92** 已通过；这仍只是 successor 实现验证。
 
-这只是未冻结源码的实现/测试状态：**repair6 尚未 init、未启动、未产生任何付费调用或
-baseline；repair5 正在运行的 manifest、预算与证据完全未改写。** 不得据此宣称
-child success 或任何 development/sealed 改善。
+启动（2026-09-10 ~11:44，用户授权「用新的配置，开启repair6」）：已以冻结 commit
+`fd2129a70a1301311ff51c65d0ae930a33fb6e8b`、`DSH_TREE_V2_FORMAL_VARIANT=repair6` 和
+显式 paid gate 启动；launcher PID `1714207`，日志
+`/root/vibe/dsh/scratch/k80-formal-repair6-launch.log`，scratch
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-6/`。启动前 12 路容器 egress
+preflight 已通过；记录时正构建 offline verifier image，尚未 init、baseline 或产生付费模型调用。
+repair5 的 manifest、预算与证据完全未改写。不得据此宣称 child success 或任何
+development/sealed 改善。
 
 ## 2026-09-10 repair5 启动记录（用户授权，已点火；尚无 init/run 结论）
 

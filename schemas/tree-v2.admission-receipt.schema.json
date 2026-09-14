@@ -29,7 +29,8 @@
       "required": ["solve", "propose"],
       "properties": {
         "solve": { "$ref": "#/$defs/digest" },
-        "propose": { "$ref": "#/$defs/digest" }
+        "propose": { "$ref": "#/$defs/digest" },
+        "solvePolicy": { "$ref": "#/$defs/digest" }
       }
     },
     "admitted": { "const": true },

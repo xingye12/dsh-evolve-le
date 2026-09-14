@@ -242,7 +242,8 @@
           "required": ["solve", "propose"],
           "properties": {
             "solve": { "$ref": "#/$defs/sha256Ref" },
-            "propose": { "$ref": "#/$defs/sha256Ref" }
+            "propose": { "$ref": "#/$defs/sha256Ref" },
+            "solvePolicy": { "$ref": "#/$defs/sha256Ref" }
           }
         }
       },
