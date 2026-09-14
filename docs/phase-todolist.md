@@ -42,7 +42,7 @@
 > **Successor（2026-08-14）**：旧的 Loader-only / source-symlink capsule 证据已被独立审计判为不足。
 > successor 物化 pinned runtime closure，生成 SPDX 与可逐文件验证的完整性记录，并从 packed bytes
 > 在独立 network namespace 及 `FROM scratch`、只读、无网络 Docker 容器中完成真实 ACP
-> initialize/session/prompt。证据见 `docs/audits/2026-08-14-gate1-successor.md`。
+> initialize/session/prompt。证据见 `docs/audits/2026-08-14-gate1-successor.md`（该审计随 `docs/audits/` 清理移除，见 git 历史）。
 
 ## Phase 2 — Terminal-Bench provider 垂直切片（Gate 2，3–5 天）
 

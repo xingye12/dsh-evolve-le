@@ -1,7 +1,7 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`**
-**更新时间：2026-09-10（Asia/Shanghai）**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`；`TREE_V2_K80_REPAIR30_TERMINAL`（2026-09-14：STOPPED:NO_DEVELOPMENT_IMPROVEMENT——tournament 294/294、champion adjudication 判定 baseline 胜（最佳候选 y2vhojev paired 均值 +8.2pp、90% LCB −2.0pp）、sealed 未运行、无 champion、无提升声明）**
+**更新时间：2026-09-15（Asia/Shanghai）**
 
 ## 2026-09-13 repair24 terminal diagnosis；successor-only recovery fix（未启动）
 
@@ -92,7 +92,7 @@ coverage；慢任务（break-filter-js-from-html、count-dataset-tokens、rstan-
 extract-moves-from-video、torch-pipeline-parallelism 等反复逼近 1h solve-agent
 超时上界）是 wall 消耗的主因。
 
-## 2026-09-14 repair30 启动与 WSL 重启恢复（用户授权；tournament 延续，运行中）
+## 2026-09-14 repair30 启动与 WSL 重启恢复（用户授权；tournament 延续，已终止）
 
 tree-v2-k80-formal-repair-30（用户授权启动，launcher checkout
 `/root/vibe/dsh/scratch/dsh-evolve-le-repair28` @ 4d82fbe，variant repair30）
@@ -1820,7 +1820,6 @@ invariant 失败。recorded proposer 对此 baseline 的前两名 child 实际�
 
 验证：`pnpm build` 与 candidate SDK/baseline/proposer/builder/manifest/Loader 的定向回归全绿（38 tests）；
 CLI 真实闭环 15 tests、solve-gateway 容器 3 tests 也已通过。
-完整比较和后续迁移边界见 `docs/dsh-self-evolving-comparison.md`。
 
 **剩余迁移限制：** legacy loader inventory 的 tool/skill 查询仍使用 TCB probe stub；native admission
 turn 已在 upstream DSH registry/dispatcher 中实际完成候选工具调用。legacy directive/replay loop
@@ -1962,7 +1961,7 @@ resume，下一次验证必须使用 fresh lineage。`NO_SEALED_RESULTS` 不变�
   全部子代通过 trusted builder 重建。这只是**真实模型路由与协议成立的管线证明**，不是
   benchmark profile：`specs/07` §10 的 pilot（K=10）profile 已于 2026-08-31 重新记录
   （首记录因 infra 伪装作废，见当日节）；search（K=80）/sealed/official 三个 profile
-  未运行。前代项目的通过记录不是本仓库的完成证据（见 2026-08-28 节）。
+  未运行。
 
 ## 2026-09-01 Gate 8 live-pilot attempt 2 voided — chatty completion parser/history repair
 
@@ -2088,17 +2087,13 @@ resume，下一次验证必须使用 fresh lineage。`NO_SEALED_RESULTS` 不变�
 
 ## 2026-08-28 repository bootstrap
 
-- 本仓库由前代项目 `dsh-self-evolving`（GitHub `timwhitez/dsh-self-evolving`，源 HEAD
-  `6324afd`）的规范与文档复制建立，作为**重新实现**的基线；项目名统一重命名为
-  `dsh-evolve-le`，GitHub 仓库同步由 `xingye12/dsh-evolve-plugin` 改名为
-  `xingye12/dsh-evolve-le`。
-- 复制范围：`specs/00–07`、`docs/`（含 audits）、`CLAUDE.md`/`AGENTS.md`、`CONTRIBUTING.md`、
-  `provenance.lock.json`。未复制：前代实现代码（`packages/`、`benchmark-adapters/`、
-  `scripts/`）、`schemas/`、`evidence/` 运行产物。
-- 因此前代文档中的 Gate ACCEPTED、v0.1/v0.2 发布、npm 发布等状态声明**在本仓库一律不
-  成立**：其支撑 artifact 不在本仓库。`docs/audits/` 与 `CHANGELOG.md` 仅作为前代历史
-  参考保留；由于重命名，其中出现的 `dsh-evolve-le` 字样实际指前代 `dsh-self-evolving`
-  的工作。
+- 本仓库以冻结的规范与文档（`specs/00–07`、`docs/`、`CLAUDE.md`/`AGENTS.md`、
+  `CONTRIBUTING.md`、`provenance.lock.json`）作为**重新实现**的基线建立；项目名统一为
+  `dsh-evolve-le`，GitHub 仓库为 `xingye12/dsh-evolve-le`。
+- 未复制任何历史实现代码（`packages/`、`benchmark-adapters/`、`scripts/`）、`schemas/`、
+  `evidence/` 运行产物。
+- 因此历史文档中的 Gate ACCEPTED、v0.1/v0.2 发布、npm 发布等状态声明**在本仓库一律不
+  成立**：其支撑 artifact 不在本仓库。
 - `provenance.lock.json` 记录的上游 pin（deepseek-harness `47f9438`、harbor `ac398bb`、
   terminal-bench `d28711d`）的 external checkout 已于 2026-08-29 物化（见下节）；
   `docs/dsh-integration.md` 中的 `../deepseek-harness/...` 相对链接现已可解析。
@@ -2114,7 +2109,7 @@ resume，下一次验证必须使用 fresh lineage。`NO_SEALED_RESULTS` 不变�
   | `harbor`           | `ac398bbda7c4…455cc671b5` | `51e3fd7ac8aa026efbe679a69b07bef710d351a4a78954a4e976250a1a2bbe2f` | 56M / 3102 文件  |
   | `tb`               | `d28711d0da26…6082438a3`  | `ef3a5a1fde139283419ea6d470ee0a1a621fd53085533632a2ca2566cb44457c` | 172M / 2474 文件 |
 
-  上游 remote URL（来自前代 `scripts/bootstrap-upstreams.mjs`，作为本仓库 Gate 0 实现
+  上游 remote URL（作为本仓库 Gate 0 实现
   `setup:source` 的依据）：`deepseek-ai/deepseek-harness`、`laude-institute/harbor`、
   `laude-institute/terminal-bench`。
 
@@ -2124,7 +2119,7 @@ resume，下一次验证必须使用 fresh lineage。`NO_SEALED_RESULTS` 不变�
   连通性恢复后将其重新物化为真实 git checkout 并按 lock 校验；上表 tarball sha256 可用于
   校验快照等价。用户提供的 `deepseek-harness-master` 为 master 分支 ZIP 解包（无 commit
   身份、无法对 pin），未采用。
-- 三个上游目录已加入 `.gitignore`（沿用前代策略：外部只读 checkout 不进本仓库 git scope）。
+- 三个上游目录已加入 `.gitignore`（外部只读 checkout 不进本仓库 git scope）。
 
 ## 2026-08-29 Gate 0 implemented — provenance + real Cordis Loader lifecycle
 
@@ -2729,7 +2724,7 @@ run 证明稳定 K=3 迭代：确定性批扫描冻结 failure pool → 3 个唯
 | specs/07 Gate 7 Accept                                                                | 结果 | 证据                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 干净 fresh-profile 按文档命令安装，随后真实 Loader 与 K=3 demo smoke                  | ✅   | 全新 HOME/XDG/pnpm-store + `--frozen-lockfile` 安装（17s）→ build → `loader-spike` 真实 Loader quiescent（`pnpmInstallFrozenLockfile`/`pnpmBuild`/`realLoaderQuiescent`）→ 默认 stable-demo 配置 K=3 demo（57s）`K_REACHED`/`STABLE_ITERATION_VERIFIED`（trials=9、discovery=6、expansions=3、admitted=3、depth=2、pool=3）                                                                                                                                               |
-| 公开 README/架构/quickstart/config/troubleshooting/evidence 解读文档                  | ✅   | tarball 内 15 个公开文档逐个 `shipped:*` 断言（README 中英、LICENSE、CHANGELOG、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT、docs 六篇 + TB runbook）；文档内容重写为当前实现（无 schema 12/13、stable-demo 旧 config 等前代内容）                                                                                                                                                                                                                                            |
+| 公开 README/架构/quickstart/config/troubleshooting/evidence 解读文档                  | ✅   | tarball 内 15 个公开文档逐个 `shipped:*` 断言（README 中英、LICENSE、CHANGELOG、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT、docs 六篇 + TB runbook）；文档内容重写为当前实现（无 schema 12/13、stable-demo 旧 config 等历史内容）                                                                                                                                                                                                                                            |
 | 用户选定的 OSI license + CONTRIBUTING/SECURITY/code of conduct/release notes          | ✅   | MIT（用户选定）；根 LICENSE 为 MIT 正文、root manifest `license: MIT`（`licenseIsMit`/`manifestLicenseMit`）；治理文件 shipped 断言；CHANGELOG `0.1.0-rc.1` 条目                                                                                                                                                                                                                                                                                                          |
 | source tarball/package、SBOM、provenance、checksums、依赖/许可证扫描、secret/泄露扫描 | ✅   | tarball 由 `git archive HEAD` 生成且 `tarballFromHeadCommit`==当前 HEAD；SPDX 2.3 SBOM 81 packages；`checksums.sha256` 全产物；75/75 依赖 allowlisted、0 无许可证；secret 0 命中；UTF-8 0 违例（`releaseArtifactsBuilt` 等 8 项）                                                                                                                                                                                                                                         |
 | 全量 unit/E2E/typecheck/lint/format/provenance/upstream-clean/UTF-8 套件通过          | ✅   | `pnpm gate7` 全绿：tsc -b（typecheck）+ vitest 351/351 + oxlint 0 error + prettier --check + `provenance:check`（含 upstream 只读校验）+ 上述 UTF-8 扫描                                                                                                                                                                                                                                                                                                                  |
