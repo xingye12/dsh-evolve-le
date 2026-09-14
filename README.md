@@ -2,104 +2,114 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-An evidence-first, crash-resumable recursive self-improvement (RSI) engine for
-[DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness). It proposes bounded Cordis plugin
-candidates, admits each through a real one-shot Cordis Loader sandbox, evaluates them with Harbor on
-Terminal-Bench 2.1, and keeps a hash-chained, content-addressed evidence trail from proposal to
-admission.
+一个证据优先、可崩溃恢复的递归自改进（RSI）引擎，面向
+[DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness)。它生成有界的 Cordis 插件候选，
+让每个候选通过一次性隔离进程中的真实 Cordis Loader 准入，用 Harbor 在 Terminal-Bench 2.1 上评测，
+并保留从 proposal 到 admission 的哈希链、内容寻址证据。
 
 > [!IMPORTANT]
-> This repository is a re-implementation of the specifications of the predecessor project
-> `dsh-self-evolving` ([`timwhitez/dsh-self-evolving`](https://github.com/timwhitez/dsh-self-evolving) @ `6324afd`).
-> Implementation Gates 0–6 are accepted with recorded evidence (see [`PROJECT_STATUS.md`](PROJECT_STATUS.md));
-> Gates 7 (this release candidate) ships installability and docs. **No sealed-benchmark unblinding has
-> happened and no benchmark improvement is claimed.** The only authoritative statement of what may be
-> claimed today is [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> 实现 Gate 0–6 已随记录证据验收（见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)）；Gate 7（本发布候选）交付可安装性与文档。
+> [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
 
-## Why this project exists
+## 项目存在的理由
 
-Self-modifying agent systems are easy to demo and hard to trust. `dsh-evolve-le` treats every
-candidate as untrusted: the model adapter, verifier, dataset split, scorer, controller, budget and
-safety policy form a trusted computing base (TCB) that candidates cannot write. A result is accepted
-only when its source identity, evidence, cost, lifecycle and recovery path reconcile. The whole loop
-is TypeScript, carried by standard DSH Cordis bundles/services — no Python agent bridge.
+自修改的 agent 系统容易演示、难以信任。`dsh-evolve-le` 把每个候选都视为不可信：model adapter、
+verifier、数据集切分、scorer、controller、预算和安全策略构成候选不可写的可信计算基（TCB）。只有当
+来源身份、证据、成本、生命周期和恢复路径全部对账一致时，结果才被接受。整个闭环只用 TypeScript，
+由标准 DSH Cordis bundle/service 承载——没有 Python agent bridge。
 
 ```mermaid
 flowchart LR
-  J[Hash-chain journal + archive] --> P[Networkless proposer]
-  P --> B[Trusted deterministic builder]
-  B --> L[One-shot real Cordis Loader sandbox]
-  L --> H[Harbor / Terminal-Bench 2.1 evaluator]
-  H --> N[Fail-closed normalizer]
+  J[哈希链 journal + archive] --> P[无网络 proposer]
+  P --> B[可信确定性 builder]
+  B --> L[一次性真实 Cordis Loader 沙箱]
+  L --> H[Harbor / Terminal-Bench 2.1 评测]
+  H --> N[fail-closed 归一化]
   N --> J
-  S[Sealed 29-task split] -. inaccessible during development .-> H
+  S[29 题 sealed 切分] -. 开发期不可访问 .-> H
 ```
 
-## Status
+## 状态
 
-| Gate | Outcome                                                                                    | State                       |
-| ---- | ------------------------------------------------------------------------------------------ | --------------------------- |
-| 0–4  | Loader admission, candidate SDK, Harbor ACP provider, durable controller, agentic proposer | accepted, evidence recorded |
-| 5    | productized iteration closure behind one CLI                                               | accepted, evidence recorded |
-| 6    | real K=3 multi-generation crash/resume stability proof                                     | accepted, evidence recorded |
-| 7    | installable open-source v0.1 release candidate                                             | this release (`0.1.0-rc.1`) |
-| 8    | continuous Terminal-Bench improvement                                                      | optional, not run           |
+| Gate | 结果                                                                                  | 状态                   |
+| ---- | ------------------------------------------------------------------------------------- | ---------------------- |
+| 0–4  | Loader 准入、candidate SDK、Harbor ACP provider、durable controller、agentic proposer | 已验收，证据已记录     |
+| 5    | 单 CLI 产品化的迭代闭环                                                               | 已验收，证据已记录     |
+| 6    | 真实 K=3 多代崩溃/恢复稳定性证明                                                      | 已验收，证据已记录     |
+| 7    | 可安装的开源 v0.1 发布候选                                                            | 本发布（`0.1.0-rc.1`） |
+| 8    | 持续 Terminal-Bench 提升                                                              | 可选；已尝试（见下文评测结果） |
 
-## Quickstart (5 commands)
+## 评测结果（Terminal-Bench 2.1）
 
-Verified on Ubuntu 24.04 (also WSL2) with Node.js ≥ 22.19, pnpm ≥ 11.7, Docker:
+tree-v2 引擎已记录的 live 运行。逐 run 账目、artifact 位置与未闭合的 post-check 项见
+[`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
+
+| Run                                | 结果                                                                                                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| K=3 live（2026-09-06）             | K=3 admitted 达成，14 trials，$2.04，record 脚本全绿                                                                                                                                          |
+| K=10 live（2026-09-07）            | 10/10 候选 admitted，止于 60-trial 上限，$8.41，record 脚本全绿                                                                                                                              |
+| K=50 formal repair-27（2026-09-13）| K=50 系列首个达成 K 的 run（51/50 admitted）；tournament 被壁钟预算截断于 257/294——无 champion                                                                                              |
+| K=50 formal repair-30（2026-09-14）| frozen tournament 延续：294/294 trials、0 failed；裁决（paired delta）（最佳候选：均值 +10.2pp） |
+
+**Sealed 状态：`COMPLETED`。**
+champion锁定为y2vhojev。
+repair-12…26 系列的更早 K=80/50 尝试大多以 `NO_ADMISSIBLE_CHILD` fail closed 终止（proposer 批量
+错误）——完整谱系见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
+y2vhojev 78/115、baseline 66/115
+
+## 快速开始（5 条命令）
+
+在 Ubuntu 24.04（含 WSL2）、Node.js ≥ 22.19、pnpm ≥ 11.7、Docker 上验证：
 
 ```bash
-pnpm install                     # workspace dependencies
-pnpm setup:source                # materialize pinned upstreams + Terminal-Bench source
-pnpm build                       # TypeScript project build
-pnpm provenance:check            # upstream commits, versions, toolchain match the lockfile
-pnpm install:verify              # full fresh-profile drill: install → build → Loader smoke →
-                                 #   K=3 demo (fake provider) → snapshot-loss restore → uninstall
+pnpm install                     # workspace 依赖
+pnpm setup:source                # 物化 pinned 上游 + Terminal-Bench 源码
+pnpm build                       # TypeScript 工程 build
+pnpm provenance:check            # 上游 commit、版本、工具链与 lockfile 一致
+pnpm install:verify              # 全量 fresh-profile 演练：install → build → Loader 冒烟 →
+                                 #   K=3 demo（fake provider）→ 快照丢失恢复 → 卸载
 ```
 
-`pnpm install:verify` proves the documented install path end-to-end on a clean profile: it extracts
-the release tarball into a fresh HOME/pnpm-store, installs with `--frozen-lockfile`, builds, runs the
-real Cordis Loader smoke, drives a default-config K=3 iteration to `STABLE_ITERATION_VERIFIED`,
-deletes every snapshot plus the drive report and reconstructs identical state from the journal, then
-uninstalls.
+`pnpm install:verify` 在干净 profile 上端到端验证文档化的安装路径：把发布 tarball 解压到全新的
+HOME/pnpm-store，用 `--frozen-lockfile` 安装、build、跑真实 Cordis Loader 冒烟，用默认配置把 K=3
+迭代推到 `STABLE_ITERATION_VERIFIED`，随后删除全部快照和 drive report 并从 journal 重建出相同状态，
+最后卸载。
 
-For real Terminal-Bench runs see the [quickstart](docs/quickstart.md); for the run directory and how
-to read it see the [evidence guide](docs/evidence-guide.md).
+真实 Terminal-Bench 运行见[快速开始](docs/quickstart.md)；run 目录结构与解读见
+[证据指南](docs/evidence-guide.md)。
 
-## Documentation
+## 文档
 
-- [Architecture overview](docs/architecture-overview.md) — packages, data flow, TCB boundary
-- [Quickstart](docs/quickstart.md) — from clone to first real iteration
-- [Configuration](docs/configuration.md) — the frozen `run.config.json` reference
-- [Operations](docs/operations.md) — stop, resume, restore, rollback, uninstall
-- [Troubleshooting](docs/troubleshooting.md) — fail-closed diagnostics and common failures
-- [Evidence guide](docs/evidence-guide.md) — what each artifact proves, and what it does not
-- [Terminal-Bench 2.1 runbook](docs/terminal-bench-2.1-runbook.md) — fixed Harbor/TB facts
-- [Documentation index](docs/README.md) — everything else, including historical records
+- [架构总览](docs/architecture-overview.md) — 包结构、数据流、TCB 边界
+- [快速开始](docs/quickstart.md) — 从 clone 到第一次真实迭代
+- [配置参考](docs/configuration.md) — 冻结的 `run.config.json` 字段表
+- [运维手册](docs/operations.md) — 停止、恢复、还原、回滚、卸载
+- [故障排查](docs/troubleshooting.md) — fail-closed 诊断与常见失败
+- [证据指南](docs/evidence-guide.md) — 每个产物证明什么、不证明什么
+- [Terminal-Bench 2.1 runbook](docs/terminal-bench-2.1-runbook.md) — Harbor/TB 固定事实
+- [文档索引](docs/README.md) — 其余文档与历史记录
 
-Normative sources: [`specs/00`–`specs/07`](specs/) (product, architecture, candidate contract,
-algorithm, evaluation, safety, evidence, gates) and [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+规范唯一真源：[`specs/00`–`specs/07`](specs/)（产品、架构、候选契约、算法、评测、安全、证据、
+实施门）与 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
 
-## Safety model (short version)
+## 安全模型（简版）
 
-- Candidates run only in one-shot isolated processes through the real Cordis Loader — never inside
-  the controller, never via `node:vm`.
-- The 29 sealed tasks stay inaccessible until candidate hashes are frozen; unblinding happens once.
-- Missing, corrupt, timed-out or unattributable results count as failures; failed trials are kept.
-- Every external version, route, parameter, seed, budget and artifact is content-addressed in the
-  run manifest; credentials never enter candidates, logs, prompts or evidence.
-- Budgets are enforced in µUSD/tokens/calls/trials with a fail-closed ledger.
+- 候选只在一次性隔离进程中通过真实 Cordis Loader 运行——绝不进入 controller，也不用 `node:vm`。
+- 29 个 sealed task 在候选哈希冻结前不可访问；揭盲只发生一次。
+- 缺失、损坏、超时或不可归因的结果一律记失败；失败 trial 保留不丢弃。
+- 所有外部版本、路由、参数、种子、预算和 artifact 都内容寻址写入 run manifest；凭据不进入候选、
+  日志、prompt 或证据。
+- 预算以 µUSD/token/call/trial 记账并 fail-closed 执行。
 
-Details: [`specs/05-safety.md`](specs/05-safety.md).
+细则：[`specs/05-safety.md`](specs/05-safety.md)。
 
-## License
+## 许可证
 
-[MIT](LICENSE) © 2026 Yuhang Le. Pinned upstream checkouts (`deepseek-harness/`, `harbor/`, `tb/`)
-keep their own licenses and are not part of the released source tree.
+[MIT](LICENSE) © 2026 Yuhang Le。Pinned 上游 checkout（`deepseek-harness/`、`harbor/`、`tb/`）保留
+各自许可证，不属于发布源码树的一部分。
 
-## Contributing / security
+## 参与贡献 / 安全
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Release artifacts (tarball, checksums, SPDX SBOM, scans)
-are produced by `pnpm release:artifacts` from the committed tree.
+见 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md) 与
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。发布产物（tarball、checksums、SPDX SBOM、扫描报告）由
+`pnpm release:artifacts` 从已提交树生成。
