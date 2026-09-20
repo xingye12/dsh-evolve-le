@@ -57,27 +57,6 @@ repair-12…26 系列的更早 K=80/50 尝试大多以 `NO_ADMISSIBLE_CHILD` fai
 错误）——完整谱系见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
 y2vhojev 78/115、baseline 66/115
 
-## 快速开始（5 条命令）
-
-在 Ubuntu 24.04（含 WSL2）、Node.js ≥ 22.19、pnpm ≥ 11.7、Docker 上验证：
-
-```bash
-pnpm install                     # workspace 依赖
-pnpm setup:source                # 物化 pinned 上游 + Terminal-Bench 源码
-pnpm build                       # TypeScript 工程 build
-pnpm provenance:check            # 上游 commit、版本、工具链与 lockfile 一致
-pnpm install:verify              # 全量 fresh-profile 演练：install → build → Loader 冒烟 →
-                                 #   K=3 demo（fake provider）→ 快照丢失恢复 → 卸载
-```
-
-`pnpm install:verify` 在干净 profile 上端到端验证文档化的安装路径：把发布 tarball 解压到全新的
-HOME/pnpm-store，用 `--frozen-lockfile` 安装、build、跑真实 Cordis Loader 冒烟，用默认配置把 K=3
-迭代推到 `STABLE_ITERATION_VERIFIED`，随后删除全部快照和 drive report 并从 journal 重建出相同状态，
-最后卸载。
-
-真实 Terminal-Bench 运行见[快速开始](docs/quickstart.md)；run 目录结构与解读见
-[证据指南](docs/evidence-guide.md)。
-
 ## 文档
 
 - [架构总览](docs/architecture-overview.md) — 包结构、数据流、TCB 边界
@@ -95,7 +74,7 @@ HOME/pnpm-store，用 `--frozen-lockfile` 安装、build、跑真实 Cordis Load
 ## 安全模型（简版）
 
 - 候选只在一次性隔离进程中通过真实 Cordis Loader 运行——绝不进入 controller，也不用 `node:vm`。
-- 29 个 sealed task 在候选哈希冻结前不可访问；揭盲只发生一次。
+- 23 个 sealed task 在候选哈希冻结前不可访问；揭盲只发生一次。
 - 缺失、损坏、超时或不可归因的结果一律记失败；失败 trial 保留不丢弃。
 - 所有外部版本、路由、参数、种子、预算和 artifact 都内容寻址写入 run manifest；凭据不进入候选、
   日志、prompt 或证据。
