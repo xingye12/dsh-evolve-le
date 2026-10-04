@@ -488,6 +488,25 @@ export function createRecordedProposerPolicy(
 
       // Phase 3: read every exported evidence object listed in the manifest.
       if (manifest !== undefined) {
+        // A v4 overview is the first parent evidence view, before detailed rollouts.
+        const index = JSON.parse(manifest.content) as {
+          objects?: { digest?: string; mediaType?: string }[]
+        }
+        const overview = index.objects?.find(
+          (object) =>
+            object.mediaType === 'application/vnd.dsh-evolve-le.candidate-error-overview+json' &&
+            typeof object.digest === 'string' &&
+            /^[0-9a-f]{64}$/.test(object.digest),
+        )
+        if (
+          overview?.digest &&
+          !reads.some((read) => read.path === `export/objects/${overview.digest}`)
+        ) {
+          return fenced(
+            [{ op: 'read', path: `export/objects/${overview.digest}` }],
+            'Reading the selected parent error overview first.',
+          )
+        }
         const listed = [...manifest.content.matchAll(/"digest":\s*"([0-9a-f]{64})"/g)].map(
           (match) => match[1]!,
         )

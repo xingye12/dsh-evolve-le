@@ -22,7 +22,7 @@ import { scanCanonicalSource, defaultScanPolicy } from '../candidate/scan.js'
 import { runAcpSession } from '../acp/driver.js'
 import { computeTreeDigest, TREE_DIGEST_ALGO } from '../digest.js'
 import { nativeDshClosurePresent } from '../dsh/native-composition.js'
-import { repoRoot, validateManifest } from '../schema.js'
+import { validateManifest } from '../schema.js'
 import {
   assertTreeV2CandidateTree,
   assertTreeV2Child,
@@ -865,7 +865,9 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
           // Loader fingerprint: the build manifest schema requires both mode
           // fingerprints, and the migration root's fingerprints are what a
           // later child's runtime mode contract is checked against.
-          treeV2ModeFingerprints.propose = treeV2RuntimeFingerprint(proposeRun.report, 'propose', { candidateId })
+          treeV2ModeFingerprints.propose = treeV2RuntimeFingerprint(proposeRun.report, 'propose', {
+            candidateId,
+          })
         }
       }
       let nativeTurnDetail = ''

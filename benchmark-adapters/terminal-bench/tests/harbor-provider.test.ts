@@ -320,13 +320,18 @@ describe('HarborProvider collect', () => {
       }>
       omissions: { rawAgentNarrative: string; trajectoryStepCount: number }
     }
-    expect(bundle.protocol).toBe('dsh-evolve-le/diagnostic-trace-bundle/v2')
-    expect(bundle.events.map((event) => event.eventId)).toEqual(['e-0000', 'e-0001', 'e-0002'])
-    expect(bundle.events[0]).toMatchObject({ step: 0, actor: 'agent' })
+    expect(bundle.protocol).toBe('dsh-evolve-le/diagnostic-trace-bundle/v3')
+    expect(bundle.events.map((event) => event.eventId)).toEqual(['atif-0', 'atif-1', 'acp-0'])
+    expect(bundle.events[0]).toMatchObject({
+      step: 0,
+      actor: 'agent',
+      source: 'atif',
+      sourceIndex: 0,
+    })
     expect(JSON.stringify(bundle.events[0])).toContain('<host-path>')
     expect(JSON.stringify(bundle.events[0])).not.toContain('/root/private')
     expect(bundle.omissions).toMatchObject({
-      rawAgentNarrative: 'bounded-redacted',
+      rawAgentNarrative: 'complete-redacted',
       trajectoryStepCount: 2,
     })
   })

@@ -396,3 +396,7 @@ store and retains their refs, downstream digests and both mode fingerprints in t
 capsule record. Those records are derived state and remain reproducible from the receipts.
 Normalized trial evidence is stored with canonical JSON bytes so snapshot replay
 cannot change an export or descendant identity through object key order.
+
+## Debugger evidence (ADR-070)
+
+diagnostic-trace-bundle/v3 stores all redacted source events in immutable ordered shards; sourceIndex and source establish per-source chronology only. failure-report/v1 binds run/candidate/action/task/attempt/split/input digest, stages, rejected findings and coverage. candidate-error-overview/v1 JSON and Markdown versions are published by journal reference after reports. Every failure is counted once per group; overlapping group percentages cannot be summed. Phase action IDs bind trial/version/stage/window and completed or uncertain requests are never called again. Overview/report publication is atomic and replayable; no mutable Harbor directory is reopened by a consumer.

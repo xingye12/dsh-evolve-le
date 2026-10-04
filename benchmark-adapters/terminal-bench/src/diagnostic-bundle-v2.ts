@@ -1,11 +1,12 @@
+// Frozen legacy rendering for v3 run replay/audit. New v4 runs use v3 shards.
 /**
  * Development trace projection for the LLM Agent Debugger.
  *
  * Harbor job directories are mutable operational output and contain much more
  * than a proposer should receive (task prose, paths and arbitrary agent
- * text).  This module turns the useful parts into a source-indexed JSON
- * bundle while the provider still owns the job directory.  A v3 event is a
- * complete, redacted rendering of a concrete ACP or ATIF step, rather than a
+ * text).  This module turns the useful parts into a small, indexed JSON
+ * bundle while the provider still owns the job directory.  A v2 event is a
+ * bounded, redacted rendering of a concrete ACP or ATIF step, rather than a
  * model-written summary.  The debugger may only cite these stable indexes
  * and verbatim substrings of their rendering; it never reopens a mutable job
  * directory.
@@ -15,7 +16,10 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { canonicalJson, type NormalizedTrial } from './normalize.js'
 
-export const DIAGNOSTIC_TRACE_BUNDLE_PROTOCOL = 'dsh-evolve-le/diagnostic-trace-bundle/v3'
+export const DIAGNOSTIC_TRACE_BUNDLE_PROTOCOL = 'dsh-evolve-le/diagnostic-trace-bundle/v2'
+const MAX_EVENTS = 192
+const MAX_TESTS = 32
+const MAX_STRING = 1_200
 
 export interface DiagnosticTraceBundle {
   protocol: typeof DIAGNOSTIC_TRACE_BUNDLE_PROTOCOL
@@ -32,9 +36,6 @@ export interface DiagnosticTraceBundle {
   /** Ordered, redacted evidence. `eventId` is stable within this object. */
   events: Array<{
     index: number
-    source: 'atif' | 'acp'
-    sourceIndex: number
-    agentId: string | null
     eventId: string
     /** ACP events have no reliable agent turn number, so their step is null. */
     step: number | null
@@ -43,20 +44,9 @@ export interface DiagnosticTraceBundle {
     data: unknown
   }>
   tests: Array<{ index: number; name: string; status: string; detail: string | null }>
-  taskInput: {
-    status: 'captured' | 'unknown'
-    eventIds: string[]
-    extraction: 'captured-input-only'
-  }
-  coverage: {
-    missing: string[]
-    parseFailures: string[]
-    taskInputStatus: 'captured' | 'unknown'
-    ordering: 'per-source-only'
-  }
   omissions: {
-    /** Narrative is included as complete redacted source steps. */
-    rawAgentNarrative: 'complete-redacted'
+    /** Narrative is only included as redacted, bounded trajectory steps. */
+    rawAgentNarrative: 'bounded-redacted'
     eventCount: number
     trajectoryStepCount: number
     testCount: number
@@ -65,7 +55,7 @@ export interface DiagnosticTraceBundle {
   }
 }
 
-/** Build a byte-stable, complete projection. Missing optional files are facts, not errors. */
+/** Build a byte-stable, bounded projection. Missing optional files are facts, not errors. */
 export async function diagnosticTraceBundle(input: {
   trialDir: string
   trial: NormalizedTrial
@@ -97,29 +87,23 @@ export async function diagnosticTraceBundle(input: {
   const sourceEvents = [
     ...trajectorySteps.map((trajectoryStep, step) => ({
       step,
-      source: 'atif' as const,
-      sourceIndex: step,
-      agentId: agentIdOf(trajectoryStep),
       actor: actorOf(trajectoryStep),
       kind: trajectoryKind(trajectoryStep),
       data: sanitize(trajectoryStep),
     })),
-    ...parsedEvents.map((event, sourceIndex) => ({
+    ...parsedEvents.map((event) => ({
       step: null,
-      source: 'acp' as const,
-      sourceIndex,
-      agentId: agentIdOf(event),
       actor: actorOf(event),
       kind: eventKind(event),
       data: sanitize(event),
     })),
   ]
-  const events = sourceEvents.map((event, index) => ({
+  const events = sourceEvents.slice(0, MAX_EVENTS).map((event, index) => ({
     index,
-    eventId: `${event.source}-${event.sourceIndex}`,
+    eventId: `e-${String(index).padStart(4, '0')}`,
     ...event,
   }))
-  const tests = testsOf(ctrfRaw)
+  const tests = testsOf(ctrfRaw).slice(0, MAX_TESTS)
   const bundle: DiagnosticTraceBundle = {
     protocol: DIAGNOSTIC_TRACE_BUNDLE_PROTOCOL,
     untrustedTraceData: true,
@@ -133,40 +117,13 @@ export async function diagnosticTraceBundle(input: {
     },
     events,
     tests,
-    taskInput: {
-      status: events.some((e) => /system|user|prompt|instruction/.test(e.kind))
-        ? 'captured'
-        : 'unknown',
-      eventIds: events
-        .filter((e) => /system|user|prompt|instruction/.test(e.kind))
-        .map((e) => e.eventId),
-      extraction: 'captured-input-only',
-    },
-    coverage: {
-      missing: [
-        eventRaw ? null : 'acp-events',
-        trajectoryRaw ? null : 'trajectory',
-        ctrfRaw ? null : 'ctrf',
-      ].filter((v): v is string => v !== null),
-      parseFailures: [
-        trajectoryRaw && !validJson(trajectoryRaw) ? 'trajectory' : null,
-        ctrfRaw && !validJson(ctrfRaw) ? 'ctrf' : null,
-        parsedEvents.some((e) => e && typeof e === 'object' && 'malformed' in e)
-          ? 'acp-events'
-          : null,
-      ].filter((v): v is string => v !== null),
-      taskInputStatus: sourceEvents.some((e) => /system|user|prompt|instruction/.test(e.kind))
-        ? 'captured'
-        : 'unknown',
-      ordering: 'per-source-only',
-    },
     omissions: {
-      rawAgentNarrative: 'complete-redacted',
+      rawAgentNarrative: 'bounded-redacted',
       eventCount: parsedEvents.length,
       trajectoryStepCount: trajectorySteps.length,
       testCount: testsOf(ctrfRaw).length,
-      eventCapReached: false,
-      testCapReached: false,
+      eventCapReached: sourceEvents.length > MAX_EVENTS,
+      testCapReached: testsOf(ctrfRaw).length > MAX_TESTS,
     },
   }
   return Buffer.from(`${canonicalJson(bundle)}\n`, 'utf8')
@@ -191,7 +148,7 @@ function stepsOf(raw: string): unknown[] {
 function trajectoryKind(value: unknown): string {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'trajectory-step'
   const record = value as Record<string, unknown>
-  const role = record['role'] ?? record['source']
+  const role = record['role']
   return typeof role === 'string' ? `trajectory:${clipped(role)}` : 'trajectory-step'
 }
 
@@ -199,15 +156,7 @@ function actorOf(value: unknown): DiagnosticTraceBundle['events'][number]['actor
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'unknown'
   const record = value as Record<string, unknown>
   const role = record['role'] ?? record['actor'] ?? record['source']
-  if (typeof role !== 'string') {
-    const kind = String(record['event_type'] ?? '')
-    if (/prompt|instruction|initialize|session_new/.test(kind)) return 'runtime'
-    const update = record['update'] as Record<string, unknown> | undefined
-    const sessionUpdate = String(update?.['sessionUpdate'] ?? '')
-    if (/tool_call/.test(sessionUpdate) || /terminal/.test(kind)) return 'tool'
-    if (/agent_(thought|message)_chunk/.test(sessionUpdate)) return 'agent'
-    return 'unknown'
-  }
+  if (typeof role !== 'string') return 'unknown'
   const normalized = role.toLowerCase()
   if (normalized.includes('assistant') || normalized.includes('agent')) return 'agent'
   if (normalized.includes('tool')) return 'tool'
@@ -227,40 +176,29 @@ function eventKind(value: unknown): string {
   return 'unknown'
 }
 
-/** Remove host locations and obvious credentials before immutable storage. */
+/** Bound text and remove host locations / obvious credentials before LLM input. */
 function clipped(value: string): string {
-  return redact(value)
+  return redact(value).slice(0, MAX_STRING)
 }
 
 function redact(value: string): string {
   return value
     .replace(/\/(?:root|home|tmp|workspace)(?:\/[^\s'"`]+)*/g, '<host-path>')
-    .replace(/((?:api[_-]?key|authorization|bearer|token)\s*[:=]\s*)[^\s'"`]+/gi, '$1<redacted>')
-    .replace(/([?&](?:token|api_key|key)=)[^&\s]+/gi, '$1<redacted>')
-    .replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[^\s'"`]+)/gi, '<redacted>')
+    .replace(/(?:api[_-]?key|authorization|bearer|token)\s*[:=]\s*[^\s'"`]+/gi, '$1=<redacted>')
 }
 
 function sanitize(value: unknown, depth = 0): unknown {
+  if (depth > 6) return '<depth-capped>'
   if (typeof value === 'string') return clipped(value)
-  if (typeof value === 'number')
-    return Number.isSafeInteger(value) && !Object.is(value, -0)
-      ? value
-      : { numberText: String(value) }
-  if (typeof value === 'boolean' || value === null) return value
-  if (Array.isArray(value)) return value.map((item) => sanitize(item, depth + 1))
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null) return value
+  if (Array.isArray(value)) return value.slice(0, 32).map((item) => sanitize(item, depth + 1))
   if (typeof value !== 'object') return String(value)
   const record = value as Record<string, unknown>
   return Object.fromEntries(
     Object.keys(record)
       .sort()
-      .map((key) => [
-        clipped(key),
-        /(?:^|[_-])(api[_-]?key|authorization|credential|password|secret|token)(?:$|[_-])/i.test(
-          key,
-        )
-          ? '<redacted>'
-          : sanitize(record[key], depth + 1),
-      ]),
+      .slice(0, 48)
+      .map((key) => [clipped(key), sanitize(record[key], depth + 1)]),
   )
 }
 
@@ -274,14 +212,14 @@ function testsOf(raw: string): DiagnosticTraceBundle['tests'] {
   }
   const found: Array<{ name: string; status: string; detail: string | null }> = []
   visit(document, found)
-  return found.map((test, index) => ({ index, ...test }))
+  return found.slice(0, MAX_TESTS).map((test, index) => ({ index, ...test }))
 }
 
 function visit(
   value: unknown,
   output: Array<{ name: string; status: string; detail: string | null }>,
 ): void {
-  if (value === null || typeof value !== 'object') return
+  if (output.length >= MAX_TESTS || value === null || typeof value !== 'object') return
   if (Array.isArray(value)) {
     for (const item of value) visit(item, output)
     return
@@ -298,19 +236,4 @@ function visit(
     })
   }
   for (const child of Object.values(record)) visit(child, output)
-}
-
-function validJson(raw: string): boolean {
-  try {
-    JSON.parse(raw)
-    return true
-  } catch {
-    return false
-  }
-}
-function agentIdOf(value: unknown): string | null {
-  if (!value || typeof value !== 'object') return null
-  const r = value as Record<string, unknown>
-  const id = r['agent_id'] ?? r['agent_name']
-  return typeof id === 'string' ? clipped(id) : null
 }

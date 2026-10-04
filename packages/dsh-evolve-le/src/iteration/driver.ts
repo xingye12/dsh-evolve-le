@@ -31,6 +31,14 @@
  * @module @dsh-evolve-le/core/iteration/driver
  */
 
+import { synchronizeDiagnostics, reportKey, overviewPrefix } from '../attribution/lifecycle.js'
+import {
+  PROFILE,
+  TRAJDEBUG_PROTOCOL,
+  searchVisible,
+  type FailureReport,
+} from '../attribution/trajdebug.js'
+import { validateDiagnosticArtifact } from '../attribution/schemas.js'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -369,15 +377,16 @@ export function parentComparableObservations(
 export function parentScopedFailureObservations(
   observations: readonly Observation[],
   parentCandidateId: string,
-  failurePool: readonly string[],
+  failurePool?: readonly string[],
 ): Observation[] {
-  const handles = new Set(failurePool)
+  const handles = failurePool === undefined ? null : new Set(failurePool)
   return observations
     .filter(
       (observation) =>
         observation.candidateId === parentCandidateId &&
         observation.outcome !== 'success' &&
-        handles.has(observation.opaqueTaskId),
+        searchVisible(observation) &&
+        (handles === null || handles.has(observation.opaqueTaskId)),
     )
     .sort((left, right) =>
       left.actionId < right.actionId ? -1 : left.actionId > right.actionId ? 1 : 0,
@@ -824,6 +833,13 @@ export class IterationDriver {
       ...(this.input.sealedPlanReceipt !== undefined
         ? { sealedPlanReceipt: this.input.sealedPlanReceipt }
         : {}),
+      ...(config.agentDebugger?.protocol === 'v4'
+        ? {
+            debuggerProtocol: TRAJDEBUG_PROTOCOL,
+            debuggerProfile: PROFILE,
+            debuggerRetryAttempts: 1,
+          }
+        : {}),
       config,
     }
     await this.freeze(join(runRoot, 'run-manifest.json'), manifest)
@@ -872,6 +888,7 @@ export class IterationDriver {
 
       // --- baseline: build once, register, admit -------------------------
       const baselineId = await this.ensureBaseline()
+      await this.syncDiagnostics()
 
       // --- tournament terminal resume (ADR-047) ---------------------------
       // A locked or NO_DEVELOPMENT_IMPROVEMENT run must never re-derive the
@@ -939,6 +956,8 @@ export class IterationDriver {
           throw error
         }
       }
+
+      await this.syncDiagnostics()
 
       // --- archive catalog ------------------------------------------------
       const catalog = buildArchiveCatalog(controller.state, {
@@ -1286,6 +1305,7 @@ export class IterationDriver {
         }))
         await controller.runEvaluationWave(inputs)
         await controller.commitWave(waveId)
+        await this.syncDiagnostics()
         offset += chunk.length
       }
     }
@@ -1397,6 +1417,7 @@ export class IterationDriver {
           })
           await controller.runEvaluationWave(inputs)
           await controller.commitWave(waveId)
+          await this.syncDiagnostics()
         }
       }
     }
@@ -1711,6 +1732,7 @@ export class IterationDriver {
         }
         await controller.runEvaluationWave(members)
         await controller.commitWave(wave.waveId)
+        await this.syncDiagnostics()
       }
       return 'ok'
     }
@@ -2046,11 +2068,13 @@ export class IterationDriver {
     for (const [waveId, actionIds] of pendingByWave) {
       await controller.resumeEvaluationWave(actionIds)
       await controller.commitWave(waveId).catch(() => undefined)
+      await this.syncDiagnostics()
     }
 
     await this.settleAbandonedIntents(searchState)
 
     for (;;) {
+      await this.syncDiagnostics()
       const state = controller.state
       const observations = Object.values(state.observations)
       const completedTrials = observations.length
@@ -2198,7 +2222,32 @@ export class IterationDriver {
         })),
       )
       await controller.commitWave(waveId)
+      await this.syncDiagnostics()
     }
+  }
+
+  private async syncDiagnostics(): Promise<void> {
+    const controller = this.controller
+    if (!controller || this.config.agentDebugger?.protocol !== 'v4') return
+    const store = await openObjectStore(join(this.runRoot, 'objects'))
+    await synchronizeDiagnostics({
+      controller,
+      store,
+      config: this.config,
+      ...(this.input.failureAttributor ? { attributor: this.input.failureAttributor } : {}),
+      wallAllowed: () => {
+        const total = controller.state.budget['wall-clock-seconds']
+        const elapsed =
+          controller.startedAt === null
+            ? Infinity
+            : Math.max(0, (Date.parse(this.now()) - Date.parse(controller.startedAt)) / 1000)
+        return (
+          Math.max(elapsed, (total?.spent ?? 0) + (total?.reserved ?? 0)) +
+            Math.ceil(this.config.agentDebugger!.requestTimeoutMs / 1000) <=
+          this.config.budget.wallClockMinutes * 60
+        )
+      },
+    })
   }
 
   /** Pick (candidate, handle) for the next serial evaluation. */
@@ -2317,7 +2366,7 @@ export class IterationDriver {
     const failureObservations = parentScopedFailureObservations(
       Object.values(state.observations),
       parentId,
-      pool,
+      this.config.agentDebugger?.protocol === 'v4' ? undefined : pool,
     )
     const actionableFailureObservations: typeof failureObservations = []
     const trajectoryRefs: ObjectRef[] = []
@@ -2325,7 +2374,11 @@ export class IterationDriver {
     for (const observation of failureObservations) {
       const ref = state.actions[observation.actionId]?.artifacts[0]
       if (ref === undefined) continue
-      if (!isCandidateActionableTrajectory(await store.read(ref))) continue
+      if (
+        this.config.agentDebugger?.protocol !== 'v4' &&
+        !isCandidateActionableTrajectory(await store.read(ref))
+      )
+        continue
       actionableFailureObservations.push(observation)
       trajectoryRefs.push(ref)
       const diagnostic = state.actions[observation.actionId]?.artifacts.find(
@@ -2395,7 +2448,7 @@ export class IterationDriver {
     }
     let attributionRef: ObjectRef | undefined
     const attributor = this.input.failureAttributor
-    if (attributor !== undefined) {
+    if (attributor !== undefined && this.config.agentDebugger?.protocol !== 'v4') {
       const traces: DebuggerTraceInput[] = []
       for (const entry of indexDraft) {
         const diagnostic = diagnosticRefs.get(entry.actionId)
@@ -2462,36 +2515,77 @@ export class IterationDriver {
         }
       }
     }
-    const failureIndexRef = await store.put(
-      Buffer.from(
-        `${canonicalJson({
-          protocol: FAILURE_INDEX_PROTOCOL,
+    const v4 = this.config.agentDebugger?.protocol === 'v4'
+    const parentVisible = Object.values(state.observations)
+      .filter((o) => o.candidateId === parentId && searchVisible(o))
+      .sort((a, b) => a.actionId.localeCompare(b.actionId))
+    const observationWatermark = `sha256:${canonicalHash(parentVisible)}`
+    const overviewRef = v4
+      ? state.evidence?.[overviewPrefix(parentId) + observationWatermark]
+      : undefined
+    if (v4 && overviewRef === undefined) throw new IterationDriverError('parent overview missing')
+    const reportRefs = v4
+      ? failureObservations
+          .map((o) => state.evidence?.[reportKey(o.actionId)])
+          .filter((r): r is ObjectRef => r !== undefined)
+      : []
+    const stageRefs: ObjectRef[] = []
+    for (const ref of reportRefs) {
+      const report = JSON.parse((await store.read(ref)).toString('utf8')) as FailureReport
+      for (const stage of report.stages)
+        for (const stageRef of stage.refs ?? [])
+          if (stageRef.label === 'DEV_OBSERVED') stageRefs.push(stageRef)
+    }
+    const indexDocument = v4
+      ? {
+          protocol: 'dsh-evolve-le/failure-index/v4',
           subjectCandidateId: parentId,
-          ...(attributionRef === undefined
-            ? {}
-            : { attributionDigest: `sha256:${attributionRef.digest}` }),
+          overviewDigest: `sha256:${overviewRef!.digest}`,
+          observationWatermark,
           entries: indexDraft.map((entry) => ({
             ...entry,
-            ...(diagnosticRefs.get(entry.actionId) === undefined
-              ? {}
-              : {
-                  diagnosticTraceDigest: `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`,
-                  ...(attributionRef === undefined
-                    ? {}
-                    : {
-                        // The attribution object contains one validated v3
-                        // diagnosis keyed by this trace digest. Keep the
-                        // index compact while giving the proposer a direct,
-                        // per-rollout lookup rather than a global summary.
-                        trajectoryDiagnosis: {
-                          attributionDigest: `sha256:${attributionRef.digest}`,
-                          diagnosticTraceDigest: `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`,
-                        },
-                      }),
-                }),
-            clusterSupport: clusterSupport.get(entry.cluster) ?? 0,
+            reportDigest: state.evidence?.[reportKey(entry.actionId)]
+              ? `sha256:${state.evidence[reportKey(entry.actionId)]!.digest}`
+              : null,
+            diagnosticTraceDigest: diagnosticRefs.get(entry.actionId)
+              ? `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`
+              : null,
           })),
-        })}\n`,
+        }
+      : null
+    if (indexDocument) validateDiagnosticArtifact('failure-index', indexDocument)
+    const failureIndexRef = await store.put(
+      Buffer.from(
+        `${canonicalJson(
+          indexDocument ?? {
+            protocol: FAILURE_INDEX_PROTOCOL,
+            subjectCandidateId: parentId,
+            ...(attributionRef === undefined
+              ? {}
+              : { attributionDigest: `sha256:${attributionRef.digest}` }),
+            entries: indexDraft.map((entry) => ({
+              ...entry,
+              ...(diagnosticRefs.get(entry.actionId) === undefined
+                ? {}
+                : {
+                    diagnosticTraceDigest: `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`,
+                    ...(attributionRef === undefined
+                      ? {}
+                      : {
+                          // The attribution object contains one validated v3
+                          // diagnosis keyed by this trace digest. Keep the
+                          // index compact while giving the proposer a direct,
+                          // per-rollout lookup rather than a global summary.
+                          trajectoryDiagnosis: {
+                            attributionDigest: `sha256:${attributionRef.digest}`,
+                            diagnosticTraceDigest: `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`,
+                          },
+                        }),
+                  }),
+              clusterSupport: clusterSupport.get(entry.cluster) ?? 0,
+            })),
+          },
+        )}\n`,
         'utf8',
       ),
       {
@@ -2503,9 +2597,28 @@ export class IterationDriver {
       ...trajectoryRefs,
       ...normalizedTrialRefs,
       ...[...diagnosticRefs.values()],
+      ...(v4
+        ? failureObservations.flatMap(
+            (o) =>
+              state.actions[o.actionId]?.artifacts.filter(
+                (r) => r.mediaType === 'application/vnd.dsh-evolve-le.diagnostic-trace-shard+json',
+              ) ?? [],
+          )
+        : []),
+      ...reportRefs,
+      ...stageRefs,
+      ...(overviewRef ? [overviewRef] : []),
+      ...(v4 && state.evidence?.[overviewPrefix(parentId) + observationWatermark + '/markdown']
+        ? [state.evidence[overviewPrefix(parentId) + observationWatermark + '/markdown']!]
+        : []),
       ...(attributionRef === undefined ? [] : [attributionRef]),
       failureIndexRef,
-    ].sort((left, right) => (left.digest < right.digest ? -1 : left.digest > right.digest ? 1 : 0))
+    ]
+      .filter(
+        (ref, index, refs) =>
+          !v4 || refs.findIndex((other) => other.digest === ref.digest) === index,
+      )
+      .sort((left, right) => (left.digest < right.digest ? -1 : left.digest > right.digest ? 1 : 0))
     const monitor = this.monitor
     if (monitor === undefined) throw new IterationDriverError('information-flow monitor missing')
     // Export canary union (ADR-046): proposer-scoped canaries PLUS every
@@ -2540,6 +2653,9 @@ export class IterationDriver {
         parentCandidateId: parentId,
         parentSourceHash: parentRecord.sourceDigest,
         exportId: created.exportId,
+        ...(overviewRef
+          ? { overviewDigest: `sha256:${overviewRef.digest}`, observationWatermark }
+          : {}),
         width: this.config.search.proposalWidth,
         ...(parentRecord.treeV2 === undefined
           ? {}

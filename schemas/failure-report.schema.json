@@ -1,0 +1,598 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/failure-report",
+  "type": "object",
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/failure-report/v1"
+    },
+    "debuggerProtocol": {
+      "const": "dsh-evolve-le/agent-debugger/v4"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "candidateId": {
+      "type": "string"
+    },
+    "actionId": {
+      "type": "string"
+    },
+    "opaqueTaskId": {
+      "type": "string"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "split": {
+      "const": "dev-observed"
+    },
+    "inputDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "executionStatus": {
+      "enum": ["completed", "call-failed", "budget-skipped", "partial", "unanalyzable"]
+    },
+    "evidenceSufficiency": {
+      "enum": ["supported", "insufficient"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "findingId": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "source": {
+            "enum": ["atif", "acp"]
+          },
+          "step": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "conflictWith": {
+            "enum": ["task", "context", "self", "env"]
+          },
+          "failureMode": {
+            "type": "string"
+          },
+          "module": {
+            "type": "string"
+          },
+          "wrongContentQuote": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "enum": ["events", "tests"]
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "field": {
+                "type": "string"
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "quote": {
+                "type": "string"
+              },
+              "actualQuote": {
+                "type": "string"
+              },
+              "eventId": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "source",
+              "index",
+              "field",
+              "start",
+              "end",
+              "quote",
+              "actualQuote",
+              "eventId"
+            ],
+            "additionalProperties": false
+          },
+          "referenceQuote": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "enum": ["events", "tests"]
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "field": {
+                "type": "string"
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "quote": {
+                "type": "string"
+              },
+              "actualQuote": {
+                "type": "string"
+              },
+              "eventId": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "source",
+              "index",
+              "field",
+              "start",
+              "end",
+              "quote",
+              "actualQuote",
+              "eventId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "findingId",
+          "eventId",
+          "source",
+          "step",
+          "conflictWith",
+          "failureMode",
+          "module",
+          "wrongContentQuote",
+          "referenceQuote"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rejectedFindings": {
+      "type": "array"
+    },
+    "instances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "findingIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "originStep": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolution": {
+            "enum": ["fixed", "active", "unknown"]
+          },
+          "terminalConnection": {
+            "enum": ["semantic", "irreversible", "budget-debt", "none", "unknown"]
+          },
+          "terminalEvidence": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "enum": ["events", "tests"]
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "quote": {
+                    "type": "string"
+                  },
+                  "actualQuote": {
+                    "type": "string"
+                  },
+                  "eventId": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "required": [
+                  "source",
+                  "index",
+                  "field",
+                  "start",
+                  "end",
+                  "quote",
+                  "actualQuote",
+                  "eventId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fixEvidence": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "enum": ["events", "tests"]
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "quote": {
+                    "type": "string"
+                  },
+                  "actualQuote": {
+                    "type": "string"
+                  },
+                  "eventId": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "required": [
+                  "source",
+                  "index",
+                  "field",
+                  "start",
+                  "end",
+                  "quote",
+                  "actualQuote",
+                  "eventId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "impactEvidence": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "enum": ["events", "tests"]
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "quote": {
+                    "type": "string"
+                  },
+                  "actualQuote": {
+                    "type": "string"
+                  },
+                  "eventId": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "required": [
+                  "source",
+                  "index",
+                  "field",
+                  "start",
+                  "end",
+                  "quote",
+                  "actualQuote",
+                  "eventId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wastedSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "enum": ["events", "tests"]
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "field": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quote": {
+                  "type": "string"
+                },
+                "actualQuote": {
+                  "type": "string"
+                },
+                "eventId": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "source",
+                "index",
+                "field",
+                "start",
+                "end",
+                "quote",
+                "actualQuote",
+                "eventId"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "explanation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "instanceId",
+          "findingIds",
+          "originStep",
+          "resolution",
+          "terminalConnection",
+          "terminalEvidence",
+          "fixEvidence",
+          "impactEvidence",
+          "wastedSteps",
+          "explanation"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "criticalFailure": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "instanceId": {
+              "type": "string"
+            },
+            "findingId": {
+              "type": "string"
+            },
+            "originStep": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "module": {
+              "type": "string"
+            }
+          },
+          "required": ["instanceId", "findingId", "originStep", "module"],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "surface": {
+            "enum": ["workflow", "tools", "skills", "system-prompt"]
+          },
+          "mechanism": {
+            "type": "string"
+          },
+          "hypothesis": {
+            "type": "string"
+          },
+          "mechanismTest": {
+            "type": "string"
+          },
+          "preservationTest": {
+            "type": "string"
+          },
+          "evidenceFindingIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "surface",
+          "mechanism",
+          "hypothesis",
+          "mechanismTest",
+          "preservationTest",
+          "evidenceFindingIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "enum": ["detect", "state", "recover"]
+          },
+          "window": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "payload": {
+            "type": "object"
+          },
+          "status": {
+            "enum": ["completed", "call-failed", "budget-skipped"]
+          },
+          "output": {
+            "type": ["string", "null"]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "actionId": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "promptTokens": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              },
+              "completionTokens": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              },
+              "costUsdMicros": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              }
+            },
+            "required": ["promptTokens", "completionTokens", "costUsdMicros"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["stage", "window", "payload", "status", "output"],
+        "additionalProperties": false
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "input": {},
+        "omissions": {
+          "type": "array"
+        },
+        "contextIncomplete": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["input", "omissions", "contextIncomplete", "reason"],
+      "additionalProperties": false
+    },
+    "originalEvidence": {
+      "type": ["object", "null"],
+      "properties": {
+        "normalizedTrialDigest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "trajectoryDigest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "diagnosticTraceDigest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "required": ["normalizedTrialDigest", "trajectoryDigest", "diagnosticTraceDigest"],
+      "additionalProperties": false
+    },
+    "terminal": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "protocol",
+    "debuggerProtocol",
+    "runId",
+    "candidateId",
+    "actionId",
+    "opaqueTaskId",
+    "attempt",
+    "split",
+    "inputDigest",
+    "executionStatus",
+    "evidenceSufficiency",
+    "findings",
+    "rejectedFindings",
+    "instances",
+    "criticalFailure",
+    "suggestions",
+    "stages",
+    "coverage",
+    "originalEvidence",
+    "terminal"
+  ],
+  "additionalProperties": false
+}

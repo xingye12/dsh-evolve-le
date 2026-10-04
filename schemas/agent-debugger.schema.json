@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/agent-debugger/v4"
+    },
+    "stage": {
+      "enum": ["detect", "state", "recover"]
+    },
+    "output": {}
+  },
+  "required": ["protocol", "stage", "output"],
+  "additionalProperties": false
+}

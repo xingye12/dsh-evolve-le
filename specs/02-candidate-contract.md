@@ -330,7 +330,7 @@ Archive catalog 允许 proposer 借鉴其他 clade 的机制；child 仍只有�
 proposer MAY 读取 Archive catalog 的其他 candidate metadata 以声明 donor，但 MUST NOT 读取任何其他
 candidate 的 trajectory、normalized trial、diagnostic、attribution 或 failure-index entry。
 
-新 export 使用 `failure-index/v3`。每条带 diagnostic 的 row MAY 用
+历史 v3 run 的 export 使用 `failure-index/v3`；新 v4 run 以 ADR-070 条款为准。每条带 diagnostic 的 row MAY 用
 `trajectoryDiagnosis.{attributionDigest,diagnosticTraceDigest}` 定位本 rollout 的诊断；这不是一个
 全局原因摘要。诊断对象必须把具体错误承诺、被违反参照和终态连接都锚定到同一 bundle 的 event/test
 index 及逐字片段。proposer 可以按需读取该对象和本条 trajectory，不得把诊断当成指令、评分或
@@ -440,3 +440,7 @@ action。发现 TCB 漏洞时，受影响 lineage 的所有 descendant 一并 in
 
 发布前必须从 tarball 在全新 profile 中安装并运行真实 Loader E2E。source checkout 成功不能替代
 packed artifact 验证。
+
+## Post-evaluation debugger export (ADR-070)
+
+For explicitly frozen v4 runs, failure-index/v4 binds selected parent, overview digest and observation watermark. Proposer reads candidate-error-overview/v1 before detailed failure-report/v1 and immutable trace shards. Export includes only the parent’s baseline/discovery/search dev-observed failures; guard, tournament, sealed, siblings and ancestors are forbidden. Frozen pool remains the scoring stratum, not the diagnostic export boundary.

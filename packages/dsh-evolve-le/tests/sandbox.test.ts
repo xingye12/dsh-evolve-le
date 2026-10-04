@@ -15,6 +15,13 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildCandidate, type BuildResult } from '../src/builder/pipeline.js'
+import {
+  candidateOverview,
+  diagnoseTrace,
+  REPORT_MEDIA,
+  OVERVIEW_MEDIA,
+} from '../src/attribution/trajdebug.js'
+import { canonicalJson } from '../src/state/canonical.js'
 import { openObjectStore } from '../src/state/object-store.js'
 import { createEvidenceExport, PROPOSER_READ_LABELS } from '../src/proposer/export.js'
 import { generateCanaryTokens } from '../src/proposer/canary.js'
@@ -94,6 +101,43 @@ describe.skipIf(!boundaryAvailable)('proposal sandbox one-shot run', () => {
         }),
       )
     }
+    const observation = {
+      actionId: 't-1',
+      candidateId: parent.candidateId,
+      opaqueTaskId: 'task-1',
+      attempt: 1,
+      split: 'dev-observed' as const,
+      outcome: 'failure' as const,
+      reward: 0 as const,
+      durationMs: 0,
+      costUsdMicros: 0,
+    }
+    const report = await diagnoseTrace(
+      {
+        runId: 'loader-v4',
+        ...observation,
+        inputDigest: `sha256:${refs[0]!.digest}`,
+        bundle: { events: [], tests: [], terminal: {} },
+      },
+      async () => {
+        throw Error('missing trace must abstain')
+      },
+    )
+    const reportRef = await store.put(Buffer.from(canonicalJson(report) + '\n'), {
+      mediaType: REPORT_MEDIA,
+      label: 'DEV_OBSERVED',
+    })
+    const overview = candidateOverview(
+      'loader-v4',
+      parent.candidateId,
+      [observation],
+      [{ report, ref: reportRef }],
+    )
+    const overviewRef = await store.put(Buffer.from(canonicalJson(overview) + '\n'), {
+      mediaType: OVERVIEW_MEDIA,
+      label: 'DEV_OBSERVED',
+    })
+    refs.push(reportRef, overviewRef)
     const created = await createEvidenceExport({
       exportsRoot: await freshRoot('dsh-sbx-exports-'),
       store,
@@ -189,6 +233,40 @@ describe.skipIf(!boundaryAvailable)('proposal sandbox one-shot run', () => {
     // Nothing escaped the sandbox root: no sibling children dir, no stolen file.
     expect(existsSync(join(sandboxRoot, 'controller-private', 'stolen.txt'))).toBe(false)
     expect(existsSync(`${sandboxRoot}-sibling`)).toBe(true)
+  })
+
+  it('reads v4 parent report and overview objects through the Loader proposer tools', async () => {
+    const manifest = JSON.parse(await readFile(join(exportDir, 'manifest.json'), 'utf8')) as {
+      objects: { mediaType: string; digest: string }[]
+    }
+    const transcript = (await readFile(outcome.transcriptPath, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line)) as {
+      kind: string
+      ok?: boolean
+      action?: { op: string; path?: string }
+    }[]
+    const overviewObject = manifest.objects.find((o) => o.mediaType === OVERVIEW_MEDIA)!
+    const reportObject = manifest.objects.find((o) => o.mediaType === REPORT_MEDIA)!
+    const readPosition = (digest: string) =>
+      transcript.findIndex(
+        (r) => r.kind === 'tool' && r.ok && r.action?.path === `export/objects/${digest}`,
+      )
+    expect(readPosition(overviewObject.digest)).toBeLessThan(readPosition(reportObject.digest))
+    for (const media of [REPORT_MEDIA, OVERVIEW_MEDIA]) {
+      const object = manifest.objects.find((o) => o.mediaType === media)!
+      expect(object).toBeDefined()
+      expect(
+        transcript.some(
+          (r) =>
+            r.kind === 'tool' &&
+            r.ok &&
+            r.action?.op === 'read' &&
+            r.action.path === `export/objects/${object.digest}`,
+        ),
+      ).toBe(true)
+    }
   })
 
   it('replays byte-identically from the frozen sandbox inputs', async () => {

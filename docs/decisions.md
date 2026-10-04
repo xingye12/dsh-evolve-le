@@ -2819,3 +2819,37 @@ invented event indexes, invented quotes, aliases, parent-local index pointer,
 and crash/replay of the ordinary driver path. TypeScript compilation and the
 targeted provider/driver suites are required; no paid model or Harbor task is
 run by this change.
+
+## ADR-070 (2026-10-04): post-evaluation TrajDebug and candidate error overview
+
+New runs explicitly freeze `agentDebugger.protocol=v4` and the window profile
+(60 events, 3000 characters per display field, 8 findings, 12 instances per state
+request, serial execution). Legacy configurations retain v3 for replay/audit;
+changing a frozen manifest requires a fresh successor identity. No old evidence
+is automatically sent to a paid model.
+
+References are AgentDebugX commit `2437c73c3183e6b6495259dfbb12464a7f07f6b8`,
+`src/agentdebug/diagnose/{detect,attribute}/trajdebug.py` and attribute README;
+AHE commit `8b2a55d97590363fe50c3cc6b5e833b020a4bb4c`,
+`skills/agentic-harness-engineering/references/analysis/overview-template.md`.
+These files are references only; production orchestration is TypeScript in the
+trusted controller. We deliberately differ from AgentDebugX: absent instance
+state is unknown, never implicitly in-chain. Fixed errors require quoted
+irreversible impact or specific wasted-step budget debt to remain critical.
+
+After each development evaluation wave, committed failures receive immutable
+reports through Detect → deterministic Cluster → State → deterministic Select
+→ suggestion-only Recover. Each model request uses the existing non-retryable
+attribution saga and frozen run budget. Ambiguous launches are conservatively
+settled and never repaid on resume. Skips and errors are durable report states.
+Full redacted source evidence is separate from cropped display text; ATIF and
+ACP source order cannot establish cross-source chronology; incomparable eligible origins abstain rather than treating concatenation indexes as time. Verifier evidence
+may connect terminal failure, never establish a pre-action reference.
+
+Every candidate receives an immutable JSON overview and deterministic Markdown.
+Journal references are authoritative; convenience views are reconstructible.
+The proposer reads the selected parent's overview first and can read all its
+search-visible development failures (baseline/discovery/search), regardless of
+frozen pool membership. Siblings, ancestors, guard, tournament, sealed and
+full-set evidence are excluded. Pool scoring and selection remain unchanged.
+Engineering tests do not establish diagnosis accuracy or benchmark improvement.

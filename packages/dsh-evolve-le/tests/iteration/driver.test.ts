@@ -20,11 +20,10 @@
  * committed external effect resuming to the same terminal state.
  */
 import { createHash } from 'node:crypto'
-import { access, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   IterationDriver,
@@ -33,9 +32,9 @@ import {
   type BuildCapsuleFn,
 } from '../../src/iteration/driver.js'
 import type { Observation } from '../../src/state/reducer.js'
-import { FakeProvider, type ScriptedResult } from '../../src/controller/provider.js'
+import { FakeProvider } from '../../src/controller/provider.js'
 import type { ControllerConfig } from '../../src/controller/controller.js'
-import { defaultRunConfig, validateRunConfig, type RunConfig } from '../../src/config/run-config.js'
+import { validateRunConfig, type RunConfig } from '../../src/config/run-config.js'
 import { runSplitCeremony, type SplitCounts } from '../../src/split/ceremony.js'
 import { deriveCanaryTokens, canaryFingerprint } from '../../src/proposer/canary.js'
 import { journalDirOf } from '../../src/state/journal.js'
@@ -64,7 +63,6 @@ import {
   TOUR_HANDLES,
   TOUR_MATRIX,
   withTournament,
-  type Bridge,
 } from './fixture.js'
 
 afterAll(async () => {
@@ -1202,7 +1200,7 @@ describe('iteration driver: benchmark baseline freeze (ADR-042)', () => {
       (await captureCanonicalSource(fx.baselineSourceDir)).sha256,
     )
     const short = shortId(baselineId)
-    const [h0, h1, h2, h3] = ceremony.ceremony.observedHandles
+    const [h0, h1, , h3] = ceremony.ceremony.observedHandles
     // h0: fails both attempts → pool. h1: fails attempt 1, SUCCEEDS attempt 2
     // → NOT pool (the baseline can solve it — the zero-success rule). h2:
     // succeeds both. h3: fails both → pool.

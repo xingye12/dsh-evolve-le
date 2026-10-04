@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/candidate-error-overview",
+  "type": "object",
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/candidate-error-overview/v1"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "candidateId": {
+      "type": "string"
+    },
+    "observationWatermark": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "totalTrials": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "distinctTasks": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "successfulTrials": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failedTrials": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "successRatePermille": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "groupCountsOverlap": {
+      "const": true
+    },
+    "failures": {
+      "type": "array"
+    },
+    "groups": {
+      "type": "array"
+    },
+    "unknown": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "insufficientEvidence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "diagnosticFailures": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "budgetSkipped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unanalyzable": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "infrastructureFailures": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failurePatterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "failedTrials": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["key", "failedTrials"],
+        "additionalProperties": false
+      }
+    },
+    "rootModules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "failedTrials": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["key", "failedTrials"],
+        "additionalProperties": false
+      }
+    },
+    "suggestedSurfaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "failedTrials": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["key", "failedTrials"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "protocol",
+    "runId",
+    "candidateId",
+    "observationWatermark",
+    "totalTrials",
+    "distinctTasks",
+    "successfulTrials",
+    "failedTrials",
+    "successRatePermille",
+    "groupCountsOverlap",
+    "failures",
+    "groups",
+    "unknown",
+    "insufficientEvidence",
+    "diagnosticFailures",
+    "budgetSkipped",
+    "unanalyzable",
+    "infrastructureFailures",
+    "failurePatterns",
+    "rootModules",
+    "suggestedSurfaces"
+  ],
+  "additionalProperties": false
+}

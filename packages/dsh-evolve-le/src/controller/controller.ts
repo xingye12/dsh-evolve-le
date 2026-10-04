@@ -169,6 +169,8 @@ export interface ProposalRequest {
   parentSourceHash: string
   /** The label-filtered export id the sandbox read. */
   exportId: string
+  overviewDigest?: string
+  observationWatermark?: string
   width: number
   /** Present iff this expansion must use the tree-v2 proposal protocol. */
   treeV2Parent?: {
@@ -325,9 +327,16 @@ export class Controller {
       },
       clock,
     )
+    for (const ref of Object.values(controller.current.evidence ?? {}))
+      await controller.store.verify(ref)
     // §12 steps 6–8: inspect and reconcile; no new actions.
     await controller.reconcile()
     return controller
+  }
+
+  /** The first durable journal timestamp remains the wall anchor across restarts. */
+  get startedAt(): string | null {
+    return this.committed[0]?.occurredAt ?? null
   }
 
   get state(): RunState {
@@ -721,6 +730,19 @@ export class Controller {
    * idempotency key; a crash after `action.launched` is therefore terminally
    * unattributable and is never replayed as a second paid request.
    */
+  async publishEvidence(key: string, artifact: ObjectRef): Promise<void> {
+    const existing = this.current.evidence?.[key]
+    if (existing !== undefined) {
+      if (canonicalJson(existing) !== canonicalJson(artifact))
+        throw new Error('conflicting evidence publication')
+      return
+    }
+    await this.store.verify(artifact)
+    await this.boundary('artifact-stored', key)
+    await this.emit('evidence.published', { key, artifact })
+    await this.boundary('action-committed', key)
+  }
+
   async runAttribution(input: AttributionInput): Promise<AttributionResult> {
     const existing = this.current.actions[input.actionId]
     if (existing !== undefined && TERMINAL_ACTIONS.has(existing.status)) {
@@ -846,6 +868,7 @@ export class Controller {
       })
     }
     await settle('attribution-calls', 1)
+    if (cap('wall-clock-seconds') > 0) await settle('wall-clock-seconds', cap('wall-clock-seconds'))
     await settle(
       'attribution-tokens',
       (receipt.promptTokens ?? 0) + (receipt.completionTokens ?? 0),
@@ -1504,11 +1527,38 @@ export class Controller {
       label,
     })
     if (terminal.diagnosticBundle === undefined) return [trajectory]
-    const diagnostic = await this.store.put(terminal.diagnosticBundle, {
+    let diagnosticBytes = terminal.diagnosticBundle
+    const shards: ObjectRef[] = []
+    let document: Record<string, unknown> = {}
+    try {
+      document = JSON.parse(diagnosticBytes.toString('utf8')) as Record<string, unknown>
+    } catch {
+      /* preserve corrupt diagnostic for explicit abstention */
+    }
+    if (
+      document['protocol'] === 'dsh-evolve-le/diagnostic-trace-bundle/v3' &&
+      Array.isArray(document['events'])
+    ) {
+      const events = document['events']
+      for (let start = 0; start < events.length; start += 60) {
+        shards.push(
+          await this.store.put(
+            Buffer.from(
+              `${canonicalJson({ protocol: 'dsh-evolve-le/diagnostic-trace-shard/v1', events: events.slice(start, start + 60) })}\n`,
+            ),
+            { mediaType: 'application/vnd.dsh-evolve-le.diagnostic-trace-shard+json', label },
+          ),
+        )
+      }
+      diagnosticBytes = Buffer.from(
+        `${canonicalJson({ ...document, events: [], eventDirectory: events.map((e: Record<string, unknown>) => ({ eventId: e['eventId'], source: e['source'], sourceIndex: e['sourceIndex'], index: e['index'] })), shards })}\n`,
+      )
+    }
+    const diagnostic = await this.store.put(diagnosticBytes, {
       mediaType: DIAGNOSTIC_TRACE_MEDIA_TYPE,
       label,
     })
-    return [trajectory, diagnostic]
+    return [trajectory, diagnostic, ...shards]
   }
 
   private async commitObservation(

@@ -41,6 +41,7 @@ import type { ObservationOutcome } from '@dsh-evolve-le/core'
 import { planSubmission } from './provider.js'
 import { normalizeJob, type NormalizedTrial } from './normalize.js'
 import { diagnosticTraceBundle } from './diagnostic-bundle.js'
+import { diagnosticTraceBundle as legacyDiagnosticTraceBundle } from './diagnostic-bundle-v2.js'
 import type { SubmissionLedger } from './idempotency.js'
 import {
   effectiveTaskAgentTimeoutMs,
@@ -80,6 +81,8 @@ export interface HarborSolveGateway {
 }
 
 export interface HarborProviderConfig {
+  /** Old frozen runs keep their original diagnostic renderer. */
+  diagnosticProtocol?: 'v2' | 'v3'
   runId: string
   /** Harbor binary (config `benchmark.harbor.bin`); never a Python bridge. */
   harborBin: string
@@ -483,7 +486,11 @@ export class HarborProvider implements BenchmarkProvider {
       // This is a projection of raw Harbor files while their job directory is
       // still available.  It deliberately omits task prose and the raw agent
       // narrative; only the development driver may later export it.
-      diagnosticBundle: await diagnosticTraceBundle({
+      diagnosticBundle: await (
+        this.config.diagnosticProtocol === 'v2'
+          ? legacyDiagnosticTraceBundle
+          : diagnosticTraceBundle
+      )({
         trialDir: join(entry.jobDir, trial.trialName ?? ''),
         trial,
       }),

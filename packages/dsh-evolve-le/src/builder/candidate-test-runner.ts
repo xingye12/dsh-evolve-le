@@ -263,14 +263,21 @@ async function compareMountedSurfaces(options: {
 }
 
 /** Run the probe spec over a staged tree; returns the per-mode records. */
-async function surfaceProbe(treeDir: string, side: Side): Promise<Record<string, SurfaceRecord> | undefined> {
+async function surfaceProbe(
+  treeDir: string,
+  _side: Side,
+): Promise<Record<string, SurfaceRecord> | undefined> {
   await writeTypeLintUnitConfigs(treeDir)
   await writeFile(join(treeDir, SURFACE_PROBE_REL), SURFACE_PROBE_SPEC, 'utf8')
   const vitestBin = join(repoRoot, 'node_modules/vitest/vitest.mjs')
-  const run = await runSandboxed(process.execPath, [vitestBin, 'run', '--root', treeDir, SURFACE_PROBE_REL], {
-    cwd: treeDir,
-    timeoutMs: 60_000,
-  })
+  const run = await runSandboxed(
+    process.execPath,
+    [vitestBin, 'run', '--root', treeDir, SURFACE_PROBE_REL],
+    {
+      cwd: treeDir,
+      timeoutMs: 60_000,
+    },
+  )
   if (run.code !== 0) {
     // The probe spec itself must always pass; a non-zero exit means the
     // mount threw or the spec is broken — report it as an unmountable side.

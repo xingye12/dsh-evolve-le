@@ -21,11 +21,7 @@ import type { FailureAttributor } from '../../src/attribution/agent-debugger.js'
 import { defaultRunConfig, validateRunConfig, type RunConfig } from '../../src/config/run-config.js'
 import { runSplitCeremony, type SplitCounts } from '../../src/split/ceremony.js'
 import { journalDirOf } from '../../src/state/journal.js'
-import {
-  canonicalHash,
-  captureCanonicalSource,
-  candidateIdFromDigest,
-} from '../../src/candidate/canonical.js'
+import { captureCanonicalSource, candidateIdFromDigest } from '../../src/candidate/canonical.js'
 import { stageDeclaredSource } from '../../src/builder/staging.js'
 import {
   buildProposalInstruction,

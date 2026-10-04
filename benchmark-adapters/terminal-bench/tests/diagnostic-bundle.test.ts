@@ -55,3 +55,35 @@ describe('diagnostic trace bundle', () => {
     expect(JSON.stringify(bundle)).not.toContain('/root/secret')
   })
 })
+
+describe('v3 full immutable source projection', () => {
+  it('retains more than 192 events and long content, records missing inputs and redacts structured credentials', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-debug-full-'))
+    dirs.push(dir)
+    await mkdir(join(dir, 'agent'), { recursive: true })
+    const steps = Array.from({ length: 220 }, (_, index) => ({
+      source: 'assistant',
+      agent_id: 'a',
+      content: `${index}:` + 'x'.repeat(5000),
+      api_key: 'must-redact-secret',
+    }))
+    await writeFile(join(dir, 'agent', 'trajectory.json'), JSON.stringify({ steps }))
+    const bundle = JSON.parse((await diagnosticTraceBundle({ trialDir: dir, trial })).toString())
+    expect(bundle.protocol).toBe('dsh-evolve-le/diagnostic-trace-bundle/v3')
+    expect(bundle.events).toHaveLength(220)
+    expect(bundle.events[219]).toMatchObject({
+      eventId: 'atif-219',
+      source: 'atif',
+      sourceIndex: 219,
+      actor: 'agent',
+      agentId: 'a',
+    })
+    expect(bundle.events[219].data.content.length).toBeGreaterThan(5000)
+    expect(bundle.coverage).toMatchObject({
+      missing: ['acp-events', 'ctrf'],
+      ordering: 'per-source-only',
+      taskInputStatus: 'unknown',
+    })
+    expect(JSON.stringify(bundle)).not.toContain('must-redact-secret')
+  })
+})

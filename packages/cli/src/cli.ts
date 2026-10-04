@@ -340,10 +340,16 @@ async function loadConfirmationSourceEnv(runRoot: string): Promise<RunEnv> {
     const validated = validateRunConfig(compatibilityConfig)
     if (!validated.ok) throw error
     const handlesPath = join(runRoot, 'dataset-handles.json')
-    const doc = (await readJsonFile(handlesPath)) as { protocol?: string; handles?: unknown; splitCounts?: unknown }
+    const doc = (await readJsonFile(handlesPath)) as {
+      protocol?: string
+      handles?: unknown
+      splitCounts?: unknown
+    }
     if (doc.protocol !== DATASET_HANDLES_PROTOCOL || !Array.isArray(doc.handles)) throw error
     const splitCounts =
-      doc.splitCounts !== undefined && typeof doc.splitCounts === 'object' && doc.splitCounts !== null
+      doc.splitCounts !== undefined &&
+      typeof doc.splitCounts === 'object' &&
+      doc.splitCounts !== null
         ? (doc.splitCounts as SplitCounts)
         : SPLIT_COUNTS
     return {
@@ -741,6 +747,7 @@ async function composeReal(env: RunEnv, io: CliIo): Promise<Composition> {
 
   const guardMap: Record<string, string> = {}
   const provider = new HarborProvider({
+    diagnosticProtocol: config.agentDebugger?.protocol === 'v4' ? 'v3' : 'v2',
     runId: config.runId,
     harborBin: config.benchmark.harbor.bin,
     harborVersion: config.benchmark.harbor.version,
@@ -1305,6 +1312,7 @@ async function composeSealed(
     tls: { certPath: tls.serverCertPath, keyPath: tls.serverKeyPath },
   })
   const provider = new HarborProvider({
+    diagnosticProtocol: config.agentDebugger?.protocol === 'v4' ? 'v3' : 'v2',
     runId: config.runId,
     harborBin: config.benchmark.harbor.bin,
     harborVersion: config.benchmark.harbor.version,
@@ -1496,7 +1504,10 @@ async function confirmationSecret(root: string, runId: string): Promise<Confirma
   return secret
 }
 
-async function readCapsuleRecord(capsulesRoot: string, candidateId: string): Promise<{
+async function readCapsuleRecord(
+  capsulesRoot: string,
+  candidateId: string,
+): Promise<{
   archiveSha256: string
   recordHash: string
 }> {
@@ -1534,11 +1545,15 @@ async function composeConfirmation(
   const tlsDir = join(confirmationRoot, 'tls')
   await mkdir(tlsDir, { recursive: true })
   const tls = await generateLocalCa({ dir: tlsDir, ip: config.benchmark.artifactEndpoint.host })
-  const caBundleHost = await buildAugmentedCaBundle({ dir: tlsDir, localCaCertPath: tls.caCertPath })
+  const caBundleHost = await buildAugmentedCaBundle({
+    dir: tlsDir,
+    localCaCertPath: tls.caCertPath,
+  })
   const solvePlan = solverRoutePlan(config)
-  const solveRoute = solvePlan === null
-    ? undefined
-    : config.modelRoutes.find((route) => route.id === config.solverRoute)
+  const solveRoute =
+    solvePlan === null
+      ? undefined
+      : config.modelRoutes.find((route) => route.id === config.solverRoute)
   if (solvePlan !== null && solveRoute === undefined) {
     throw new CliError(`solver route ${config.solverRoute ?? ''} is not in the route table`, 2)
   }
@@ -1551,6 +1566,7 @@ async function composeConfirmation(
     ...(gateway === null ? {} : { handler: gateway.handler }),
   })
   const provider = new HarborProvider({
+    diagnosticProtocol: config.agentDebugger?.protocol === 'v4' ? 'v3' : 'v2',
     runId: plan.runId,
     harborBin: config.benchmark.harbor.bin,
     harborVersion: config.benchmark.harbor.version,
@@ -1565,28 +1581,32 @@ async function composeConfirmation(
     mounts: [{ source: caBundleHost, target: CA_BUNDLE_CONTAINER }],
     env: {
       SSL_CERT_FILE: CA_BUNDLE_CONTAINER,
-      ...(config.benchmark.trialContainerProxy === undefined ? {} : {
-        http_proxy: config.benchmark.trialContainerProxy.httpProxy,
-        https_proxy: config.benchmark.trialContainerProxy.httpProxy,
-        HTTP_PROXY: config.benchmark.trialContainerProxy.httpProxy,
-        HTTPS_PROXY: config.benchmark.trialContainerProxy.httpProxy,
-        no_proxy: config.benchmark.trialContainerProxy.noProxy,
-        NO_PROXY: config.benchmark.trialContainerProxy.noProxy,
-      }),
+      ...(config.benchmark.trialContainerProxy === undefined
+        ? {}
+        : {
+            http_proxy: config.benchmark.trialContainerProxy.httpProxy,
+            https_proxy: config.benchmark.trialContainerProxy.httpProxy,
+            HTTP_PROXY: config.benchmark.trialContainerProxy.httpProxy,
+            HTTPS_PROXY: config.benchmark.trialContainerProxy.httpProxy,
+            no_proxy: config.benchmark.trialContainerProxy.noProxy,
+            NO_PROXY: config.benchmark.trialContainerProxy.noProxy,
+          }),
     },
-    ...(gateway === null || solvePlan === null ? {} : {
-      solveGateway: {
-        routeId: solvePlan.routeId,
-        nativeProvider: solveRoute!.provider,
-        nativeModel: solvePlan.model,
-        nativeMaxTokens: solveRoute!.maxOutputTokens,
-        url: server.url,
-        routeHash: gateway.routeHash,
-        containerTokenPath: SOLVE_TOKEN_CONTAINER,
-        enroll: (jobName: string) => gateway.enrollTrial(jobName),
-      },
-      solveUsage: (jobName: string) => gateway.terminalFact(jobName),
-    }),
+    ...(gateway === null || solvePlan === null
+      ? {}
+      : {
+          solveGateway: {
+            routeId: solvePlan.routeId,
+            nativeProvider: solveRoute!.provider,
+            nativeModel: solvePlan.model,
+            nativeMaxTokens: solveRoute!.maxOutputTokens,
+            url: server.url,
+            routeHash: gateway.routeHash,
+            containerTokenPath: SOLVE_TOKEN_CONTAINER,
+            enroll: (jobName: string) => gateway.enrollTrial(jobName),
+          },
+          solveUsage: (jobName: string) => gateway.terminalFact(jobName),
+        }),
   })
   for (const candidateId of candidateIds) {
     const capsule = await readCapsuleRecord(sourceCapsules, candidateId)
@@ -1625,14 +1645,20 @@ async function commandSealedConfirm(values: CliValues, io: CliIo): Promise<numbe
   const source = await loadConfirmationSourceEnv(resolve(sourceRootValue))
   const confirmationRoot = resolve(confirmationRootValue)
   const sourcePlanPath = join(source.runRoot, 'sealed-plan.json')
-  if (!existsSync(sourcePlanPath)) throw new CliError(`source sealed plan ${sourcePlanPath} missing`, 2)
+  if (!existsSync(sourcePlanPath))
+    throw new CliError(`source sealed plan ${sourcePlanPath} missing`, 2)
   const sourcePlan = (await readJsonFile(sourcePlanPath)) as SealedPlanDoc
   if (sourcePlan.protocol !== SEALED_PLAN_PROTOCOL || typeof sourcePlan.baselineId !== 'string') {
     throw new CliError('source sealed-plan.json is invalid', 2)
   }
-  if (candidateId === sourcePlan.baselineId) throw new CliError('candidate-id must differ from the baseline', 2)
+  if (candidateId === sourcePlan.baselineId)
+    throw new CliError('candidate-id must differ from the baseline', 2)
   const store = (await readJsonFile(resolve(sealedStorePath))) as SealedSplitStore
-  if (typeof store.sealedMap !== 'object' || store.sealedMap === null || Array.isArray(store.sealedMap)) {
+  if (
+    typeof store.sealedMap !== 'object' ||
+    store.sealedMap === null ||
+    Array.isArray(store.sealedMap)
+  ) {
     throw new CliError('--sealed-store has no sealedMap object', 2)
   }
   const taskIds = Object.keys(store.sealedMap).sort()
@@ -1653,8 +1679,10 @@ async function commandSealedConfirm(values: CliValues, io: CliIo): Promise<numbe
     dockerNetworkCapacityCheck(concurrency),
     harborVersionCheck(source.config.benchmark.harbor.bin, source.config.benchmark.harbor.version),
   ])
-  for (const finding of findings) io.stderr(`${finding.ok ? '✓' : '✗'} ${finding.name}: ${finding.detail ?? 'ok'}\n`)
-  if (findings.some((finding) => !finding.ok)) throw new CliError('sealed confirmation preflight failed', 1)
+  for (const finding of findings)
+    io.stderr(`${finding.ok ? '✓' : '✗'} ${finding.name}: ${finding.detail ?? 'ok'}\n`)
+  if (findings.some((finding) => !finding.ok))
+    throw new CliError('sealed confirmation preflight failed', 1)
 
   const runId = `confirmation-${source.config.runId}-${candidateId.slice(0, 12)}`
   await mkdir(confirmationRoot, { recursive: true })
@@ -1698,7 +1726,8 @@ async function commandSealedConfirm(values: CliValues, io: CliIo): Promise<numbe
   const planPath = join(confirmationRoot, 'sealed-plan.json')
   const planText = `${JSON.stringify(plan, null, 2)}\n`
   if (existsSync(planPath)) {
-    if ((await readFile(planPath, 'utf8')) !== planText) throw new CliError('confirmation sealed plan mismatch', 2)
+    if ((await readFile(planPath, 'utf8')) !== planText)
+      throw new CliError('confirmation sealed plan mismatch', 2)
   } else await writeJsonFile(planPath, plan)
 
   const jobsRoot = join(confirmationRoot, 'sealed-jobs')
@@ -1722,7 +1751,9 @@ async function commandSealedConfirm(values: CliValues, io: CliIo): Promise<numbe
       jobsRoot,
       concurrency,
     })
-    io.stdout(`${JSON.stringify({ runId, jobsRoot, disposition: result.disposition, score: result.score }, null, 2)}\n`)
+    io.stdout(
+      `${JSON.stringify({ runId, jobsRoot, disposition: result.disposition, score: result.score }, null, 2)}\n`,
+    )
     return 0
   } finally {
     await composition.close()

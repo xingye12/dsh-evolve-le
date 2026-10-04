@@ -1,7 +1,37 @@
 # Project status
 
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`；`TREE_V2_K80_REPAIR30_TERMINAL`（2026-09-14：STOPPED:NO_DEVELOPMENT_IMPROVEMENT——tournament 294/294、champion adjudication 判定 y2vhojev 胜（最佳候选 y2vhojev paired 均值 +10.5pp、90% LCB 2.0pp）、sealed 未运行、无 champion、无提升声明）**
-**更新时间：2026-09-15（Asia/Shanghai）**
+**更新时间：2026-10-04（Asia/Shanghai）**
+
+## 2026-10-04 Post-evaluation TrajDebug 与 candidate 错误总览（工程验证完成）
+
+ADR-070 实现新运行的 `agent-debugger/v4`：开发评测批次提交后，可信 controller 按 trial
+执行 Detect、确定性聚类、State、确定性根因选择及独立的建议型 Recover；每条失败都有
+`failure-report/v1`。缺失轨迹、未初始化、调用失败、证据不足和预算跳过均保留报告，unknown
+状态不默认进入终态因果链，已修复错误需要具体不可逆影响或预算债务证据。各阶段输入、输出、
+费用及状态由内容寻址 artifact 和 journal 固化；不确定外部调用恢复时不再次付费。
+
+`diagnostic-trace-bundle/v3` 保留完整脱敏事件目录和不可变分片，移除 192 个事件上限，分别
+保留 ATIF/ACP 顺序。candidate 的 baseline/discovery/search 可见开发 observation 生成不可变
+`candidate-error-overview/v1` JSON 和确定性 Markdown。proposer 先读取 selected parent 总览，
+再读取其报告和原始证据；`failure-index/v4` 和 proposal request 固定总览 digest 与 observation
+watermark。其它 candidate、guard、tournament、sealed 和 full-set rollout 不进入该导出；frozen
+failure pool 的评分与选择用途保持原协议。旧 v2/v3 renderer 和 replay 路径保留，新流程要求新
+run/successor identity，不付费补诊断历史 run。
+
+工程验证记录为 [verification.json](evidence/debugger-v4/verification.json)：`pnpm build`、
+`pnpm lint`、上游内容校验通过；完整测试 76 个文件通过、3 个文件跳过，844 项测试通过、29 项
+跳过。针对 v4 的最终契约集 55 项通过、1 项跳过，包含真实 Cordis Loader 中总览先读、parent
+隔离与完整分片读取。9 个真实 SIGKILL 边界的恢复矩阵全部通过，未重复 trial 或已完成阶段调用：
+[crash receipt](evidence/debugger-v4/crash-matrix-final/receipt.json)。
+
+真实 Harbor `extract-elf` smoke 的 11 项工程断言通过，保留
+[原始 job 与检查结果](evidence/debugger-v4/harbor-smoke/e2e.json)；主 trial reward=0，属于已记录
+的评测失败。随后从该不可变结果验证 v3 分片与 v4 报告/总览持久化，
+[projection receipt](evidence/debugger-v4/harbor-projection-current/receipt.json) 明确记录
+`budget-skipped`、`liveModelCalls=0`。恢复矩阵的模型响应也是 fixture，尚无 live 模型分阶段
+诊断质量或效用验证；未启动新的 search、sealed、promotion 或 leaderboard，没有 benchmark
+提升结论。本次修改文件的格式检查通过；全仓格式检查仍有 33 个未涉及本次改动的历史文件失败。
 
 ## 2026-09-18 Trajectory-root-cause Agent Debugger（源码与契约验证；未启动新 run）
 

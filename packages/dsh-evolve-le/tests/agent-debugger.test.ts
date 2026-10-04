@@ -275,3 +275,27 @@ describe('LLM Agent Debugger', () => {
     }
   })
 })
+
+describe('v4 individual stage remote adapter', () => {
+  it('records usage and returns raw stage evidence without mixing rollouts', async () => {
+    const debuggerClient = remoteAgentDebugger({
+      plan: plan(await endpoint({ findings: [] })),
+      credential: 'secret',
+    })
+    const result = await debuggerClient.stageWithReceipt!({
+      stage: 'detect',
+      window: 0,
+      payload: { events: [] },
+    })
+    expect(result.outcome).toBe('ok')
+    if (result.outcome === 'ok')
+      expect(JSON.parse(result.artifact.toString())).toEqual({
+        protocol: 'dsh-evolve-le/agent-debugger/v4',
+        stage: 'detect',
+        output: { findings: [] },
+      })
+    expect(result.receipt).toMatchObject({ promptTokens: 17, completionTokens: 19, status: 'ok' })
+    expect(requestBody).toContain('wrongContentQuote')
+    expect(requestBody).not.toContain('trace-001')
+  })
+})

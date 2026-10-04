@@ -158,6 +158,14 @@ export interface RunConfig {
   solverRoute?: string
   /** Optional, separately budgeted LLM failure-attribution route. */
   agentDebugger?: {
+    protocol?: 'v4'
+    profile?: {
+      maxEvents: 60
+      maxFieldChars: 3000
+      maxFindings: 8
+      maxInstances: 12
+      concurrency: 1
+    }
     route: string
     maxOutputTokens: number
     requestTimeoutMs: number
@@ -667,6 +675,14 @@ export function defaultRunConfig(input: {
       ? {}
       : {
           agentDebugger: {
+            protocol: 'v4',
+            profile: {
+              maxEvents: 60,
+              maxFieldChars: 3000,
+              maxFindings: 8,
+              maxInstances: 12,
+              concurrency: 1,
+            },
             route: input.agentDebuggerRoute,
             maxOutputTokens: 32_768,
             requestTimeoutMs: 180_000,

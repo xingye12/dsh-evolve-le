@@ -221,6 +221,7 @@ export interface RunState {
     sealedRevealed: { candidateId: string } | null
   }
   reservationCounter: number
+  evidence?: Record<string, ObjectRef>
 }
 
 export interface ReducerConfig {
@@ -330,6 +331,12 @@ export function validatePayload(type: string, payload: Fields): void {
         throw new ReducerError('fact must be an object')
       }
       canonicalJson(payload['fact'])
+      break
+    }
+    case 'evidence.published': {
+      expect('artifact,key')
+      nonEmptyString(payload['key'], 'key')
+      validateRef(payload['artifact'])
       break
     }
     case 'artifact.collected': {
@@ -672,6 +679,19 @@ export function reduceEvent(state: RunState, event: Fields, config: ReducerConfi
     case 'action.observed-terminal': {
       const action = requireAction(next, payload['actionId'] as string)
       transitionAction(action, 'COLLECTING')
+      break
+    }
+    case 'evidence.published': {
+      const key = payload['key'] as string
+      const artifact = payload['artifact'] as ObjectRef
+      validateRef(artifact)
+      next.evidence ??= {}
+      if (
+        next.evidence[key] !== undefined &&
+        canonicalHash(next.evidence[key]) !== canonicalHash(artifact)
+      )
+        throw new ReducerError('conflicting evidence publication')
+      next.evidence[key] = structuredClone(artifact)
       break
     }
     case 'artifact.collected': {

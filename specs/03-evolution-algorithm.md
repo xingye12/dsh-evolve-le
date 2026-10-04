@@ -207,6 +207,8 @@ sampled values, winner)`，resume 不重新抽样。
 
 ## 9. Proposer policy
 
+下述 v3 export/clustering 条款仅适用于历史 run 的 replay/audit；v4 以本章 ADR-070 条款为准。
+
 Expansion 不是模板替换。由 parent candidate 的 `propose` mode 下运行的 agentic coder：
 
 - 读取 parent source 与仅含开发集元数据的 Archive catalog；
@@ -347,3 +349,7 @@ Self-Harness 的一种实验算法，但在 80 次适应性选择后，held-out 
 - missing/corrupt/timeout fail-closed tests；
 - crash at every intent/launch/collect/commit boundary 的 replay tests；
 - sealed event 注入 selector/proposer 时强制 abort 的 information-flow tests。
+
+## Post-evaluation attribution (ADR-070)
+
+V4 runs process committed development failures serially after evaluation waves and before the next search decision. Detect windows use at most 60 source-ordered events, 3000 characters per display field and 8 findings; C1 clusters normalized reference text within conflict axis, C2 scores at most 12 instances, C3 selects earliest verified eligible origin with stable instance tie-break. Missing state is unknown; fixed errors require irreversible or quoted wasted-step debt. Recover only suggests changes/tests, never executes them. Failed/skipped/unanalyzable diagnoses do not stop search or alter scoring.

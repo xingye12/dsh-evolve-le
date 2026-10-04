@@ -366,3 +366,17 @@ export {
   type SealedConfirmationInput,
   type SealedConfirmationResultsDoc,
 } from './sealed/confirmation.js'
+
+export {
+  TRAJDEBUG_PROTOCOL,
+  PROFILE as TRAJDEBUG_PROFILE,
+  diagnoseTrace,
+  candidateOverview,
+  renderOverview,
+} from './attribution/trajdebug.js'
+export type {
+  StageRequest,
+  StageResult,
+  StageCall,
+  FailureReport,
+} from './attribution/trajdebug.js'

@@ -201,7 +201,9 @@ describe('tree-v2 contract', () => {
     const reportFor = (id: string): unknown => ({
       sections: { afterBoot: ['candidate:identity'] },
       sectionSurfaces: {
-        afterBoot: [{ name: 'candidate:identity', order: 100, text: `candidate ${id} in solve mode` }],
+        afterBoot: [
+          { name: 'candidate:identity', order: 100, text: `candidate ${id} in solve mode` },
+        ],
       },
       strategy: { toolsAfterBoot: [] },
     })
@@ -564,11 +566,14 @@ describe('tree-v2 contract', () => {
   })
 
   it('allows a mode-specific strategy module to change without editing the component root', async () => {
-    const root = join('/tmp', `tree-v2-strategy-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+    const root = join(
+      '/tmp',
+      `tree-v2-strategy-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    )
     const parentDir = join(root, 'parent')
     const childDir = join(root, 'child')
     const parent = await source(parentDir)
-    const child = await source(childDir, 'export const solve = 1\n', true)
+    await source(childDir, 'export const solve = 1\n', true)
     await writeFile(join(childDir, 'src/index.ts'), await readFile(join(parentDir, 'src/index.ts')))
     await writeFile(join(childDir, 'src/propose.ts'), 'export const propose = 2\n')
     const childSource = await captureCanonicalSource(childDir)

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dsh-evolve-le.local/schemas/run.config.schema.json",
   "title": "dsh-evolve-le run configuration",
-  "description": "Versioned configuration frozen into the run manifest at PREFLIGHT (specs/06 §2, specs/07 §7). One config drives one run lineage; the stable-demo default is K=3, no sealed access, at most 15 solver trials (specs/03 §2). Credentials are never inlined: model routes reference external root-readable files (CLAUDE.md rule 8).",
+  "description": "Versioned configuration frozen into the run manifest at PREFLIGHT (specs/06 \u00a72, specs/07 \u00a77). One config drives one run lineage; the stable-demo default is K=3, no sealed access, at most 15 solver trials (specs/03 \u00a72). Credentials are never inlined: model routes reference external root-readable files (CLAUDE.md rule 8).",
   "type": "object",
   "properties": {
     "$schema": {
@@ -51,15 +51,61 @@
     "solverRoute": {
       "type": "string",
       "minLength": 1,
-      "description": "Optional live model route id for SOLVE trials (ADR-030). Absent means every solve trial runs the recorded-replay capsule (Gate 8 behavior). Must reference a zen-compatible networked route and be paired with budget.solverTokens; the derived track (self iff it equals proposerRoute, specs/00 §4) and route hash freeze into the run manifest."
+      "description": "Optional live model route id for SOLVE trials (ADR-030). Absent means every solve trial runs the recorded-replay capsule (Gate 8 behavior). Must reference a zen-compatible networked route and be paired with budget.solverTokens; the derived track (self iff it equals proposerRoute, specs/00 \u00a74) and route hash freeze into the run manifest."
     },
     "agentDebugger": {
       "type": "object",
       "properties": {
-        "route": { "type": "string", "minLength": 1 },
-        "maxOutputTokens": { "type": "integer", "minimum": 1024, "maximum": 32768 },
-        "requestTimeoutMs": { "type": "integer", "minimum": 10000, "maximum": 900000 },
-        "maxInputBytes": { "type": "integer", "minimum": 16384, "maximum": 1048576 }
+        "route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 32768
+        },
+        "requestTimeoutMs": {
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 900000
+        },
+        "maxInputBytes": {
+          "type": "integer",
+          "minimum": 16384,
+          "maximum": 1048576
+        },
+        "protocol": {
+          "const": "v4",
+          "type": "string"
+        },
+        "profile": {
+          "type": "object",
+          "properties": {
+            "maxEvents": {
+              "type": "integer",
+              "const": 60
+            },
+            "maxFieldChars": {
+              "type": "integer",
+              "const": 3000
+            },
+            "maxFindings": {
+              "type": "integer",
+              "const": 8
+            },
+            "maxInstances": {
+              "type": "integer",
+              "const": 12
+            },
+            "concurrency": {
+              "type": "integer",
+              "const": 1
+            }
+          },
+          "required": ["maxEvents", "maxFieldChars", "maxFindings", "maxInstances", "concurrency"],
+          "additionalProperties": false
+        }
       },
       "required": ["route", "maxOutputTokens", "requestTimeoutMs", "maxInputBytes"],
       "additionalProperties": false,
@@ -127,7 +173,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 80,
-          "description": "K: admitted non-baseline candidates target (specs/03 §2); stable-demo default 3."
+          "description": "K: admitted non-baseline candidates target (specs/03 \u00a72); stable-demo default 3."
         },
         "proposalWidth": {
           "type": "integer",
@@ -157,25 +203,25 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 1000,
-          "description": "Hard cap on completed development agent-task trials for this profile. The stable demo (specs/07 §7) allows at most 15; Gate 8 benchmark profiles (specs/07 §10, e.g. pilot K=10, formal K=80) pre-register their own larger caps that must still fund discovery plus every admitted child's q0 cold starts (semantic check in run-config.ts)."
+          "description": "Hard cap on completed development agent-task trials for this profile. The stable demo (specs/07 \u00a77) allows at most 15; Gate 8 benchmark profiles (specs/07 \u00a710, e.g. pilot K=10, formal K=80) pre-register their own larger caps that must still fund discovery plus every admitted child's q0 cold starts (semantic check in run-config.ts)."
         },
         "maxDiscoveryTrials": {
           "type": "integer",
           "minimum": 1,
           "maximum": 12,
-          "description": "Baseline failure-discovery cap (specs/04 §4.1 hard cap 12)."
+          "description": "Baseline failure-discovery cap (specs/04 \u00a74.1 hard cap 12)."
         },
         "discoveryBatchSize": {
           "type": "integer",
           "minimum": 1,
           "maximum": 6,
-          "description": "Observed tasks per discovery batch before re-checking for failures (specs/04 §4.1: first batch 6, second batch 6 when the first shows no failure, hard cap 12 total). K always counts admitted candidates (specs/03 §2), never the discovery sample size."
+          "description": "Observed tasks per discovery batch before re-checking for failures (specs/04 \u00a74.1: first batch 6, second batch 6 when the first shows no failure, hard cap 12 total). K always counts admitted candidates (specs/03 \u00a72), never the discovery sample size."
         },
         "maxConsecutiveExpansionFailures": {
           "type": "integer",
           "minimum": 1,
           "maximum": 10,
-          "description": "Frozen NO_ADMISSIBLE_CHILD guard (specs/03 §7); default 3."
+          "description": "Frozen NO_ADMISSIBLE_CHILD guard (specs/03 \u00a77); default 3."
         },
         "benchmarkBaseline": {
           "type": "object",
@@ -184,13 +230,13 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 49,
-              "description": "Observed tasks in the frozen benchmark baseline matrix (specs/04 §4.2, ADR-042); bounded by the development split. ADR-049: the maximum is 49 — the formal K=80 matrix is the full ≤1800s-eligible development population (39 observed + 10 guard); a larger matrix is a schema violation."
+              "description": "Observed tasks in the frozen benchmark baseline matrix (specs/04 \u00a74.2, ADR-042); bounded by the development split. ADR-049: the maximum is 49 \u2014 the formal K=80 matrix is the full \u22641800s-eligible development population (39 observed + 10 guard); a larger matrix is a schema violation."
             },
             "attemptsPerTask": {
               "type": "integer",
               "minimum": 1,
               "maximum": 6,
-              "description": "Baseline attempts per task (specs/04 §4.2 requires at least 2 for the formal K=80 matrix; K=10 pre-registers 1)."
+              "description": "Baseline attempts per task (specs/04 \u00a74.2 requires at least 2 for the formal K=80 matrix; K=10 pre-registers 1)."
             },
             "batchSize": {
               "type": "integer",
@@ -201,7 +247,7 @@
           },
           "required": ["taskCount", "attemptsPerTask", "batchSize"],
           "additionalProperties": false,
-          "description": "Pre-registered benchmark baseline freeze (specs/04 §4.2, ADR-042): when present the driver replaces stable-demo discovery (specs/04 §4.1) with the full matrix — the first taskCount observed handles in frozen ceremony order, attemptsPerTask attempts each — and freezes the pool of zero-success tasks only after every matrix trial produced a real outcome. Absent = stable-demo discovery."
+          "description": "Pre-registered benchmark baseline freeze (specs/04 \u00a74.2, ADR-042): when present the driver replaces stable-demo discovery (specs/04 \u00a74.1) with the full matrix \u2014 the first taskCount observed handles in frozen ceremony order, attemptsPerTask attempts each \u2014 and freezes the pool of zero-success tasks only after every matrix trial produced a real outcome. Absent = stable-demo discovery."
         },
         "tournament": {
           "type": "object",
@@ -210,13 +256,13 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 400,
-              "description": "Minimum committed observations per eligible node (specs/03 §11, default 12)."
+              "description": "Minimum committed observations per eligible node (specs/03 \u00a711, default 12)."
             },
             "coverageAttemptsPerTask": {
               "type": "integer",
               "minimum": 1,
               "maximum": 4,
-              "description": "Tournament coverage attempts per development task (specs/03 §11, default 1)."
+              "description": "Tournament coverage attempts per development task (specs/03 \u00a711, default 1)."
             },
             "maxTrials": {
               "type": "integer",
@@ -371,11 +417,26 @@
         "harbor": {
           "type": "object",
           "properties": {
-            "bin": { "type": "string", "minLength": 1 },
-            "version": { "type": "string", "minLength": 1 },
-            "jobsRoot": { "type": "string", "pattern": "^/.*$" },
-            "concurrentTrials": { "type": "integer", "minimum": 1, "maximum": 12 },
-            "prefetchImages": { "type": "boolean" }
+            "bin": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "jobsRoot": {
+              "type": "string",
+              "pattern": "^/.*$"
+            },
+            "concurrentTrials": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "prefetchImages": {
+              "type": "boolean"
+            }
           },
           "required": ["bin", "version", "jobsRoot", "concurrentTrials"],
           "additionalProperties": false
@@ -383,8 +444,15 @@
         "artifactEndpoint": {
           "type": "object",
           "properties": {
-            "host": { "type": "string", "minLength": 1 },
-            "port": { "type": "integer", "minimum": 1024, "maximum": 65535 }
+            "host": {
+              "type": "string",
+              "minLength": 1
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            }
           },
           "required": ["host", "port"],
           "additionalProperties": false
@@ -392,8 +460,14 @@
         "trialContainerProxy": {
           "type": "object",
           "properties": {
-            "httpProxy": { "type": "string", "minLength": 1 },
-            "noProxy": { "type": "string", "minLength": 1 }
+            "httpProxy": {
+              "type": "string",
+              "minLength": 1
+            },
+            "noProxy": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "required": ["httpProxy", "noProxy"],
           "additionalProperties": false,
@@ -433,7 +507,7 @@
         "solverTokens": {
           "type": "integer",
           "minimum": 1,
-          "description": "Total live-solver token budget across the run (ADR-030); required iff solverRoute is set. Reserved per trial before launch and settled from the gateway receipt chain — never from agent self-reporting."
+          "description": "Total live-solver token budget across the run (ADR-030); required iff solverRoute is set. Reserved per trial before launch and settled from the gateway receipt chain \u2014 never from agent self-reporting."
         },
         "attributionTokens": {
           "type": "integer",
@@ -449,12 +523,12 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 4560,
-          "description": "The wall-clock objective is 16h for the formal protocol (specs/00 §6.3), NOT a system invariant for every config. The bound admits pre-registered rehearsal profiles whose live trials cannot fit 16h (ADR-030 K=10 live pilot: ~50 live Harbor trials at minutes-to-half-an-hour each) — the deviation must be recorded in the run's STATUS preRegistration. ADR-045 explicitly amends the formal K=80 objective to 30h (1800 minutes) with full disclosure: the mandatory trial floor (98 baseline + 240 cold starts + tournament + sealed) cannot fit 16h at the observed 1447s/trial-slot pace. ADR-058 amends the repair3 formal envelope to 4560 minutes (3600 search + 960 tournament); the bound admits exactly that pre-registered envelope — any further extension needs its own ADR and schema edit."
+          "description": "The wall-clock objective is 16h for the formal protocol (specs/00 \u00a76.3), NOT a system invariant for every config. The bound admits pre-registered rehearsal profiles whose live trials cannot fit 16h (ADR-030 K=10 live pilot: ~50 live Harbor trials at minutes-to-half-an-hour each) \u2014 the deviation must be recorded in the run's STATUS preRegistration. ADR-045 explicitly amends the formal K=80 objective to 30h (1800 minutes) with full disclosure: the mandatory trial floor (98 baseline + 240 cold starts + tournament + sealed) cannot fit 16h at the observed 1447s/trial-slot pace. ADR-058 amends the repair3 formal envelope to 4560 minutes (3600 search + 960 tournament); the bound admits exactly that pre-registered envelope \u2014 any further extension needs its own ADR and schema edit."
         },
         "wallClockSearchMinutes": {
           "type": "integer",
           "minimum": 1,
-          "description": "ADR-058: the search phase's share of wallClockMinutes (minutes). The driver derives the champion-tournament wall budget as wallClockMinutes − wallClockSearchMinutes. Optional: absent = the ADR-048 frozen 1800 default, so the preserved 49×2 formal profile keeps its pre-registered semantics byte-identical. The repair3 pre-registration sets 3600 (60h)."
+          "description": "ADR-058: the search phase's share of wallClockMinutes (minutes). The driver derives the champion-tournament wall budget as wallClockMinutes \u2212 wallClockSearchMinutes. Optional: absent = the ADR-048 frozen 1800 default, so the preserved 49\u00d72 formal profile keeps its pre-registered semantics byte-identical. The repair3 pre-registration sets 3600 (60h)."
         }
       },
       "required": ["usd", "proposerTokens", "proposalCalls", "taskTrials", "wallClockMinutes"],

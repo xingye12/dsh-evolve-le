@@ -108,3 +108,46 @@ timeout fails the launch before a paid reservation.
 zen-compatible routes must carry a `credentialFile`, and paths must exist. `run`/`resume`/`status`
 re-derive `configHash` and refuse a mutated config. The JSON Schema is
 `schemas/run.config.schema.json` (id `…/run.config.schema.json`).
+
+### Agent Debugger v4
+
+New configurations created with an Agent Debugger route freeze
+`agentDebugger.protocol: "v4"` and its TrajDebug profile. Development wave
+commits now publish per-trial reports and candidate overviews before the next
+search decision. Detect, State and Recover each reserve attribution calls,
+tokens, USD and wall time independently; retries are disabled for these calls.
+Token reservations conservatively use the UTF-8 input byte ceiling, and wall
+settlement consumes the reserved request timeout. The first journal timestamp anchors elapsed wall time across restarts, including downtime. Known unused token/USD
+reservation is released. Skips, unavailable debugger and ambiguous requests
+remain visible in reports; the evaluation failure still counts.
+
+The proposal request fixes `overviewDigest` and `observationWatermark`. Its v4
+failure index includes the parent's baseline/discovery/search development
+failures beyond the frozen scoring pool; guard, tournament, sealed and other
+lineages are excluded. The JSON/Markdown overview and every trace shard are
+immutable objects referenced by journal publications. No mutable view is needed
+for recovery.
+
+Configurations without an explicit v4 protocol retain the legacy v3 debugger
+and v2 renderer for historical audit/replay. To use v4, initialize a fresh run
+or pre-register a successor; editing an old manifest or resuming old evidence
+under the new protocol is forbidden. This implementation does not automatically
+pay to backfill historical diagnoses.
+
+For a local engineering smoke with new evidence paths:
+
+```sh
+DSH_GATE2_EVIDENCE_DIR="$PWD/evidence/debugger-v4/harbor-smoke" pnpm e2e:gate2
+node --import tsx/esm scripts/record-debugger-v4-smoke.ts
+```
+
+The second command projects the retained real Harbor trial through immutable
+shards and the debugger lifecycle with no model configured. It records explicit
+skips and zero paid diagnostic calls, not a live diagnosis-quality result.
+
+A retained local SIGKILL matrix (fixture model responses, no paid requests) can
+be recorded into a fresh evidence directory with:
+
+```sh
+node --import tsx/esm scripts/record-debugger-v4-crash.ts
+```

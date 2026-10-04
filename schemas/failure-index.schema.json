@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-evolve-le.local/schemas/failure-index",
+  "type": "object",
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/failure-index/v4"
+    },
+    "subjectCandidateId": {
+      "type": "string"
+    },
+    "overviewDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "observationWatermark": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "entries": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "protocol",
+    "subjectCandidateId",
+    "overviewDigest",
+    "observationWatermark",
+    "entries"
+  ],
+  "additionalProperties": false
+}

@@ -242,3 +242,7 @@ baseline/new run。Docs 不能 retroactively 改释义让已有结果合规。
 
 先完成 Gate 0 的最小 Loader fixture：baseline namespace plugin、bundle patch、真实 boot/unload inventory
 test 和 negative default-export fixture。它是后续 candidate/codegen/benchmark 的共同地基。
+
+## Debugger v4 acceptance (ADR-070)
+
+Require parent isolation, all-failure report coverage, empty/all-success overviews, forged/future quote rejection, unknown and repaired/debt abstention, >192 event preservation, budget skip and crash/replay contracts. Run TypeScript, unit/contract, real Loader, Harbor extract-elf and crash checks; retain actual receipts. No diagnosis-quality or benchmark claim follows from engineering verification.
