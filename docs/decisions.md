@@ -2773,3 +2773,49 @@ and the normal paid confirmation gate.
 profile, native solve and builder tests must pass before any source identity is
 frozen. This validates the successor mechanism only, not child quality,
 baseline performance, development improvement, or sealed results.
+
+## ADR-069 (2026-09-21): evidence-grounded per-trajectory root-cause diagnosis
+
+**Context.** Agent Debugger v2 could classify a bounded ACP/test bundle with a
+generic failure mode, but it could not reliably answer which concrete agent
+commitment caused one failed rollout. Its v1 diagnostic bundle excluded the
+ATIF trajectory steps containing that commitment; a terminal category such as
+`verifier-timeout` is not enough evidence to infer a root cause. The
+parent-scoped export policy also makes a run-global diagnosis summary both
+unnecessary and unsafe as proposer context.
+
+**Decision.** The Terminal-Bench provider emits
+`diagnostic-trace-bundle/v2`: a bounded/redacted development-only timeline of
+ATIF trajectory steps followed by ACP events, with stable `eventId`, source
+index, actor and step fields, plus verifier tests and terminal facts. It still
+removes host paths and obvious credentials; all strings remain untrusted data.
+
+Agent Debugger v3 returns per-trace error triggers with two required verbatim
+anchors (wrong commitment and violated reference), groups them into instances
+by the concrete violated object, and records repair state plus terminal
+connection. The TCB validates every index and quote against the immutable
+bundle, requires instances to partition all triggers, and deterministically
+selects the earliest qualified terminal-connected trigger as `criticalFailure`.
+Missing direct evidence produces an explicit empty, insufficient-evidence
+diagnosis. Model output never selects the critical failure by itself and never
+becomes a fact merely due to a confidence value.
+
+New proposal exports use `failure-index/v3`. A row points to the matching
+per-rollout diagnosis only through its attribution and diagnostic digests;
+there is no global causal aggregate as proposer evidence. An admitted parent
+with no candidate-actionable failure of its own is excluded before parent
+sampling, so the controller cannot fall back to sibling trajectories.
+
+**Consequences.** This changes evidence and proposal-input protocols. Existing
+runs, including repair27/repair30, retain v1/v2 audit semantics and must not
+be resumed under v3. Attribution remains development-only evidence enrichment:
+it cannot alter reward, retry, Thompson/UCB selection, admission, budget,
+champion or sealed promotion. A fresh successor identity and real
+`extract-elf` smoke are required before claiming live diagnostic utility.
+
+**Verification.** Contract tests cover redacted ordered timeline/event IDs,
+valid lifecycle diagnosis with deterministic critical-failure projection,
+invented event indexes, invented quotes, aliases, parent-local index pointer,
+and crash/replay of the ordinary driver path. TypeScript compilation and the
+targeted provider/driver suites are required; no paid model or Harbor task is
+run by this change.

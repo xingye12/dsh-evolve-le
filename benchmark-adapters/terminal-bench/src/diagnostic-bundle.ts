@@ -4,17 +4,19 @@
  * Harbor job directories are mutable operational output and contain much more
  * than a proposer should receive (task prose, paths and arbitrary agent
  * text).  This module turns the useful parts into a small, indexed JSON
- * bundle while the provider still owns the job directory.  Indexes are the
- * sole evidence anchors accepted from the debugger; raw files are never
- * exported to a candidate.
+ * bundle while the provider still owns the job directory.  A v2 event is a
+ * bounded, redacted rendering of a concrete ACP or ATIF step, rather than a
+ * model-written summary.  The debugger may only cite these stable indexes
+ * and verbatim substrings of their rendering; it never reopens a mutable job
+ * directory.
  */
 
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { canonicalJson, type NormalizedTrial } from './normalize.js'
 
-export const DIAGNOSTIC_TRACE_BUNDLE_PROTOCOL = 'dsh-evolve-le/diagnostic-trace-bundle/v1'
-const MAX_EVENTS = 160
+export const DIAGNOSTIC_TRACE_BUNDLE_PROTOCOL = 'dsh-evolve-le/diagnostic-trace-bundle/v2'
+const MAX_EVENTS = 192
 const MAX_TESTS = 32
 const MAX_STRING = 1_200
 
@@ -30,11 +32,22 @@ export interface DiagnosticTraceBundle {
     agentExecutionMs: number | null
     verifierMs: number | null
   }
-  events: Array<{ index: number; kind: string; data: unknown }>
+  /** Ordered, redacted evidence. `eventId` is stable within this object. */
+  events: Array<{
+    index: number
+    eventId: string
+    /** ACP events have no reliable agent turn number, so their step is null. */
+    step: number | null
+    actor: 'agent' | 'tool' | 'runtime' | 'verifier' | 'unknown'
+    kind: string
+    data: unknown
+  }>
   tests: Array<{ index: number; name: string; status: string; detail: string | null }>
   omissions: {
-    rawAgentNarrative: 'excluded'
+    /** Narrative is only included as redacted, bounded trajectory steps. */
+    rawAgentNarrative: 'bounded-redacted'
     eventCount: number
+    trajectoryStepCount: number
     testCount: number
     eventCapReached: boolean
     testCapReached: boolean
@@ -49,6 +62,10 @@ export async function diagnosticTraceBundle(input: {
   const eventRaw = await readFile(join(input.trialDir, 'agent', 'acp-events.jsonl'), 'utf8').catch(
     () => '',
   )
+  const trajectoryRaw = await readFile(
+    join(input.trialDir, 'agent', 'trajectory.json'),
+    'utf8',
+  ).catch(() => '')
   const ctrfRaw = await readFile(join(input.trialDir, 'verifier', 'ctrf.json'), 'utf8').catch(
     () => '',
   )
@@ -62,10 +79,28 @@ export async function diagnosticTraceBundle(input: {
         return { malformed: true }
       }
     })
-  const events = parsedEvents.slice(0, MAX_EVENTS).map((event, index) => ({
+  const trajectorySteps = stepsOf(trajectoryRaw)
+  // Preserve source chronology inside each source and make the source order
+  // explicit. ATIF steps are the only reliable representation of what the
+  // agent committed to; ACP events supply the tool/runtime counterpart.
+  const sourceEvents = [
+    ...trajectorySteps.map((trajectoryStep, step) => ({
+      step,
+      actor: actorOf(trajectoryStep),
+      kind: trajectoryKind(trajectoryStep),
+      data: sanitize(trajectoryStep),
+    })),
+    ...parsedEvents.map((event) => ({
+      step: null,
+      actor: actorOf(event),
+      kind: eventKind(event),
+      data: sanitize(event),
+    })),
+  ]
+  const events = sourceEvents.slice(0, MAX_EVENTS).map((event, index) => ({
     index,
-    kind: eventKind(event),
-    data: sanitize(event),
+    eventId: `e-${String(index).padStart(4, '0')}`,
+    ...event,
   }))
   const tests = testsOf(ctrfRaw).slice(0, MAX_TESTS)
   const bundle: DiagnosticTraceBundle = {
@@ -82,14 +117,51 @@ export async function diagnosticTraceBundle(input: {
     events,
     tests,
     omissions: {
-      rawAgentNarrative: 'excluded',
+      rawAgentNarrative: 'bounded-redacted',
       eventCount: parsedEvents.length,
+      trajectoryStepCount: trajectorySteps.length,
       testCount: testsOf(ctrfRaw).length,
-      eventCapReached: parsedEvents.length > MAX_EVENTS,
+      eventCapReached: sourceEvents.length > MAX_EVENTS,
       testCapReached: testsOf(ctrfRaw).length > MAX_TESTS,
     },
   }
   return Buffer.from(`${canonicalJson(bundle)}\n`, 'utf8')
+}
+
+/** ATIF is intentionally loosely parsed: upstreams use several step shapes. */
+function stepsOf(raw: string): unknown[] {
+  if (raw.trim() === '') return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const steps = (parsed as Record<string, unknown>)['steps']
+      if (Array.isArray(steps)) return steps
+    }
+  } catch {
+    // Normalizer already determines trial validity. The diagnostic sidecar
+    // records no invented step for a malformed optional rendering.
+  }
+  return []
+}
+
+function trajectoryKind(value: unknown): string {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'trajectory-step'
+  const record = value as Record<string, unknown>
+  const role = record['role']
+  return typeof role === 'string' ? `trajectory:${clipped(role)}` : 'trajectory-step'
+}
+
+function actorOf(value: unknown): DiagnosticTraceBundle['events'][number]['actor'] {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'unknown'
+  const record = value as Record<string, unknown>
+  const role = record['role'] ?? record['actor'] ?? record['source']
+  if (typeof role !== 'string') return 'unknown'
+  const normalized = role.toLowerCase()
+  if (normalized.includes('assistant') || normalized.includes('agent')) return 'agent'
+  if (normalized.includes('tool')) return 'tool'
+  if (normalized.includes('verifier') || normalized.includes('test')) return 'verifier'
+  if (normalized.includes('system') || normalized.includes('runtime')) return 'runtime'
+  return 'unknown'
 }
 
 function eventKind(value: unknown): string {

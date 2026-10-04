@@ -17,7 +17,7 @@
  * @module @dsh-evolve-le/cli
  */
 
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
@@ -60,7 +60,13 @@ import {
   tasksRootCheck,
 } from '@dsh-evolve-le/core'
 import { readRunStatus, FakeProvider, type BenchmarkProvider } from '@dsh-evolve-le/core'
-import { sealedEvaluate, SEALED_PLAN_PROTOCOL, type SealedPlanDoc } from '@dsh-evolve-le/core'
+import {
+  generateSealedPlan,
+  sealedConfirm,
+  sealedEvaluate,
+  SEALED_PLAN_PROTOCOL,
+  type SealedPlanDoc,
+} from '@dsh-evolve-le/core'
 import {
   SPLIT_COUNTS,
   runSplitCeremony,
@@ -135,6 +141,8 @@ function usage(): string {
     '                    --sealed-plan FILE --candidate-lock-hash SHA256 \\',
     '                    [--provider terminal-bench|fake] [--jobs-root DIR] \\',
     '                    [--concurrency N] [--critical-findings N]',
+    '  dsh-evolve sealed-confirm --source-run-root DIR --confirmation-root DIR \\',
+    '                    --sealed-store FILE --candidate-id ID [--concurrency N]',
     '',
     'Fail-closed: preflight problems list every failed check and exit non-zero',
     'before any paid launch.',
@@ -148,6 +156,11 @@ async function readJsonFile(path: string): Promise<unknown> {
 async function writeJsonFile(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+async function writePrivateJsonFile(path: string, value: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
 }
 
 /** --set key=value overrides for search/budget fields (init). */
@@ -302,6 +315,45 @@ async function loadRunEnv(runRoot: string): Promise<RunEnv> {
     configHash: result.configHash,
     handles: doc.handles,
     splitCounts,
+  }
+}
+
+/**
+ * Read a historical formal source without mutating it.  repair30 predates the
+ * current schema's 4560-minute total-run ceiling (it froze 5040 minutes for
+ * search+tournament); confirmation never consumes that source budget, and
+ * instead executes the source's separate sealed-plan budget.  We accept only
+ * that one validation delta and record it in the new confirmation manifest.
+ */
+async function loadConfirmationSourceEnv(runRoot: string): Promise<RunEnv> {
+  try {
+    return await loadRunEnv(runRoot)
+  } catch (error) {
+    const configPath = join(runRoot, 'run.config.json')
+    const raw = (await readJsonFile(configPath)) as Record<string, unknown>
+    const budget = raw.budget as Record<string, unknown> | undefined
+    if (budget?.wallClockMinutes !== 5_040) throw error
+    const compatibilityConfig = {
+      ...raw,
+      budget: { ...budget, wallClockMinutes: 4_560 },
+    }
+    const validated = validateRunConfig(compatibilityConfig)
+    if (!validated.ok) throw error
+    const handlesPath = join(runRoot, 'dataset-handles.json')
+    const doc = (await readJsonFile(handlesPath)) as { protocol?: string; handles?: unknown; splitCounts?: unknown }
+    if (doc.protocol !== DATASET_HANDLES_PROTOCOL || !Array.isArray(doc.handles)) throw error
+    const splitCounts =
+      doc.splitCounts !== undefined && typeof doc.splitCounts === 'object' && doc.splitCounts !== null
+        ? (doc.splitCounts as SplitCounts)
+        : SPLIT_COUNTS
+    return {
+      runRoot,
+      config: validated.config,
+      // The recorded hash remains the original bytes, never the compatibility view.
+      configHash: `sha256:${canonicalHash(raw)}`,
+      handles: doc.handles,
+      splitCounts,
+    }
   }
 }
 
@@ -1412,6 +1464,272 @@ async function commandSealedEvaluate(values: CliValues, io: CliIo): Promise<numb
 }
 
 // ---------------------------------------------------------------------------
+// sealed-confirm (independent, non-promoting comparison)
+// ---------------------------------------------------------------------------
+
+interface ConfirmationSecret {
+  protocol: 'dsh-evolve-le/sealed-confirmation-secret/v1'
+  runId: string
+  masterSeed: string
+}
+
+async function confirmationSecret(root: string, runId: string): Promise<ConfirmationSecret> {
+  const path = join(root, 'confirmation-secret.json')
+  if (existsSync(path)) {
+    const value = (await readJsonFile(path)) as Partial<ConfirmationSecret>
+    if (
+      value.protocol !== 'dsh-evolve-le/sealed-confirmation-secret/v1' ||
+      value.runId !== runId ||
+      typeof value.masterSeed !== 'string' ||
+      value.masterSeed.length < 32
+    ) {
+      throw new CliError('confirmation-secret.json is invalid or names another confirmation run', 2)
+    }
+    return value as ConfirmationSecret
+  }
+  const secret: ConfirmationSecret = {
+    protocol: 'dsh-evolve-le/sealed-confirmation-secret/v1',
+    runId,
+    masterSeed: randomBytes(32).toString('hex'),
+  }
+  await writePrivateJsonFile(path, secret)
+  return secret
+}
+
+async function readCapsuleRecord(capsulesRoot: string, candidateId: string): Promise<{
+  archiveSha256: string
+  recordHash: string
+}> {
+  const path = join(capsulesRoot, `${candidateId}.json`)
+  if (!existsSync(path)) throw new CliError(`capsule record ${path} missing`, 2)
+  const record = (await readJsonFile(path)) as { archiveSha256?: unknown }
+  if (typeof record.archiveSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(record.archiveSha256)) {
+    throw new CliError(`capsule record ${path} has an invalid archiveSha256`, 2)
+  }
+  if (!existsSync(join(capsulesRoot, `${record.archiveSha256}.tar.gz`))) {
+    throw new CliError(`capsule archive for ${candidateId} is missing`, 2)
+  }
+  return { archiveSha256: record.archiveSha256, recordHash: `sha256:${canonicalHash(record)}` }
+}
+
+/**
+ * Compose an isolated confirmation provider.  Its output state, ledger, TLS
+ * material and solve-gateway state all live below `confirmationRoot`; only
+ * the frozen source capsules are read from the prior search root.
+ */
+async function composeConfirmation(
+  source: RunEnv,
+  store: SealedSplitStore,
+  plan: SealedPlanDoc,
+  confirmationRoot: string,
+  jobsRoot: string,
+  candidateIds: readonly string[],
+  io: CliIo,
+): Promise<{ provider: BenchmarkProvider; close: () => Promise<void> }> {
+  const config = { ...source.config, runId: plan.runId }
+  const confirmationEnv: RunEnv = { ...source, runRoot: confirmationRoot, config }
+  const sourceCapsules = join(source.runRoot, 'capsules')
+  await mkdir(confirmationRoot, { recursive: true })
+  await mkdir(jobsRoot, { recursive: true })
+  const tlsDir = join(confirmationRoot, 'tls')
+  await mkdir(tlsDir, { recursive: true })
+  const tls = await generateLocalCa({ dir: tlsDir, ip: config.benchmark.artifactEndpoint.host })
+  const caBundleHost = await buildAugmentedCaBundle({ dir: tlsDir, localCaCertPath: tls.caCertPath })
+  const solvePlan = solverRoutePlan(config)
+  const solveRoute = solvePlan === null
+    ? undefined
+    : config.modelRoutes.find((route) => route.id === config.solverRoute)
+  if (solvePlan !== null && solveRoute === undefined) {
+    throw new CliError(`solver route ${config.solverRoute ?? ''} is not in the route table`, 2)
+  }
+  const gateway = solvePlan === null ? null : await solveGatewayFor(confirmationEnv, solvePlan)
+  const server = await startArtifactServer({
+    host: config.benchmark.artifactEndpoint.host,
+    port: config.benchmark.artifactEndpoint.port,
+    artifactsDir: sourceCapsules,
+    tls: { certPath: tls.serverCertPath, keyPath: tls.serverKeyPath },
+    ...(gateway === null ? {} : { handler: gateway.handler }),
+  })
+  const provider = new HarborProvider({
+    runId: plan.runId,
+    harborBin: config.benchmark.harbor.bin,
+    harborVersion: config.benchmark.harbor.version,
+    tasksRoot: config.benchmark.tasksRoot,
+    maxAgentTimeoutSec: config.benchmark.maxAgentTimeoutSec,
+    jobsRoot,
+    concurrentTrials: config.benchmark.harbor.concurrentTrials,
+    ledger: new SubmissionLedger(join(confirmationRoot, 'harbor-ledger.jsonl')),
+    guardMap: store.guardMap,
+    sealedMap: store.sealedMap,
+    plansDir: join(confirmationRoot, 'harbor-plans'),
+    mounts: [{ source: caBundleHost, target: CA_BUNDLE_CONTAINER }],
+    env: {
+      SSL_CERT_FILE: CA_BUNDLE_CONTAINER,
+      ...(config.benchmark.trialContainerProxy === undefined ? {} : {
+        http_proxy: config.benchmark.trialContainerProxy.httpProxy,
+        https_proxy: config.benchmark.trialContainerProxy.httpProxy,
+        HTTP_PROXY: config.benchmark.trialContainerProxy.httpProxy,
+        HTTPS_PROXY: config.benchmark.trialContainerProxy.httpProxy,
+        no_proxy: config.benchmark.trialContainerProxy.noProxy,
+        NO_PROXY: config.benchmark.trialContainerProxy.noProxy,
+      }),
+    },
+    ...(gateway === null || solvePlan === null ? {} : {
+      solveGateway: {
+        routeId: solvePlan.routeId,
+        nativeProvider: solveRoute!.provider,
+        nativeModel: solvePlan.model,
+        nativeMaxTokens: solveRoute!.maxOutputTokens,
+        url: server.url,
+        routeHash: gateway.routeHash,
+        containerTokenPath: SOLVE_TOKEN_CONTAINER,
+        enroll: (jobName: string) => gateway.enrollTrial(jobName),
+      },
+      solveUsage: (jobName: string) => gateway.terminalFact(jobName),
+    }),
+  })
+  for (const candidateId of candidateIds) {
+    const capsule = await readCapsuleRecord(sourceCapsules, candidateId)
+    provider.registerCapsule(candidateId, {
+      capsuleArchiveSha256: capsule.archiveSha256,
+      archiveUrl: `${server.url}/${capsule.archiveSha256}.tar.gz`,
+    })
+  }
+  io.stderr(`confirmation artifact endpoint: ${server.url}\n`)
+  return {
+    provider,
+    close: async () => {
+      await server.close()
+      if (gateway !== null) await gateway.close()
+    },
+  }
+}
+
+async function commandSealedConfirm(values: CliValues, io: CliIo): Promise<number> {
+  const sourceRootValue = values['source-run-root']
+  const confirmationRootValue = values['confirmation-root']
+  const sealedStorePath = values['sealed-store']
+  const candidateId = values['candidate-id']
+  if (
+    typeof sourceRootValue !== 'string' ||
+    typeof confirmationRootValue !== 'string' ||
+    typeof sealedStorePath !== 'string' ||
+    typeof candidateId !== 'string' ||
+    candidateId.length === 0
+  ) {
+    throw new CliError(
+      `sealed-confirm requires --source-run-root DIR, --confirmation-root DIR, --sealed-store FILE and --candidate-id ID\n\n${usage()}`,
+      2,
+    )
+  }
+  const source = await loadConfirmationSourceEnv(resolve(sourceRootValue))
+  const confirmationRoot = resolve(confirmationRootValue)
+  const sourcePlanPath = join(source.runRoot, 'sealed-plan.json')
+  if (!existsSync(sourcePlanPath)) throw new CliError(`source sealed plan ${sourcePlanPath} missing`, 2)
+  const sourcePlan = (await readJsonFile(sourcePlanPath)) as SealedPlanDoc
+  if (sourcePlan.protocol !== SEALED_PLAN_PROTOCOL || typeof sourcePlan.baselineId !== 'string') {
+    throw new CliError('source sealed-plan.json is invalid', 2)
+  }
+  if (candidateId === sourcePlan.baselineId) throw new CliError('candidate-id must differ from the baseline', 2)
+  const store = (await readJsonFile(resolve(sealedStorePath))) as SealedSplitStore
+  if (typeof store.sealedMap !== 'object' || store.sealedMap === null || Array.isArray(store.sealedMap)) {
+    throw new CliError('--sealed-store has no sealedMap object', 2)
+  }
+  const taskIds = Object.keys(store.sealedMap).sort()
+  if (taskIds.length === 0) throw new CliError('--sealed-store sealedMap is empty', 2)
+  const concurrency = values.concurrency === undefined ? 2 : Number(values.concurrency)
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 12) {
+    throw new CliError('--concurrency must be an integer in 1..12', 2)
+  }
+
+  // These are all source-side checks; they run before creating a provider or
+  // opening its listener.  Search calibration is deliberately excluded: this
+  // is not a new search run and cannot create a candidate or a promotion.
+  const findings = await runPreflight([
+    configCheck(source.config),
+    ...credentialChecks(source.config),
+    tasksRootCheck(source.config.benchmark.tasksRoot, source.handles),
+    dockerCheck(),
+    dockerNetworkCapacityCheck(concurrency),
+    harborVersionCheck(source.config.benchmark.harbor.bin, source.config.benchmark.harbor.version),
+  ])
+  for (const finding of findings) io.stderr(`${finding.ok ? '✓' : '✗'} ${finding.name}: ${finding.detail ?? 'ok'}\n`)
+  if (findings.some((finding) => !finding.ok)) throw new CliError('sealed confirmation preflight failed', 1)
+
+  const runId = `confirmation-${source.config.runId}-${candidateId.slice(0, 12)}`
+  await mkdir(confirmationRoot, { recursive: true })
+  const secret = await confirmationSecret(confirmationRoot, runId)
+  const plan = generateSealedPlan({
+    runId,
+    masterSeed: secret.masterSeed,
+    baselineId: sourcePlan.baselineId,
+    taskIds,
+    kSealed: sourcePlan.kSealed,
+    budget: sourcePlan.budget,
+  })
+  const sourceCapsules = join(source.runRoot, 'capsules')
+  const baselineCapsule = await readCapsuleRecord(sourceCapsules, sourcePlan.baselineId)
+  const candidateCapsule = await readCapsuleRecord(sourceCapsules, candidateId)
+  const protocolInput = {
+    schemaVersion: 1,
+    protocol: 'dsh-evolve-le/sealed-confirmation-input/v1',
+    runId,
+    sourceRunId: source.config.runId,
+    sourceConfigHash: source.configHash,
+    sourceConfigCompatibility: 'historical-wall-ceiling-compat/v1',
+    sourcePlanHash: `sha256:${canonicalHash(sourcePlan)}`,
+    sealedStoreHash: `sha256:${canonicalHash(store)}`,
+    baselineId: sourcePlan.baselineId,
+    candidateId,
+    baselineCapsule,
+    candidateCapsule,
+    planHash: `sha256:${canonicalHash(plan)}`,
+    promotion: false,
+  }
+  const inputPath = join(confirmationRoot, 'confirmation-input.json')
+  const inputText = `${JSON.stringify(protocolInput, null, 2)}\n`
+  if (existsSync(inputPath)) {
+    if ((await readFile(inputPath, 'utf8')) !== inputText) {
+      throw new CliError('confirmation-input.json differs from the requested fixed comparison', 2)
+    }
+  } else {
+    await writeJsonFile(inputPath, protocolInput)
+  }
+  const planPath = join(confirmationRoot, 'sealed-plan.json')
+  const planText = `${JSON.stringify(plan, null, 2)}\n`
+  if (existsSync(planPath)) {
+    if ((await readFile(planPath, 'utf8')) !== planText) throw new CliError('confirmation sealed plan mismatch', 2)
+  } else await writeJsonFile(planPath, plan)
+
+  const jobsRoot = join(confirmationRoot, 'sealed-jobs')
+  const composition = await composeConfirmation(
+    source,
+    store,
+    plan,
+    confirmationRoot,
+    jobsRoot,
+    [sourcePlan.baselineId, candidateId],
+    io,
+  )
+  try {
+    const result = await sealedConfirm({
+      runId,
+      masterSeed: secret.masterSeed,
+      plan,
+      baselineId: sourcePlan.baselineId,
+      candidateId,
+      provider: composition.provider,
+      jobsRoot,
+      concurrency,
+    })
+    io.stdout(`${JSON.stringify({ runId, jobsRoot, disposition: result.disposition, score: result.score }, null, 2)}\n`)
+    return 0
+  } finally {
+    await composition.close()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // dispatch
 // ---------------------------------------------------------------------------
 
@@ -1464,6 +1782,9 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
     'sealed-store': { type: 'string' },
     'sealed-plan': { type: 'string' },
     'candidate-lock-hash': { type: 'string' },
+    'source-run-root': { type: 'string' },
+    'confirmation-root': { type: 'string' },
+    'candidate-id': { type: 'string' },
     concurrency: { type: 'string' },
     'critical-findings': { type: 'string' },
   }
@@ -1487,6 +1808,8 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
       return commandDoctor(parsed, io)
     case 'sealed-evaluate':
       return commandSealedEvaluate(parsed, io)
+    case 'sealed-confirm':
+      return commandSealedConfirm(parsed, io)
     default:
       throw new CliError(`unknown command "${command}"\n\n${usage()}`, 2)
   }

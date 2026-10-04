@@ -1,7 +1,67 @@
 # Project status
 
-**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`；`TREE_V2_K80_REPAIR30_TERMINAL`（2026-09-14：STOPPED:NO_DEVELOPMENT_IMPROVEMENT——tournament 294/294、champion adjudication 判定 baseline 胜（最佳候选 y2vhojev paired 均值 +8.2pp、90% LCB −2.0pp）、sealed 未运行、无 champion、无提升声明）**
+**当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`；`TREE_V2_K80_REPAIR30_TERMINAL`（2026-09-14：STOPPED:NO_DEVELOPMENT_IMPROVEMENT——tournament 294/294、champion adjudication 判定 y2vhojev 胜（最佳候选 y2vhojev paired 均值 +10.5pp、90% LCB 2.0pp）、sealed 未运行、无 champion、无提升声明）**
 **更新时间：2026-09-15（Asia/Shanghai）**
+
+## 2026-09-18 Trajectory-root-cause Agent Debugger（源码与契约验证；未启动新 run）
+
+ADR-069 将 Harbor diagnostic sidecar 升为 `diagnostic-trace-bundle/v2`：在仍由 provider
+持有原始 job directory 时，生成有稳定 event ID 的、限长脱敏 ATIF/ACP timeline、verifier tests 与
+terminal fact。Agent Debugger 升为 `agent-debugger/v3`：每条 rollout 的错误承诺与被违反参照必须
+逐字锚定到实际 event/test；TCB 验证 anchor/quote、instance 覆盖关系，并从有终态连接的合格 instance
+确定性投影 `criticalFailure`。证据不足显式 abstain，不再用泛化 failure mode 假装根因。
+
+新 export index 为 `failure-index/v3`，row 仅用 attribution + diagnostic digest 指向同一 parent
+rollout 的 diagnosis；无 own candidate-actionable failure 的 node 在 parent draw 前被排除，不能回退读取
+sibling evidence。变更影响 evidence/proposer 协议：repair27、repair30 和其它旧 run 只读审计，任何
+付费运行必须使用新的 successor identity。已通过 TypeScript、Agent Debugger、Harbor provider 与
+iteration-driver targeted contracts；未启动 live model、Harbor smoke、search、sealed 或 promotion，
+因此没有诊断效用或性能提升结论。
+
+## 2026-09-15 Parent-scoped proposer failure evidence（源码与 targeted contract 已验证；未启动新 run）
+
+ADR-068 将新 expansion 的 failure evidence 从 run-global failure pool 历史收紧为 selected
+parent 自己在 frozen pool task 上的 non-success、candidate-actionable rollout。新生成的 index
+为当时的 `dsh-evolve-le/failure-index/v2`，顶层绑定 `subjectCandidateId`，每条 entry 必须属于该
+candidate；sibling/ancestor 的 trajectory、normalized trial、diagnostic、attribution 与 index row
+均不再进入该 proposal export。Archive 仍只导出 development-only metadata，以支持 donor provenance，
+但不导出其它 lineage 的 rollout。
+
+实现前已新增并通过 parent-vs-sibling evidence filter contract，现有 actionability/attribution
+contract 同时通过；`pnpm exec tsc -b --pretty false` 通过。旧 `failure-index/v1` 和历史 run
+保持只读审计/replay 语义；该协议边界改变，任何后续 paid/search run 必须使用新预注册 identity，
+不得 resume 或改写既有 repair30/repair27 evidence。没有由此产生 benchmark、champion、sealed 或性能结论。
+
+## 2026-09-15/16 y2 independent confirmation completed（非晋升）
+
+用户授权后，已启动独立的 `sealed-confirm` 比较：固定 repair30 baseline
+`c_ynizgd6sfb2jr77h4hl5adc23k` 对固定 y2
+`c_y2vhojeviebqho6raggsi6wz4j`。新 run 根为
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-30/runs/tree-v2-k80-formal-repair-30-y2-confirmation-v1`，
+启动器 PID `197190`，日志为
+`/root/vibe/dsh/scratch/dsh-tree-v2-k80-formal-repair-30/y2-confirmation-v1-launch.log`。
+启动前 Docker/Harbor/credential/tasks preflight 全绿；独立 Harbor ledger 已记录首个并发
+wave 的 2 个真实 job，两个 solve-gateway token 与两个 Harbor job directory 已创建。
+
+该协议（ADR-067）使用独立 seed、sealed plan、jobs、ledger、TLS 和 gateway state；只读 repair30
+的 capsule 与 sealed store。repair30 仍无 `candidate-lock.json`，其 controller、archive、journal 和
+sealed jobs 均未被该启动写入。新根的 `confirmation-input.json` 明确为 `promotion:false`，最终只会产生
+`CONFIRMATION_COMPLETE_NO_PROMOTION`。截至本记录，trial 尚未 terminal collect，**没有** development
+champion、正式 sealed promotion、leaderboard 或性能提升结论。
+
+**并发调整（同日，用户授权）**：初始 2 并发调度器在完成/保留其已提交 reservation 后被停止；随后
+12 路 Docker network capacity preflight 全绿，新调度器 PID `249922` 用相同 confirmation root、私有
+seed、plan 与 Harbor ledger 续跑。恢复逻辑先按 idempotency key 识别已提交 job，未重付；ledger 从 4
+条增加至当前 wave 的 12 条，Harbor 已开始并行执行。该调整只改变 wave 并发，不改变固定 pair、trial
+集合、预算、split 或非晋升结论。
+
+**完成（2026-09-16）**：230/230 trial rows 已落盘，completeness=1，0 timeout、0 missing，runner
+与 Harbor 子进程均已退出。baseline 为 66/115（57.3%），y2 为 78/115（67.8%）；按 23 个 task、每侧
+5 attempts 的 paired score，y2 delta=+10.5pp，95% cluster-bootstrap CI=[+0.43pp, +20.30pp]，
+improved/tied/regressed tasks=12/9/2。结果在
+`runs/tree-v2-k80-formal-repair-30-y2-confirmation-v1/sealed-jobs/results.json`，协议 disposition 为
+`CONFIRMATION_COMPLETE_NO_PROMOTION`。这不是 repair30 champion lock、正式 sealed promotion、leaderboard
+或“提升”声明；CI未跨零，且该独立事后确认不改变 repair30 的 baseline-wins 终态。
 
 ## 2026-09-13 repair24 terminal diagnosis；successor-only recovery fix（未启动）
 
@@ -119,8 +179,6 @@ y2vhojev 33/49、g65rjtqg 32/49、c5cyx2ud 30/49、gvspit6u 30/49、jabosn6c
 26/49。paired-delta + 90% cluster-bootstrap LCB（100000 resamples，rng.drawn
 bootstrap 收据已入账）：y2vhojev 均值 +10.2pp baseline 赢得
 champion tournament。sealed评测结果：y2vhojev 78/115、baseline 66/115
-
-
 
 用户要求将后继 live solve ceiling 提升至 150，并把 proposer 从被动的 prompt
 文本变更转向可执行策略变更。实现新增 `k80Repair6` / `repair6` 独立 identity：

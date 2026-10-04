@@ -209,11 +209,20 @@ sampled values, winner)`，resume 不重新抽样。
 
 Expansion 不是模板替换。由 parent candidate 的 `propose` mode 下运行的 agentic coder：
 
-- 读取 parent source、Archive catalog、所有可见 historical source/diff/score；
-- 按需读取 `DEV_OBSERVED` trajectories、passing examples 和 rejected proposal receipts；
+- 读取 parent source 与仅含开发集元数据的 Archive catalog；
+- 按需读取 **selected parent 自己**在 frozen failure-pool task 上产生的 `DEV_OBSERVED`
+  non-success trajectories、normalized trials、diagnostic 和 parent-scoped failure index；
 - 使用标准 read/search/edit/bash/typecheck 工具；
 - 输出至受限 child roots；
 - 每个 child 给出一个可证伪的机制 hypothesis、证据引用和 preservation tests。
+
+failure pool 只定义可比较的 task stratum，不授权 exporter 将 sibling、ancestor 或其他
+candidate 的 rollout 交给 proposer。每次 expansion 的 failure index MUST 以
+`dsh-evolve-le/failure-index/v3` 发布，带 `subjectCandidateId`，且每一 entry 的
+`candidateId` MUST 与该 subject 相同。v3 row 可用同一 rollout 的 `trajectoryDiagnosis`
+pointer 定位根因诊断；pointer 只在 attribution artifact 和 diagnostic trace digest 均存在时出现。
+没有 own candidate-actionable failure 的 admitted node 不得成为 expansion parent，不能借 sibling
+evidence 填补。历史 `failure-index/v1/v2` 只用于既有 run 的 replay/audit，不得成为新 expansion 的输入。
 
 Prompt SHOULD 描述目标、边界和 output protocol，不列出 task-specific fix cookbook。Failure
 clustering 由 proposer/diagnosis model 对真实证据完成；trusted code 只做 schema/大小/label 过滤，

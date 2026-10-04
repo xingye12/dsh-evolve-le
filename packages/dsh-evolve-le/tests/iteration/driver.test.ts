@@ -29,6 +29,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import {
   IterationDriver,
   parentComparableObservations,
+  parentScopedFailureObservations,
   type BuildCapsuleFn,
 } from '../../src/iteration/driver.js'
 import type { Observation } from '../../src/state/reducer.js'
@@ -106,6 +107,34 @@ describe('iteration driver: closed loop', () => {
       expect.objectContaining({ actionId: 'act-1' }),
       expect.objectContaining({ actionId: 'child-failure' }),
     ])
+  })
+
+  it('scopes proposer failure evidence to the selected parent, never the global pool', () => {
+    const observation = (fields: Partial<Observation>): Observation => ({
+      actionId: 'parent-failure',
+      candidateId: 'parent',
+      opaqueTaskId: 'pool-task',
+      split: 'dev-observed',
+      attempt: 1,
+      outcome: 'failure',
+      reward: 0,
+      costUsdMicros: null,
+      durationMs: null,
+      ...fields,
+    })
+
+    expect(
+      parentScopedFailureObservations(
+        [
+          observation(),
+          observation({ actionId: 'sibling-failure', candidateId: 'sibling' }),
+          observation({ actionId: 'parent-success', outcome: 'success', reward: 1 }),
+          observation({ actionId: 'outside-pool', opaqueTaskId: 'solved-task' }),
+        ],
+        'parent',
+        ['pool-task'],
+      ),
+    ).toEqual([expect.objectContaining({ actionId: 'parent-failure', candidateId: 'parent' })])
   })
 
   it('refuses the built-in admission pipeline without a frozen native DSH lock', async () => {
@@ -469,7 +498,7 @@ describe('iteration driver: closed loop', () => {
             outcome: 'ok' as const,
             artifact: Buffer.from(
               JSON.stringify({
-                protocol: 'dsh-evolve-le/agent-debugger/v2',
+                protocol: 'dsh-evolve-le/agent-debugger/v3',
                 source: 'test',
                 traces: input.traces.map((trace) => ({
                   diagnosticTraceDigest: trace.diagnosticTraceDigest,
@@ -519,15 +548,18 @@ describe('iteration driver: closed loop', () => {
           (bytes) =>
             JSON.parse(bytes) as {
               protocol?: string
-              entries?: Array<{ diagnosticTraceDigest?: string }>
+              subjectCandidateId?: string
+              entries?: Array<{ diagnosticTraceDigest?: string; trajectoryDiagnosis?: unknown }>
               attributionDigest?: string
             },
         )
-        .find((value) => value.protocol === 'dsh-evolve-le/failure-index/v1')
+        .find((value) => value.protocol === 'dsh-evolve-le/failure-index/v3')
       expect(index?.entries).toHaveLength(2)
+      expect(index?.subjectCandidateId).toBe(baselineId)
       expect(index?.attributionDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
       expect(index?.entries?.every((entry) => entry.diagnosticTraceDigest !== undefined)).toBe(true)
-      expect(objectBytes.join('\n')).toContain('dsh-evolve-le/agent-debugger/v2')
+      expect(index?.entries?.every((entry) => entry.trajectoryDiagnosis !== undefined)).toBe(true)
+      expect(objectBytes.join('\n')).toContain('dsh-evolve-le/agent-debugger/v3')
     }
   }, 120_000)
 
@@ -870,7 +902,9 @@ async function logicalFacts(runRoot: string): Promise<LogicalFacts> {
 describe('iteration driver: stable K=3 (Gate 6)', () => {
   it('admits 3 children over 2+ lineage depths, each cold-started from the frozen pool', async () => {
     const fx = await newK3Run('dsh-drive-k3-')
-    const provider = new FakeProvider({ outcome: 'success' })
+    // A child needs one of its own failed rollout facts before the next
+    // parent-scoped expansion may select it.
+    const provider = new FakeProvider({ outcome: 'failure' })
     const bridge = fakeBridge()
     const runner = fakeSandboxRunner()
     const ceremony = runSplitCeremony({
@@ -929,7 +963,7 @@ describe('iteration driver: stable K=3 (Gate 6)', () => {
 
     // Reference: the same seeds, run cleanly to its terminal state.
     const refFx = await seed()
-    const refProvider = new FakeProvider({ outcome: 'success' })
+    const refProvider = new FakeProvider({ outcome: 'failure' })
     const refCeremony = runSplitCeremony({
       runId: refFx.config.runId,
       masterSeed: refFx.config.masterSeed,
@@ -949,7 +983,7 @@ describe('iteration driver: stable K=3 (Gate 6)', () => {
     // Crashed twin: SIGKILL-equivalent (a throw at a durable boundary) after
     // the FIRST committed observation — mid discovery batch, before any proposal.
     const fx = await seed()
-    const provider = new FakeProvider({ outcome: 'success' })
+    const provider = new FakeProvider({ outcome: 'failure' })
     const bridge = fakeBridge()
     const runner = fakeSandboxRunner()
     const ceremony = runSplitCeremony({

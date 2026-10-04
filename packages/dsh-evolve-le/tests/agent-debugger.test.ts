@@ -72,7 +72,18 @@ const trace = {
   normalizedTrialDigest: `sha256:${'a'.repeat(64)}`,
   trajectoryDigest: `sha256:${'b'.repeat(64)}`,
   diagnosticTraceDigest: `sha256:${'c'.repeat(64)}`,
-  bundle: { events: [{ index: 0, kind: 'tool', data: {} }], tests: [{ index: 0 }] },
+  bundle: {
+    events: [
+      {
+        index: 0,
+        eventId: 'e-0000',
+        kind: 'trajectory:assistant',
+        data: { content: 'skip tests' },
+      },
+      { index: 1, eventId: 'e-0001', kind: 'tool', data: { result: 'tests failed' } },
+    ],
+    tests: [{ index: 0, name: 'smoke', status: 'failed', detail: 'assertion failed' }],
+  },
 }
 
 describe('LLM Agent Debugger', () => {
@@ -91,17 +102,36 @@ describe('LLM Agent Debugger', () => {
     )
   })
 
-  it('accepts only an anchored diagnosis and emits a receipt without prompt text', async () => {
+  it('accepts a quote-anchored lifecycle diagnosis and derives its critical failure', async () => {
     const baseUrl = await endpoint({
       diagnoses: [
         {
           traceId: 'trace-001',
-          summary: 'The test was not run after the final tool mutation.',
-          failureModes: ['incomplete-verification'],
-          confidence: 0.8,
-          evidence: [{ source: 'events', index: 0 }],
+          summary: 'The agent committed to skipping the failed test rather than repairing it.',
           suggestedSurfaces: ['workflow'],
           insufficientEvidence: false,
+          triggers: [
+            {
+              triggerId: 't-1',
+              step: 0,
+              module: 'verify',
+              violatedObject: 'the failed smoke test',
+              wrongCommitment: { source: 'events', index: 0, quote: 'skip tests' },
+              violatedReference: { source: 'events', index: 1, quote: 'tests failed' },
+              confidence: 0.8,
+            },
+          ],
+          instances: [
+            {
+              instanceId: 'i-1',
+              triggerIds: ['t-1'],
+              qualifiedOriginStep: 0,
+              resolution: 'active',
+              terminalConnection: 'semantic',
+              terminalEvidence: { source: 'tests', index: 0, quote: 'failed' },
+              explanation: 'The terminal smoke test remains failed.',
+            },
+          ],
         },
       ],
     })
@@ -112,17 +142,17 @@ describe('LLM Agent Debugger', () => {
       traces: [trace],
     })
     const artifact = result.artifact.toString('utf8')
-    expect(artifact).toContain('dsh-evolve-le/agent-debugger/v2')
+    expect(artifact).toContain('dsh-evolve-le/agent-debugger/v3')
     expect(artifact).toContain(trace.diagnosticTraceDigest)
-    expect(artifact).toContain('incomplete-verification')
+    expect(artifact).toContain('criticalFailure')
     expect(artifact).not.toContain('secret')
     expect(artifact).not.toContain('agent-debugger-contract')
     expect(requestBody).toContain('trace-001')
     expect(requestBody).not.toContain(trace.diagnosticTraceDigest)
     expect(JSON.parse(artifact)).toMatchObject({
       aggregate: {
-        failureModes: [{ mode: 'incomplete-verification', count: 1 }],
-        suggestedSurfaces: [{ surface: 'workflow', count: 1 }],
+        modules: [{ module: 'verify', count: 1 }],
+        terminalConnections: [{ terminalConnection: 'semantic', count: 1 }],
       },
     })
   })
@@ -133,11 +163,30 @@ describe('LLM Agent Debugger', () => {
         {
           traceId: 'trace-001',
           summary: 'Unsupported.',
-          failureModes: ['unknown'],
-          confidence: 0.1,
-          evidence: [{ source: 'tests', index: 9 }],
           suggestedSurfaces: [],
-          insufficientEvidence: true,
+          insufficientEvidence: false,
+          triggers: [
+            {
+              triggerId: 't-1',
+              step: 0,
+              module: 'act',
+              violatedObject: 'x',
+              confidence: 0.1,
+              wrongCommitment: { source: 'events', index: 9, quote: 'skip tests' },
+              violatedReference: { source: 'events', index: 1, quote: 'tests failed' },
+            },
+          ],
+          instances: [
+            {
+              instanceId: 'i-1',
+              triggerIds: ['t-1'],
+              qualifiedOriginStep: 0,
+              resolution: 'unknown',
+              terminalConnection: 'unknown',
+              terminalEvidence: { source: 'tests', index: 0, quote: 'failed' },
+              explanation: 'x',
+            },
+          ],
         },
       ],
     })
@@ -154,11 +203,10 @@ describe('LLM Agent Debugger', () => {
         {
           traceId: 'trace-999',
           summary: 'Unsupported.',
-          failureModes: ['unknown'],
-          confidence: 0.1,
-          evidence: [{ source: 'events', index: 0 }],
           suggestedSurfaces: [],
           insufficientEvidence: true,
+          triggers: [],
+          instances: [],
         },
       ],
     })
@@ -167,6 +215,46 @@ describe('LLM Agent Debugger', () => {
         traces: [trace],
       }),
     ).rejects.toThrow(/unknown traceId/)
+  })
+
+  it('fails closed when a claimed quote is not verbatim in the cited event', async () => {
+    const baseUrl = await endpoint({
+      diagnoses: [
+        {
+          traceId: 'trace-001',
+          summary: 'Unsupported claim.',
+          suggestedSurfaces: [],
+          insufficientEvidence: false,
+          triggers: [
+            {
+              triggerId: 't-1',
+              step: 0,
+              module: 'act',
+              violatedObject: 'x',
+              confidence: 0.5,
+              wrongCommitment: { source: 'events', index: 0, quote: 'invented quote' },
+              violatedReference: { source: 'events', index: 1, quote: 'tests failed' },
+            },
+          ],
+          instances: [
+            {
+              instanceId: 'i-1',
+              triggerIds: ['t-1'],
+              qualifiedOriginStep: 0,
+              resolution: 'active',
+              terminalConnection: 'semantic',
+              terminalEvidence: { source: 'tests', index: 0, quote: 'failed' },
+              explanation: 'x',
+            },
+          ],
+        },
+      ],
+    })
+    await expect(
+      remoteAgentDebugger({ plan: plan(baseUrl), credential: 'secret' }).attribute({
+        traces: [trace],
+      }),
+    ).rejects.toThrow(/quote is not verbatim/)
   })
 
   it('persists known usage for an empty reasoning-model answer instead of treating it as free', async () => {

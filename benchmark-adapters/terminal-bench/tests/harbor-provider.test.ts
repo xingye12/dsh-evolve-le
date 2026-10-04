@@ -48,6 +48,8 @@ interface TrialScript {
   exceptionType?: string
   costUsd?: number | null
   dropTrajectory?: boolean
+  trajectorySteps?: unknown[]
+  acpEvents?: unknown[]
 }
 
 /**
@@ -99,9 +101,16 @@ function fakeHarbor(script: TrialScript = {}) {
       await mkdir(join(trialDir, 'agent'), { recursive: true })
       await writeFile(
         join(trialDir, 'agent', 'trajectory.json'),
-        JSON.stringify({ steps: [{ role: 'agent', content: 'ok' }] }),
+        JSON.stringify({ steps: script.trajectorySteps ?? [{ role: 'agent', content: 'ok' }] }),
         'utf8',
       )
+      if (script.acpEvents !== undefined) {
+        await writeFile(
+          join(trialDir, 'agent', 'acp-events.jsonl'),
+          `${script.acpEvents.map((event) => JSON.stringify(event)).join('\n')}\n`,
+          'utf8',
+        )
+      }
     }
     await writeFile(join(jobDir, 'result.json'), JSON.stringify({ trials: 1 }), 'utf8')
   }
@@ -287,6 +296,39 @@ describe('HarborProvider collect', () => {
     const second = await provider.collect(externalJobId)
     expect(second.trajectory.toString('utf8')).toBe(first.trajectory.toString('utf8'))
     expect(second.outcome).toBe(first.outcome)
+  })
+
+  it('projects redacted, ordered trajectory commitments with stable event ids for diagnosis', async () => {
+    const { provider } = await newProvider({
+      reward: 0,
+      trajectorySteps: [
+        { role: 'assistant', content: 'I will skip verification at /root/private' },
+        { role: 'tool', content: 'run tests', result: 'failed' },
+      ],
+      acpEvents: [{ event_type: 'tool.result', actor: 'tool', detail: 'failed assertion' }],
+    })
+    const { externalJobId } = await provider.launch(REQUEST, 'eval-diagnosis-v2')
+    const terminal = await provider.collect(externalJobId)
+    const bundle = JSON.parse(terminal.diagnosticBundle!.toString('utf8')) as {
+      protocol: string
+      events: Array<{
+        index: number
+        eventId: string
+        step: number | null
+        actor: string
+        data: unknown
+      }>
+      omissions: { rawAgentNarrative: string; trajectoryStepCount: number }
+    }
+    expect(bundle.protocol).toBe('dsh-evolve-le/diagnostic-trace-bundle/v2')
+    expect(bundle.events.map((event) => event.eventId)).toEqual(['e-0000', 'e-0001', 'e-0002'])
+    expect(bundle.events[0]).toMatchObject({ step: 0, actor: 'agent' })
+    expect(JSON.stringify(bundle.events[0])).toContain('<host-path>')
+    expect(JSON.stringify(bundle.events[0])).not.toContain('/root/private')
+    expect(bundle.omissions).toMatchObject({
+      rawAgentNarrative: 'bounded-redacted',
+      trajectoryStepCount: 2,
+    })
   })
 
   it('fails closed on unknown jobs', async () => {

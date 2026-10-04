@@ -359,3 +359,10 @@ export {
   type SealedTrialRow,
   type SealedVerdict,
 } from './sealed/evaluate.js'
+export {
+  sealedConfirm,
+  SEALED_CONFIRMATION_PROTOCOL,
+  SEALED_CONFIRMATION_RESULTS_PROTOCOL,
+  type SealedConfirmationInput,
+  type SealedConfirmationResultsDoc,
+} from './sealed/confirmation.js'

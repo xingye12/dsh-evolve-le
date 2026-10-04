@@ -97,6 +97,11 @@ import type { TreeV2ModeFingerprints, TreeV2Receipt } from '../tree-v2/contract.
 export const ITERATION_PROTOCOL = 'dsh-evolve-le/iteration/v1'
 export const SEARCH_STATE_PROTOCOL = 'dsh-evolve-le/search-state/v1'
 export const FAILURE_POOL_PROTOCOL = 'dsh-evolve-le/failure-pool/v1'
+/**
+ * Parent-scoped rather than run-global failure evidence.  v1 indexes remain
+ * historical artifacts only; every newly authored expansion uses v2.
+ */
+export const FAILURE_INDEX_PROTOCOL = 'dsh-evolve-le/failure-index/v3'
 export const TREE_V2_MIGRATION_BINDING_PROTOCOL = 'dsh-evolve-le/tree-v2-migration-binding/v1'
 
 /** A trusted-builder capsule the driver can hand to the provider bridge. */
@@ -352,6 +357,31 @@ export function parentComparableObservations(
   return observations.filter(
     (observation) => observation.split === 'dev-observed' && handles.has(observation.opaqueTaskId),
   )
+}
+
+/**
+ * The proposer is allowed to diagnose only rollout failures of the parent it
+ * is expanding.  The frozen pool remains the task stratum, but it is not a
+ * license to expose historical trajectories from sibling lineages.  Keeping
+ * this projection pure makes the evidence boundary directly testable before
+ * any object is materialized or model call is made.
+ */
+export function parentScopedFailureObservations(
+  observations: readonly Observation[],
+  parentCandidateId: string,
+  failurePool: readonly string[],
+): Observation[] {
+  const handles = new Set(failurePool)
+  return observations
+    .filter(
+      (observation) =>
+        observation.candidateId === parentCandidateId &&
+        observation.outcome !== 'success' &&
+        handles.has(observation.opaqueTaskId),
+    )
+    .sort((left, right) =>
+      left.actionId < right.actionId ? -1 : left.actionId > right.actionId ? 1 : 0,
+    )
 }
 
 /**
@@ -2238,6 +2268,32 @@ export class IterationDriver {
     if (controller === undefined) throw new IterationDriverError('controller not open')
     const state = controller.state
     const admitted = this.admittedIds()
+    const store = await openObjectStore(join(this.runRoot, 'objects'))
+
+    // A parent without one of its own candidate-actionable failures cannot
+    // receive actionable diagnostic context under the parent-scoped protocol.
+    // Exclude it before Thompson sampling rather than selecting it and then
+    // silently borrowing a sibling's rollout or crashing after a paid call.
+    const expandable = (
+      await Promise.all(
+        admitted.map(async (candidateId) => {
+          const observations = parentScopedFailureObservations(
+            Object.values(state.observations),
+            candidateId,
+            pool,
+          )
+          for (const observation of observations) {
+            const ref = state.actions[observation.actionId]?.artifacts[0]
+            if (ref !== undefined && isCandidateActionableTrajectory(await store.read(ref)))
+              return candidateId
+          }
+          return undefined
+        }),
+      )
+    ).filter((candidateId): candidateId is string => candidateId !== undefined)
+    if (expandable.length === 0) {
+      throw new IterationDriverError('no admitted parent has candidate-actionable failure evidence')
+    }
 
     // Parent draw over the admitted population (clade Beta, tau=1).  The
     // baseline can have observations on tasks excluded from the zero-success
@@ -2248,21 +2304,21 @@ export class IterationDriver {
       masterSeed: this.config.masterSeed,
       runId: this.config.runId,
       counter,
-      candidates: admitted.map((candidateId) => state.candidates[candidateId]!),
+      candidates: expandable.map((candidateId) => state.candidates[candidateId]!),
       observations: parentComparableObservations(Object.values(state.observations), pool),
     })
     await controller.recordRngDraw(parentDraw.receipt)
     const parentId = parentDraw.winner
     const parentRecord = await this.loadRecord(parentId)
 
-    // Evidence export: the frozen failure-pool trajectories, DEV_OBSERVED only.
-    const failureObservations = Object.values(state.observations)
-      .filter(
-        (observation) =>
-          observation.outcome !== 'success' && pool.includes(observation.opaqueTaskId),
-      )
-      .sort((a, b) => (a.actionId < b.actionId ? -1 : 1))
-    const store = await openObjectStore(join(this.runRoot, 'objects'))
+    // Evidence export: only this selected parent's non-success rollouts in
+    // the frozen failure-pool stratum.  A pool defines comparable tasks; it
+    // must not turn sibling-lineage trajectories into proposer context.
+    const failureObservations = parentScopedFailureObservations(
+      Object.values(state.observations),
+      parentId,
+      pool,
+    )
     const actionableFailureObservations: typeof failureObservations = []
     const trajectoryRefs: ObjectRef[] = []
     const diagnosticRefs = new Map<string, ObjectRef>()
@@ -2409,7 +2465,8 @@ export class IterationDriver {
     const failureIndexRef = await store.put(
       Buffer.from(
         `${canonicalJson({
-          protocol: 'dsh-evolve-le/failure-index/v1',
+          protocol: FAILURE_INDEX_PROTOCOL,
+          subjectCandidateId: parentId,
           ...(attributionRef === undefined
             ? {}
             : { attributionDigest: `sha256:${attributionRef.digest}` }),
@@ -2419,6 +2476,18 @@ export class IterationDriver {
               ? {}
               : {
                   diagnosticTraceDigest: `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`,
+                  ...(attributionRef === undefined
+                    ? {}
+                    : {
+                        // The attribution object contains one validated v3
+                        // diagnosis keyed by this trace digest. Keep the
+                        // index compact while giving the proposer a direct,
+                        // per-rollout lookup rather than a global summary.
+                        trajectoryDiagnosis: {
+                          attributionDigest: `sha256:${attributionRef.digest}`,
+                          diagnosticTraceDigest: `sha256:${diagnosticRefs.get(entry.actionId)!.digest}`,
+                        },
+                      }),
                 }),
             clusterSupport: clusterSupport.get(entry.cluster) ?? 0,
           })),

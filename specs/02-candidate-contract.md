@@ -303,9 +303,10 @@ AST + resolved module graph MUST enforce：
 
 ```text
 /input/parent/                  read-only parent source
-/input/archive/catalog.jsonl   candidate metadata; statistics derived from DEV_OBSERVED only
-/input/evidence/               DEV_OBSERVED only; guarded by manifest
-/input/contracts/              candidate schema and selected DSH docs
+/input/archive-catalog.json    candidate metadata; statistics derived from DEV_OBSERVED only
+/input/export/                 manifest + parent-scoped DEV_OBSERVED evidence objects only
+/input/parent-files.json       trusted parent source inventory
+/input/config.json             trusted proposal boundary/configuration
 /work/children/<proposal-id>/  only writable output
 ```
 
@@ -324,6 +325,16 @@ Proposer SHOULD 通过 `rg`、manifest 和按需文件读取探索历史；promp
 
 Archive catalog 允许 proposer 借鉴其他 clade 的机制；child 仍只有一个 canonical parent，其他来源
 记为 donor。这样保留树形 CMP，又获得 experience-level crossover。
+
+`/input/export/` 中的 failure index 是 selected parent 的 rollout index，而不是 run-global index。
+proposer MAY 读取 Archive catalog 的其他 candidate metadata 以声明 donor，但 MUST NOT 读取任何其他
+candidate 的 trajectory、normalized trial、diagnostic、attribution 或 failure-index entry。
+
+新 export 使用 `failure-index/v3`。每条带 diagnostic 的 row MAY 用
+`trajectoryDiagnosis.{attributionDigest,diagnosticTraceDigest}` 定位本 rollout 的诊断；这不是一个
+全局原因摘要。诊断对象必须把具体错误承诺、被违反参照和终态连接都锚定到同一 bundle 的 event/test
+index 及逐字片段。proposer 可以按需读取该对象和本条 trajectory，不得把诊断当成指令、评分或
+跨 candidate 证据。
 
 ## 11. Build and admission pipeline
 
