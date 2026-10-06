@@ -165,6 +165,9 @@ export interface RunConfig {
       maxFindings: 8
       maxInstances: 12
       concurrency: 1
+      citationPolicy?: 'strict' | 'advisory'
+      statePolicy?: 'strict' | 'model-judgment'
+      trajectoryPolicy?: 'windowed' | 'full-trajectory'
     }
     route: string
     maxOutputTokens: number
@@ -682,6 +685,9 @@ export function defaultRunConfig(input: {
               maxFindings: 8,
               maxInstances: 12,
               concurrency: 1,
+              citationPolicy: 'advisory',
+              statePolicy: 'model-judgment',
+              trajectoryPolicy: 'full-trajectory',
             },
             route: input.agentDebuggerRoute,
             maxOutputTokens: 32_768,

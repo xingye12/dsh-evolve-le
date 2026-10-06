@@ -42,7 +42,8 @@
     "evidence:gate8-pilot": "node --import tsx/esm scripts/record-gate8-pilot.ts",
     "evidence:gate8-solve-smoke": "node --import tsx/esm scripts/record-gate8-solve-smoke.ts",
     "evidence:gate8-live-pilot": "node --import tsx/esm scripts/record-gate8-live-pilot.ts",
-    "gate7": "pnpm build && pnpm test && pnpm lint && pnpm format:check && pnpm provenance:check && pnpm upstream:check && pnpm evidence:gate7"
+    "gate7": "pnpm build && pnpm test && pnpm lint && pnpm format:check && pnpm provenance:check && pnpm upstream:check && pnpm evidence:gate7",
+    "eval:swepro": "node --import tsx/esm scripts/evaluate-swepro-attribution.ts"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",

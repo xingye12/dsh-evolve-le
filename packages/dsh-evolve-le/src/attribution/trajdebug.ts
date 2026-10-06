@@ -6,12 +6,18 @@ import type { ObjectRef } from '../state/object-store.js'
 export const TRAJDEBUG_PROTOCOL = 'dsh-evolve-le/agent-debugger/v4'
 export const REPORT_MEDIA = 'application/vnd.dsh-evolve-le.failure-report+json'
 export const OVERVIEW_MEDIA = 'application/vnd.dsh-evolve-le.candidate-error-overview+json'
+export type CitationPolicy = 'strict' | 'advisory'
+export type TrajectoryPolicy = 'windowed' | 'full-trajectory'
+export type StatePolicy = 'strict' | 'model-judgment'
 export const PROFILE = {
   maxEvents: 60,
   maxFieldChars: 3000,
   maxFindings: 8,
   maxInstances: 12,
   concurrency: 1,
+  citationPolicy: 'advisory',
+  statePolicy: 'model-judgment',
+  trajectoryPolicy: 'full-trajectory',
 } as const
 export interface TraceEvent {
   eventId: string
@@ -38,6 +44,9 @@ export interface ReportInput {
   inputDigest: string
   bundle: TraceBundle
   maxInputBytes?: number
+  citationPolicy?: CitationPolicy
+  statePolicy?: StatePolicy
+  trajectoryPolicy?: TrajectoryPolicy
   originalEvidence?: {
     normalizedTrialDigest: string
     trajectoryDigest: string | null
@@ -66,11 +75,13 @@ export type StageCall = (request: StageRequest) => Promise<StageResult>
 interface Anchor {
   source: 'events' | 'tests'
   index: number
-  field: string
-  start: number
-  end: number
+  field: string | null
+  start: number | null
+  end: number | null
   quote: string
-  actualQuote: string
+  actualQuote: string | null
+  /** Absence retains the legacy matched-anchor representation. */
+  matchStatus?: 'unmatched'
   eventId: string | null
 }
 interface Finding {
@@ -95,6 +106,7 @@ interface Instance {
   impactEvidence: Anchor | null
   wastedSteps: Anchor[]
   explanation: string
+  evidenceIssues?: string[]
 }
 interface Suggestion {
   surface: string
@@ -177,6 +189,7 @@ function quoteAnchor(
   source: 'events' | 'tests',
   index: number,
   quote: string,
+  policy: CitationPolicy = 'strict',
 ): Anchor {
   const entry = bundle[source][index]
   if (entry === undefined) throw Error('missing evidence index')
@@ -201,19 +214,36 @@ function quoteAnchor(
         eventId: source === 'events' ? bundle.events[index]!.eventId : null,
       }
   }
-  throw Error('quote absent from evidence content')
+  if (policy === 'strict') throw Error('quote absent from evidence content')
+  // A model-supplied excerpt is a claim, not a verified span. Never invent offsets.
+  return {
+    source,
+    index,
+    quote,
+    field: null,
+    start: null,
+    end: null,
+    actualQuote: null,
+    matchStatus: 'unmatched',
+    eventId: source === 'events' ? bundle.events[index]!.eventId : null,
+  }
 }
-function stateAnchor(raw: unknown, bundle: TraceBundle): Anchor {
+export function stateAnchor(
+  raw: unknown,
+  bundle: TraceBundle,
+  policy: CitationPolicy = 'strict',
+): Anchor {
   const a = record(raw)
   if (a.source !== 'events' && a.source !== 'tests') throw Error('invalid evidence source')
   if (!Number.isSafeInteger(a.index) || Number(a.index) < 0) throw Error('invalid evidence index')
-  return quoteAnchor(bundle, a.source, Number(a.index), str(a.quote))
+  return quoteAnchor(bundle, a.source, Number(a.index), str(a.quote), policy)
 }
-function validateFinding(
+export function validateFinding(
   raw: unknown,
   bundle: TraceBundle,
   allowed: ReadonlySet<string>,
   id: string,
+  policy: CitationPolicy = 'strict',
 ): Finding {
   const f = record(raw)
   const eventId = str(f.eventId)
@@ -231,17 +261,17 @@ function validateFinding(
   if (!['task', 'context', 'self', 'env'].includes(axis)) throw Error('invalid conflict axis')
   if (axis === 'task' && !/system|user|prompt|instruction/.test(ref.kind))
     throw Error('task reference is not captured input')
-  const wrongAnchor = quoteAnchor(bundle, 'events', i, str(f.wrongContentQuote))
-  const referenceAnchor = quoteAnchor(bundle, 'events', j, str(f.referenceQuote))
+  const wrongAnchor = quoteAnchor(bundle, 'events', i, str(f.wrongContentQuote), policy)
+  const referenceAnchor = quoteAnchor(bundle, 'events', j, str(f.referenceQuote), policy)
   if (
     axis === 'self' &&
-    (ref.actor !== 'agent' || /\/(observation|results)(\/|$)/.test(referenceAnchor.field))
+    (ref.actor !== 'agent' || /\/(observation|results)(\/|$)/.test(referenceAnchor.field ?? ''))
   )
     throw Error('self reference is not agent content')
   if (
     axis === 'context' &&
     !['tool', 'runtime'].includes(ref.actor) &&
-    !/\/(observation|results)(\/|$)/.test(referenceAnchor.field)
+    !/\/(observation|results)(\/|$)/.test(referenceAnchor.field ?? '')
   )
     throw Error('context reference is not an observation')
   if (axis === 'env' && !['tool', 'runtime'].includes(wrong.actor))
@@ -258,7 +288,7 @@ function validateFinding(
     source: wrong.source,
     step: wrong.sourceIndex,
     conflictWith: axis,
-    failureMode: str(f.failureMode, 100),
+    failureMode: str(f.failureMode, policy === 'strict' ? 100 : Infinity),
     module: str(f.module, 100),
     wrongContentQuote: wrongAnchor,
     referenceQuote: referenceAnchor,
@@ -267,7 +297,11 @@ function validateFinding(
 export function clusterFindings(findings: readonly Finding[]): Instance[] {
   const groups = new Map<string, Finding[]>()
   for (const f of findings) {
-    const key = f.conflictWith + '|' + norm(f.referenceQuote.actualQuote).toLowerCase()
+    const reference =
+      f.referenceQuote.actualQuote === null
+        ? `unmatched:${f.referenceQuote.eventId}:${norm(f.referenceQuote.quote).toLowerCase()}`
+        : norm(f.referenceQuote.actualQuote).toLowerCase()
+    const key = f.conflictWith + '|' + reference
     groups.set(key, [...(groups.get(key) ?? []), f])
   }
   return [...groups]
@@ -306,8 +340,187 @@ function project(
 function bytes(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), 'utf8')
 }
+/** Keep valid model judgments; incomplete support is an audit issue in the new profile. */
+export function validateInstanceState(
+  raw: unknown,
+  bundle: TraceBundle,
+  origin: { step: number; source: string },
+  options: { statePolicy: StatePolicy; citationPolicy: CitationPolicy; contextIncomplete: boolean },
+): Pick<
+  Instance,
+  | 'resolution'
+  | 'terminalConnection'
+  | 'terminalEvidence'
+  | 'fixEvidence'
+  | 'impactEvidence'
+  | 'wastedSteps'
+  | 'explanation'
+  | 'evidenceIssues'
+> {
+  const s = record(raw)
+  if (
+    !['active', 'fixed', 'unknown'].includes(String(s.resolution)) ||
+    !['semantic', 'irreversible', 'budget-debt', 'none', 'unknown'].includes(
+      String(s.terminalConnection),
+    )
+  )
+    throw Error('invalid lifecycle state')
+  const advisory = options.statePolicy === 'model-judgment'
+  const issues: string[] = []
+  const anchor = (value: unknown, field: string): Anchor | null => {
+    if (value == null) return null
+    try {
+      const result = stateAnchor(value, bundle, options.citationPolicy)
+      if (result.matchStatus === 'unmatched') issues.push(`${field}: quote-unmatched`)
+      return result
+    } catch (error) {
+      if (!advisory) throw error
+      issues.push(`${field}: ${String(error)}`)
+      return null
+    }
+  }
+  const terminal = anchor(s.terminalEvidence, 'terminalEvidence')
+  const impact = anchor(s.impactEvidence, 'impactEvidence')
+  const fixed = anchor(s.fixEvidence, 'fixEvidence')
+  let wasted: Anchor[] = []
+  try {
+    wasted = list(s.wastedSteps ?? []).flatMap((a, i) => {
+      const parsed = anchor(a, `wastedSteps/${i}`)
+      return parsed ? [parsed] : []
+    })
+  } catch (error) {
+    if (!advisory) throw error
+    issues.push(`wastedSteps: ${String(error)}`)
+  }
+  const later = (a: Anchor) =>
+    a.source === 'events' &&
+    bundle.events[a.index]!.source === origin.source &&
+    bundle.events[a.index]!.sourceIndex > origin.step
+  if (!advisory) {
+    if (
+      s.resolution === 'fixed' &&
+      s.terminalConnection === 'irreversible' &&
+      (impact === null || impact.source !== 'events')
+    )
+      throw Error('fixed irreversible cause requires impact evidence')
+    if (
+      s.resolution === 'fixed' &&
+      s.terminalConnection === 'irreversible' &&
+      (impact === null || !later(impact))
+    )
+      throw Error('fixed irreversible cause requires subsequent impact evidence')
+    if (s.resolution === 'fixed' && (fixed === null || !later(fixed)))
+      throw Error('fixed state requires subsequent repair quote')
+    if (
+      !['none', 'unknown'].includes(String(s.terminalConnection)) &&
+      (terminal === null ||
+        (terminal.source === 'events' &&
+          (!later(terminal) ||
+            bundle.events[terminal.index]!.sourceIndex !==
+              Math.max(
+                ...bundle.events
+                  .filter((e) => e.source === origin.source)
+                  .map((e) => e.sourceIndex),
+              ))))
+    )
+      throw Error('connection requires subsequent or terminal evidence')
+    if (
+      s.terminalConnection === 'budget-debt' &&
+      (wasted.length === 0 || wasted.some((a) => !later(a)))
+    )
+      throw Error('budget debt requires specific subsequent wasted steps')
+  } else {
+    if (options.contextIncomplete) issues.push('context-incomplete')
+    if (s.resolution === 'fixed' && fixed === null) issues.push('repair-evidence-missing')
+    if (s.resolution === 'fixed' && fixed !== null && !later(fixed))
+      issues.push('repair-order-unverified')
+    if (!['none', 'unknown'].includes(String(s.terminalConnection)) && terminal === null)
+      issues.push('terminal-evidence-missing')
+    if (
+      terminal?.source === 'events' &&
+      (bundle.events[terminal.index]!.source !== origin.source ||
+        bundle.events[terminal.index]!.sourceIndex < origin.step)
+    )
+      issues.push('terminal-order-unverified')
+    if (s.resolution === 'fixed' && s.terminalConnection === 'irreversible') {
+      if (impact === null) issues.push('impact-evidence-missing')
+      else if (!later(impact)) issues.push('impact-order-unverified')
+    }
+    if (s.terminalConnection === 'budget-debt') {
+      if (wasted.length === 0) issues.push('wasted-step-evidence-missing')
+      if (wasted.some((a) => !later(a))) issues.push('wasted-step-order-unverified')
+    }
+  }
+  let resolution = s.resolution as Instance['resolution']
+  let explanation = str(s.explanation, advisory ? Infinity : 3000)
+  if (!advisory && options.contextIncomplete && resolution === 'active') {
+    resolution = 'unknown'
+    explanation += ' (Repair context incomplete.)'
+  }
+  return {
+    resolution,
+    terminalConnection: s.terminalConnection as Instance['terminalConnection'],
+    terminalEvidence: terminal,
+    fixEvidence: fixed,
+    impactEvidence: impact,
+    wastedSteps: wasted,
+    explanation,
+    ...(advisory ? { evidenceIssues: issues } : {}),
+  }
+}
+
+/** Deterministic selection; evidence support and model lifecycle judgments are separate. */
+export function selectCriticalFailure(report: FailureReport): Instance | undefined {
+  report.criticalFailure = null
+  report.evidenceSufficiency = 'insufficient'
+  const eligible = report.instances
+    .filter(
+      (i) =>
+        i.resolution !== 'unknown' &&
+        !['none', 'unknown'].includes(i.terminalConnection) &&
+        (i.resolution !== 'fixed' ||
+          ['irreversible', 'budget-debt'].includes(i.terminalConnection)),
+    )
+    .sort((a, b) => a.originStep - b.originStep || a.instanceId.localeCompare(b.instanceId))
+  const eligibleSources = new Set(
+    eligible.flatMap((i) =>
+      report.findings.filter((f) => i.findingIds.includes(f.findingId)).map((f) => f.source),
+    ),
+  )
+  const chosen = eligibleSources.size <= 1 ? eligible[0] : undefined
+  if (eligibleSources.size > 1) report.coverage.reason = 'incomparable-source-origins'
+  if (chosen) {
+    const f = report.findings
+      .filter((f) => chosen.findingIds.includes(f.findingId))
+      .sort((a, b) => a.step - b.step || a.findingId.localeCompare(b.findingId))[0]!
+    report.criticalFailure = {
+      instanceId: chosen.instanceId,
+      findingId: f.findingId,
+      originStep: f.step,
+      module: f.module,
+    }
+    const anchors = [
+      ...report.findings
+        .filter((f) => chosen.findingIds.includes(f.findingId))
+        .flatMap((f) => [f.wrongContentQuote, f.referenceQuote]),
+      chosen.terminalEvidence,
+      chosen.fixEvidence,
+      chosen.impactEvidence,
+      ...chosen.wastedSteps,
+    ]
+    report.evidenceSufficiency =
+      (chosen.evidenceIssues?.length ?? 0) > 0 ||
+      anchors.some((a) => a?.matchStatus === 'unmatched')
+        ? 'insufficient'
+        : 'supported'
+  }
+  return chosen
+}
+
 /** Full evidence stays immutable; only the model's view is cropped. */
 export async function diagnoseTrace(input: ReportInput, call: StageCall): Promise<FailureReport> {
+  const citationPolicy = input.citationPolicy ?? PROFILE.citationPolicy
+  const fullTrajectory = (input.trajectoryPolicy ?? PROFILE.trajectoryPolicy) === 'full-trajectory'
   const bundle = {
     ...input.bundle,
     events: input.bundle.events.map((e, index) => ({ ...e, index })),
@@ -375,79 +588,120 @@ export async function diagnoseTrace(input: ReportInput, call: StageCall): Promis
     })
     return result.status === 'completed' ? result.output : null
   }
-  let window = 0
-  for (const source of ['atif', 'acp'] as const) {
-    const ordered = bundle.events
-      .filter((e) => e.source === source)
-      .sort((a, b) => a.sourceIndex - b.sourceIndex || a.eventId.localeCompare(b.eventId))
-    for (let start = 0; start < ordered.length;) {
-      let count = Math.min(PROFILE.maxEvents, ordered.length - start)
-      const prior = ordered
-        .slice(0, start)
-        .filter((e) => /system|user|prompt|instruction/.test(e.kind))
-        .concat(ordered.slice(Math.max(0, start - 4), start))
-      let omissions: unknown[] = []
-      let payload: Record<string, unknown> = {}
-      for (;;) {
-        omissions = []
-        payload = {
-          events: project(ordered.slice(start, start + count), omissions, 'events'),
-          references: project(prior, omissions, 'references'),
-          taskInputStatus: [...prior, ...ordered.slice(start, start + count)].some((e) =>
-            /system|user|prompt|instruction/.test(e.kind),
-          )
-            ? 'captured'
-            : 'unknown',
-          maxFindings: PROFILE.maxFindings,
-        }
-        if (bytes({ stage: 'detect', window, payload }) <= max || count === 1) break
-        count = Math.ceil(count / 2)
-      }
-      report.coverage.omissions.push(...omissions.map((o) => ({ window, ...record(o) })))
-      if (start > 4)
-        report.coverage.omissions.push({
-          window,
-          source,
-          referenceContext: 'task-inputs-and-last-four-only',
-          priorEvents: start,
+  if (fullTrajectory) {
+    const payload = {
+      events: bundle.events,
+      references: [],
+      tests: bundle.tests,
+      terminal: bundle.terminal,
+      coverage: bundle.coverage ?? null,
+      taskInputStatus: bundle.events.some((e) => /system|user|prompt|instruction/.test(e.kind))
+        ? 'captured'
+        : 'unknown',
+      trajectoryPolicy: 'full-trajectory',
+      maxFindings: PROFILE.maxFindings,
+    }
+    const output = await run({ stage: 'detect', window: 0, payload })
+    if (output !== null) {
+      try {
+        const raw = list(record(output).findings)
+        if (raw.length > PROFILE.maxFindings) throw Error('too many findings')
+        raw.forEach((value, index) => {
+          try {
+            report.findings.push(
+              validateFinding(
+                value,
+                bundle,
+                new Set(bundle.events.map((e) => e.eventId)),
+                `f-0-${index}`,
+                citationPolicy,
+              ),
+            )
+          } catch (error) {
+            report.rejectedFindings.push({ value: JSON.stringify(value), reason: String(error) })
+          }
         })
-      const output = await run({ stage: 'detect', window, payload })
-      if (output !== null) {
-        try {
-          const raw = list(record(output).findings)
-          if (raw.length > PROFILE.maxFindings) throw Error('too many findings')
-          raw.forEach((value, index) => {
-            try {
-              report.findings.push(
-                validateFinding(
-                  value,
-                  bundle,
-                  new Set(ordered.slice(start, start + count).map((e) => e.eventId)),
-                  `f-${window}-${index}`,
-                ),
-              )
-            } catch (error) {
-              report.rejectedFindings.push({ value: JSON.stringify(value), reason: String(error) })
-            }
-          })
-        } catch (error) {
-          report.stages[report.stages.length - 1]!.status = 'call-failed'
-          report.stages[report.stages.length - 1]!.reason = String(error)
-        }
+      } catch (error) {
+        report.stages[report.stages.length - 1]!.status = 'call-failed'
+        report.stages[report.stages.length - 1]!.reason = String(error)
       }
-      start += count
-      window++
+    }
+  } else {
+    let window = 0
+    for (const source of ['atif', 'acp'] as const) {
+      const ordered = bundle.events
+        .filter((e) => e.source === source)
+        .sort((a, b) => a.sourceIndex - b.sourceIndex || a.eventId.localeCompare(b.eventId))
+      for (let start = 0; start < ordered.length;) {
+        let count = Math.min(PROFILE.maxEvents, ordered.length - start)
+        const prior = ordered
+          .slice(0, start)
+          .filter((e) => /system|user|prompt|instruction/.test(e.kind))
+          .concat(ordered.slice(Math.max(0, start - 4), start))
+        let omissions: unknown[] = []
+        let payload: Record<string, unknown> = {}
+        for (;;) {
+          omissions = []
+          payload = {
+            events: project(ordered.slice(start, start + count), omissions, 'events'),
+            references: project(prior, omissions, 'references'),
+            taskInputStatus: [...prior, ...ordered.slice(start, start + count)].some((e) =>
+              /system|user|prompt|instruction/.test(e.kind),
+            )
+              ? 'captured'
+              : 'unknown',
+            maxFindings: PROFILE.maxFindings,
+          }
+          if (bytes({ stage: 'detect', window, payload }) <= max || count === 1) break
+          count = Math.ceil(count / 2)
+        }
+        report.coverage.omissions.push(...omissions.map((o) => ({ window, ...record(o) })))
+        if (start > 4)
+          report.coverage.omissions.push({
+            window,
+            source,
+            referenceContext: 'task-inputs-and-last-four-only',
+            priorEvents: start,
+          })
+        const output = await run({ stage: 'detect', window, payload })
+        if (output !== null) {
+          try {
+            const raw = list(record(output).findings)
+            if (raw.length > PROFILE.maxFindings) throw Error('too many findings')
+            raw.forEach((value, index) => {
+              try {
+                report.findings.push(
+                  validateFinding(
+                    value,
+                    bundle,
+                    new Set(ordered.slice(start, start + count).map((e) => e.eventId)),
+                    `f-${window}-${index}`,
+                    citationPolicy,
+                  ),
+                )
+              } catch (error) {
+                report.rejectedFindings.push({
+                  value: JSON.stringify(value),
+                  reason: String(error),
+                })
+              }
+            })
+          } catch (error) {
+            report.stages[report.stages.length - 1]!.status = 'call-failed'
+            report.stages[report.stages.length - 1]!.reason = String(error)
+          }
+        }
+        start += count
+        window++
+      }
     }
   }
   report.instances = clusterFindings(report.findings)
   for (let start = 0; start < report.instances.length; start += PROFILE.maxInstances) {
     const instances = report.instances.slice(start, start + PROFILE.maxInstances)
     const omissions: unknown[] = []
-    let context = project(
-      { events: bundle.events, tests: bundle.tests, terminal: bundle.terminal },
-      omissions,
-      'state',
-    )
+    const fullContext = { events: bundle.events, tests: bundle.tests, terminal: bundle.terminal }
+    let context: unknown = fullTrajectory ? fullContext : project(fullContext, omissions, 'state')
     let payload: Record<string, unknown> = {
       instances,
       findings: report.findings.filter((f) =>
@@ -457,7 +711,7 @@ export async function diagnoseTrace(input: ReportInput, call: StageCall): Promis
       contextIncomplete: omissions.length > 0,
     }
     if (omissions.length > 0) report.coverage.contextIncomplete = true
-    if (bytes({ stage: 'state', window: start, payload }) > max) {
+    if (!fullTrajectory && bytes({ stage: 'state', window: start, payload }) > max) {
       const ids = new Set(
         (payload.findings as Finding[]).flatMap((f) => [f.eventId, f.referenceQuote.eventId]),
       )
@@ -496,70 +750,17 @@ export async function diagnoseTrace(input: ReportInput, call: StageCall): Promis
           if (!instance || seen.has(id)) throw Error('unknown/duplicate instance')
           seen.add(id)
           try {
-            if (
-              !['active', 'fixed', 'unknown'].includes(String(s.resolution)) ||
-              !['semantic', 'irreversible', 'budget-debt', 'none', 'unknown'].includes(
-                String(s.terminalConnection),
-              )
-            )
-              throw Error('invalid lifecycle state')
-            const terminal =
-              s.terminalEvidence == null ? null : stateAnchor(s.terminalEvidence, bundle)
-            const impact = s.impactEvidence == null ? null : stateAnchor(s.impactEvidence, bundle)
-            const fixed = s.fixEvidence == null ? null : stateAnchor(s.fixEvidence, bundle)
-            if (
-              s.resolution === 'fixed' &&
-              s.terminalConnection === 'irreversible' &&
-              (impact === null || impact.source !== 'events')
-            )
-              throw Error('fixed irreversible cause requires impact evidence')
-            const wasted = list(s.wastedSteps ?? []).map((a) => stateAnchor(a, bundle))
             const origin = report.findings.find(
               (f) => instance.findingIds.includes(f.findingId) && f.step === instance.originStep,
             )!
-            const later = (a: Anchor) =>
-              a.source === 'events' &&
-              bundle.events[a.index]!.source === origin.source &&
-              bundle.events[a.index]!.sourceIndex > origin.step
-            if (
-              s.resolution === 'fixed' &&
-              s.terminalConnection === 'irreversible' &&
-              (impact === null || !later(impact))
+            Object.assign(
+              instance,
+              validateInstanceState(s, bundle, origin, {
+                citationPolicy,
+                statePolicy: input.statePolicy ?? PROFILE.statePolicy,
+                contextIncomplete: payload.contextIncomplete === true,
+              }),
             )
-              throw Error('fixed irreversible cause requires subsequent impact evidence')
-            if (s.resolution === 'fixed' && (fixed === null || !later(fixed)))
-              throw Error('fixed state requires subsequent repair quote')
-            if (
-              !['none', 'unknown'].includes(String(s.terminalConnection)) &&
-              (terminal === null ||
-                (terminal.source === 'events' &&
-                  (!later(terminal) ||
-                    bundle.events[terminal.index]!.sourceIndex !==
-                      Math.max(
-                        ...bundle.events
-                          .filter((e) => e.source === origin.source)
-                          .map((e) => e.sourceIndex),
-                      ))))
-            )
-              throw Error('connection requires subsequent or terminal evidence')
-            if (
-              s.terminalConnection === 'budget-debt' &&
-              (wasted.length === 0 || wasted.some((a) => !later(a)))
-            )
-              throw Error('budget debt requires specific subsequent wasted steps')
-            Object.assign(instance, {
-              resolution: s.resolution,
-              terminalConnection: s.terminalConnection,
-              terminalEvidence: terminal,
-              fixEvidence: fixed,
-              impactEvidence: impact,
-              wastedSteps: wasted,
-              explanation: str(s.explanation),
-            })
-            if (payload.contextIncomplete === true && s.resolution === 'active') {
-              instance.resolution = 'unknown'
-              instance.explanation += ' (Repair context incomplete.)'
-            }
           } catch (error) {
             instance.explanation = String(error)
             report.stages[report.stages.length - 1]!.status = 'call-failed'
@@ -576,33 +777,8 @@ export async function diagnoseTrace(input: ReportInput, call: StageCall): Promis
       }
     }
   }
-  const eligible = report.instances
-    .filter(
-      (i) =>
-        i.resolution !== 'unknown' &&
-        !['none', 'unknown'].includes(i.terminalConnection) &&
-        (i.resolution !== 'fixed' ||
-          ['irreversible', 'budget-debt'].includes(i.terminalConnection)),
-    )
-    .sort((a, b) => a.originStep - b.originStep || a.instanceId.localeCompare(b.instanceId))
-  const eligibleSources = new Set(
-    eligible.flatMap((i) =>
-      report.findings.filter((f) => i.findingIds.includes(f.findingId)).map((f) => f.source),
-    ),
-  )
-  const chosen = eligibleSources.size <= 1 ? eligible[0] : undefined
-  if (eligibleSources.size > 1) report.coverage.reason = 'incomparable-source-origins'
+  const chosen = selectCriticalFailure(report)
   if (chosen) {
-    const f = report.findings
-      .filter((f) => chosen.findingIds.includes(f.findingId))
-      .sort((a, b) => a.step - b.step || a.findingId.localeCompare(b.findingId))[0]!
-    report.criticalFailure = {
-      instanceId: chosen.instanceId,
-      findingId: f.findingId,
-      originStep: f.step,
-      module: f.module,
-    }
-    report.evidenceSufficiency = 'supported'
     const output = await run({
       stage: 'recover',
       window: 0,

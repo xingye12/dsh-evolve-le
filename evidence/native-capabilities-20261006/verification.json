@@ -1,0 +1,393 @@
+{
+  "protocol": "dsh-evolve-le/native-capabilities-verification/v1",
+  "recordedAt": "2026-10-06T04:56:32.110776+00:00",
+  "sourceCommit": "024f12908a39f59d76f3c0630e9ad79980913c38",
+  "dirtyWorktree": true,
+  "existingUserChangesPreserved": true,
+  "sourceDigests": {
+    "packages/dsh-evolve-le/src/dsh/native-capabilities.ts": "04098ac40ed693dbc9805d28ecc354500e9f39dd5431d9a948513c8bf40a9a8c",
+    "packages/dsh-evolve-le/src/dsh/native-composition.ts": "ecc0d3e02d8fbcc6106379ac481bc18c8418cda3db497c977a356d33b7332641",
+    "packages/dsh-evolve-le/src/dsh/native-llm-adapter.ts": "c860cff0e92df5fd0ca24afb9311f86a0447b6b2c4821aec294b568c85943737",
+    "packages/dsh-evolve-le/src/dsh/native-proposal-runner.ts": "3c7fc215593b848e34c0e3500ee99594791e37f6e24486f47a2095ce687e03d0",
+    "packages/dsh-evolve-le/src/acp/native-solve-agent.ts": "897b58f90e16c10b5a96ea3b073944d13b49bb5df77317f63332448ccf6f5fcc",
+    "packages/dsh-evolve-le/src/bin/acp-boot.ts": "92be07919ca234717a72bd25a15082c99807f9a12de4ddbf691964352c368ad6",
+    "packages/dsh-evolve-le/src/bin/proposer-worker.ts": "a900485d7cc0e4145f0f7620ed2ced89510ec1dfa9e96a23ba35bc18c39cd73f",
+    "packages/dsh-evolve-le/src/builder/capsule.ts": "fa144a57a69ed1e004d3145be548454cc59c5952c9dd084207f9ede1d5ae7702",
+    "packages/dsh-evolve-le/src/proposer/remote-runner.ts": "ce61b567f260ae8e9b26fa17f532f57125a00f03e756b1b8cf9b33f62b4f6a99",
+    "packages/dsh-evolve-le/src/proposer/sandbox.ts": "234b8ed5b595635581ebcdb049e73ed8ea7b030ab053486effb7bb3172e66580",
+    "packages/dsh-evolve-le/tests/native-capabilities.test.ts": "a5ec7cf80c50dc2204c07a8da622ee3cb9b2434d1f89546941fb3845ac80a3c4",
+    "packages/dsh-evolve-le/tests/native-capabilities.subprocess.test.ts": "15f3ca3ca145031677872417dbe2fff9f3cdc3275070c946712544021b05f621",
+    "packages/dsh-evolve-le/tests/fixtures/native-capabilities-child.mjs": "206af49396a793c15760cbcd6994577c616bf84db4006d6bb17b8bafadf32b8c",
+    "benchmark-adapters/terminal-bench/src/harbor-provider.ts": "ab473046ff453121c2be6afb9fad3b4c5cef413eaf6c1c77fb85ea684068a089",
+    "packages/cli/src/cli.ts": "d7008dc70ceb12091018426d1565b60e4f31e4cb08bb92c0419594f5cad56634",
+    "schemas/capsule.manifest.schema.json": "0cef5ffcc437bdc69709bffad4629a18cd95e8037b596afc4879bf7cfc325b36",
+    "provenance.lock.json": "21d371577704a2ac8d6376d3c217d832fcb0f176190db5bc176229c5894c1aba"
+  },
+  "nativeClosure": {
+    "catalogRoot": "/root/vibe/dsh/scratch/native-dsh-catalog",
+    "dependencyClosureSha256": "1bc574a4f70a76e60bcecc2358dbbb39c44e1d9da8437a1530015e43dad4cbc4",
+    "packages": [
+      {
+        "name": "@agentclientprotocol/sdk",
+        "version": "0.25.1"
+      },
+      {
+        "name": "@deepseek-ai/cordis",
+        "version": "4.0.1"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-group",
+        "version": "1.0.1"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-include",
+        "version": "1.0.6"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-loader",
+        "version": "1.0.2"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-timer",
+        "version": "1.1.3"
+      },
+      {
+        "name": "@deepseek-ai/cosmokit",
+        "version": "1.8.2"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-default-model",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-instructions",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-loop",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-spine-demo",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-attachment",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-brand",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-code-runtime",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-commands",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-compaction",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-compaction-basic",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-fs",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-goal",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-goal-round-driver",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-home-paths",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-invariants",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-jobs",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-jobs-local",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-llm",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-llm-retry",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-output-retention",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-sandbox",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-sandbox-policy",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-scope",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-persistence",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-projection",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-title",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-settings",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-shell",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-shell-env",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-skill",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-skill-filesystem",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-subagent",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-subprocess",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-system-prompt",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-timeout",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-token-meter",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-bash",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-goal",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-jobs",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-skill",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-subagent",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tools",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-typert-protocol",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-user-approval",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/schemastery",
+        "version": "3.18.1"
+      },
+      {
+        "name": "@dsh-evolve-le/candidate-sdk",
+        "version": "0.0.1"
+      },
+      {
+        "name": "@standard-schema/spec",
+        "version": "1.1.0"
+      },
+      {
+        "name": "argparse",
+        "version": "2.0.1"
+      },
+      {
+        "name": "chokidar",
+        "version": "5.0.0"
+      },
+      {
+        "name": "js-yaml",
+        "version": "4.2.0"
+      },
+      {
+        "name": "readdirp",
+        "version": "5.0.0"
+      },
+      {
+        "name": "yaml",
+        "version": "2.9.0"
+      },
+      {
+        "name": "zod",
+        "version": "4.4.3"
+      }
+    ],
+    "fileCount": 2834
+  },
+  "checks": {
+    "build": "pass",
+    "changedFilesLint": "pass",
+    "changedFilesFormat": "pass",
+    "diffWhitespace": "pass",
+    "provenance": "pass",
+    "upstreamsReadOnly": "pass",
+    "regression": {
+      "passed": 109,
+      "failed": 0,
+      "skipped": 25,
+      "skipReason": "CLI default catalog unavailable; solver-route tests explicitly enabled separately"
+    },
+    "cliSolver": {
+      "passed": 6,
+      "failed": 0,
+      "otherTestsFilteredOrSkipped": 17
+    },
+    "realLoader": {
+      "children": 1,
+      "childTools": true,
+      "childCandidate": true,
+      "childStop": "completed",
+      "childEvents": 27,
+      "summaryCalls": 2,
+      "compactionEvents": 6,
+      "aggregateUsage": true,
+      "evidenceExported": true,
+      "countLimited": true,
+      "concurrencyLimited": true,
+      "stepLimited": true,
+      "cancellationPassed": true,
+      "proposalPassed": true,
+      "liveAgentsAfterDispose": 0,
+      "quiescent": true
+    },
+    "harborReplaySmoke": {
+      "harborVersionOk": true,
+      "capsuleBuilt": true,
+      "artifactEndpointHttps": true,
+      "jobCompleted": true,
+      "trialAttributionOk": true,
+      "verifierRan": true,
+      "acpCandidateStreamed": true,
+      "verifierModeProbed": true,
+      "idempotencyLedgerSingleEntry": true,
+      "idempotencyNoSecondTrial": true,
+      "normalizationDeterministic": true
+    }
+  },
+  "artifactDigests": {
+    "cli-solver-vitest.json": "4175b6cfbe8985f406c90b10439783e66d22816f1cb4b88fdbde15d85b685d6c",
+    "final-vitest.json": "eac1ccdc9e1c30e9767f31b57a0444ff84eb498365cc8b16c995d1725915a1ea",
+    "harbor/e2e.json": "2509eda2f8fd97dd7de81fa798f5bdc0deba171780e2e95286d262fa990466ef",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/config.json": "0aabcbc2bc2324930009aed758ceb2ade16f812f407f4805539d42bd29f36600",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/agent/acp-events.jsonl": "bbf6a95519de58d6bd9fbd3db2e3a5742addf5cfa4072ce1eed036f3dca57e0b",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/agent/acp-launch.sh": "5e73eb9e57d6ba02c89154e26a9e4d51c015b45b26b48df5f147f4cc616a4c7c",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/agent/acp-summary.json": "c80f72f0c7d4221ddbbd1bc38cae2461c034d5047b34469d1a8ce425adb5f0ff",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/agent/acp.txt": "389e8ea4c4284c77f126e4e5a5c1032e8c25ddfc04766542e1444ace3700f813",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/agent/trajectory.json": "dbccad4b7a00587e7b6c6bf415f6897b587a2e0e28661aeb6f138912e8df831c",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/artifacts/manifest.json": "c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/config.json": "7ab73147c87935f9b2cc4ea33a847abbc1c5de44d3aa7d5970c0e46bfc8ab374",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/lock.json": "97f4a89c49c09282f12cc91f6623d75b3e189905cb34fc2fed98a91dc6fd2328",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/result.json": "39de22cd54fa94ec0292e9f523cb7268cfe9342f588c180147765f83317df3e9",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/trial.log": "7df37c193ba6e5a9c28941d4e97087baa3237d91ffd7dfa24cca0c78899dd6aa",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/verifier/ctrf.json": "7eb35c1d1a902f83c85bd8948362c0ca5b8c73bc631f8b4ec19990fc7e9748f4",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/verifier/reward.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/extract-elf__tKpa4RN/verifier/test-stdout.txt": "0af62e35a2a0888955407d742add30d0257fc930d669bc5a933241306d9231c7",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/job.log": "7df37c193ba6e5a9c28941d4e97087baa3237d91ffd7dfa24cca0c78899dd6aa",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/lock.json": "604283f3e9b098b6a6e0433a53600988247de3081345ad9de7566e1a14212912",
+    "harbor/jobs/dsh-32fb101ba8a57712e77d4966/result.json": "f1c162bb306c6fb37793430ba89b04e1de66e4b546b71fc48058f2c136eedf3e",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/config.json": "7a8b652edcedf683b828e7191dbea805f4042640389b831205be58263fa629d6",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/agent/acp-events.jsonl": "35a2d9e3e24e8fba5a60f84b476041d1a169d17f7ff7b75e5923a943a091d4c5",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/agent/acp-launch.sh": "5e73eb9e57d6ba02c89154e26a9e4d51c015b45b26b48df5f147f4cc616a4c7c",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/agent/acp-summary.json": "8a3e80e0a94ea0cd3e8ee6dfce0af76029b17e9c3acb329e57bb62cba99f3d5a",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/agent/acp.txt": "461e5f7dd2de15e7a043abe3b3740145251b524a563f6ae5268937eef3f3e986",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/agent/trajectory.json": "76e4ea52735d41dfbbf2397c10d56658b0881a51ba22538bd17ed5dd42ada05d",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/artifacts/manifest.json": "c1db653f487fb773c4f9247162ab3314e7f0584a486914b9874c4b3d6949e42d",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/config.json": "c5e27df6efec78ae163cff3482188784fefe7b27f2f8bcb6d81691dbe6490c74",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/exception.txt": "2cfa359f6796c927b7d33fd10a8e6393d285dd0d50fc545684b1bae74f9ab81e",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/lock.json": "da8cfcc0ad82e42b4eb7f94a2f5fa12a9cbe56889cc46eca44a3795a0b90a603",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/result.json": "a818736a08ea62e03803067ffdaa16a0c8822b846f20e9d6a9494df6b79a8218",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/trial.log": "9b81215e36f440eb5e436a49f68615e935fc3c40f399ae949ef10aa6105843df",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/verifier/test-stdout.txt": "7d4a7c37dce884d484a1f3cbf74af3e51a24e5cff446920c88a414747d191da2",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/job.log": "2c35c80e32003e54cbebbae3f8b08f62b4f5bea8bf3a45c0d159e47d042b4442",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/lock.json": "58a9e49f3c70eab63a42167204cde03976deda4805c0d1d98f0e988a17e78e92",
+    "harbor/jobs/dsh-f77286695826d897e8362e20/result.json": "75717b62a2312bc0b84e8a5253d155fb7fb35ea1ac6abaebffd207b7863ceb71",
+    "harbor/ledger.jsonl": "9b9721223e3b6c52aa2ddd7e54c4e2813f2a1aef66ae4514f10bd5c8e0a1135e",
+    "harbor/normalized-main.json": "f840797081ea4d76391fed5e57078cb3c7bf25540586ba79dc54a10379e12109",
+    "harbor/normalized-probe.json": "dcea57ae5af43ac23b8c6120b1f8527b9eba8a0377b2e075fdfee5bfd60faf09",
+    "initial-regression-vitest.json": "2c9d3ecadde2ad3ff4d0ba4860456785ace846cbe31f69df2c213ef89a1bc1a9",
+    "loader-result.json": "12243127c789f33510a6aaab342e260f7b3ea57bf270f4835aa066f065a29a6b",
+    "native-dsh.lock.json": "71b33fea12a93c80bb6437b93600fda48553aeb164509dcf0f909983cce0291a",
+    "regression-vitest.json": "a96ddeb7dd98ed1681a5a2230ec89ad6eeb50d1dd363e389099d907ccbbd83bc"
+  },
+  "contentAddressedObjects": [
+    "12243127c789f33510a6aaab342e260f7b3ea57bf270f4835aa066f065a29a6b",
+    "a96ddeb7dd98ed1681a5a2230ec89ad6eeb50d1dd363e389099d907ccbbd83bc",
+    "4175b6cfbe8985f406c90b10439783e66d22816f1cb4b88fdbde15d85b685d6c",
+    "71b33fea12a93c80bb6437b93600fda48553aeb164509dcf0f909983cce0291a",
+    "2509eda2f8fd97dd7de81fa798f5bdc0deba171780e2e95286d262fa990466ef"
+  ],
+  "failedAttemptsRetained": {
+    "initial-regression-vitest.json": "schema then.required failed Ajv strictRequired; corrected",
+    "final-vitest.json": "concurrent rebuild changed runner bytes between two determinism builds; static-output regression passed"
+  },
+  "limitations": [
+    "Scripted native completions; no paid model or sealed evaluation",
+    "Harbor extract-elf uses replay capsule, not native live solving",
+    "Foreground children share workspace and existing gateway budget",
+    "8192 summary maxTokens is an upstream hint; gateway frozen output cap is authoritative"
+  ]
+}

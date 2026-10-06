@@ -56,7 +56,7 @@ interface WorkerConfig {
   modelSocket?: string
   /** Client socket timeout; the runner derives it from the proxy's budget. */
   modelClientTimeoutMs?: number
-  nativeDsh?: { provider: string; model: string; maxTokens?: number }
+  nativeDsh?: { provider: string; model: string; maxTokens?: number; contextWindowTokens?: number }
   /** Declared propose sections from the parent capsule's candidate.json. */
   declaredProposeSections: string[]
   /** Root-only paths (relative to the sandbox parent) the worker must NOT read. */
@@ -238,6 +238,13 @@ async function main(argv: string[]): Promise<number> {
     })
     await mkdir(join(workRoot, 'children'), { recursive: true })
     if (config.nativeDsh !== undefined) {
+      if (
+        config.nativeDsh.contextWindowTokens === undefined ||
+        !Number.isSafeInteger(config.nativeDsh.contextWindowTokens) ||
+        config.nativeDsh.contextWindowTokens <= 0
+      ) {
+        throw new Error('native DSH proposal requires a frozen context capacity')
+      }
       if (config.modelSocket === undefined) {
         throw new Error('native DSH proposal requires a gateway-backed model socket')
       }
@@ -267,6 +274,7 @@ async function main(argv: string[]): Promise<number> {
         disposeAdapter = installNativeLlmAdapter(ctx, {
           provider: config.nativeDsh.provider,
           model: config.nativeDsh.model,
+          contextWindowTokens: config.nativeDsh.contextWindowTokens,
           ...(config.nativeDsh.maxTokens === undefined
             ? {}
             : { maxTokens: config.nativeDsh.maxTokens }),

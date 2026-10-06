@@ -1,0 +1,62 @@
+{
+  "protocol": "dsh-evolve-le/tb-run/v1",
+  "jobName": "dsh-32fb101ba8a57712e77d4966",
+  "jobDir": "/tmp/dsh-gate2-d5yW6y/jobs/dsh-32fb101ba8a57712e77d4966",
+  "idempotencyKey": "32fb101ba8a57712e77d4966df42c8a8fc81e705391e3b99ce3f5632b73e0aae",
+  "identity": {
+    "runId": "gate2-dev",
+    "capsuleArchiveSha256": "7ad2bb4555472bb489a3f1100186ca788a4f17f254e92d8cd7779c8712fb029c",
+    "inventorySha256": "27c443a4d06d1a49ba7595e906f97bdeb3a5c491d8d1e9e21e624313c63a0501",
+    "handles": [
+      "extract-elf"
+    ],
+    "attempts": 1,
+    "harborVersion": "0.21.0"
+  },
+  "plannedTrials": 1,
+  "trials": [
+    {
+      "protocol": "dsh-evolve-le/tb-trial/v1",
+      "identity": {
+        "runId": "gate2-dev",
+        "capsuleArchiveSha256": "7ad2bb4555472bb489a3f1100186ca788a4f17f254e92d8cd7779c8712fb029c",
+        "inventorySha256": "27c443a4d06d1a49ba7595e906f97bdeb3a5c491d8d1e9e21e624313c63a0501",
+        "handle": "extract-elf",
+        "attempt": 0
+      },
+      "trialName": "extract-elf__tKpa4RN",
+      "taskName": "terminal-bench/extract-elf",
+      "agentInfo": {
+        "name": "dsh-evolve-le-capsule",
+        "version": "7ad2bb4555472bb489a3f1100186ca788a4f17f254e92d8cd7779c8712fb029c"
+      },
+      "usage": {
+        "agentExecutionMs": 1098,
+        "verifierMs": 71255,
+        "nInputTokens": null,
+        "nOutputTokens": null,
+        "costUsd": null
+      },
+      "resultDigest": "39de22cd54fa94ec0292e9f523cb7268cfe9342f588c180147765f83317df3e9",
+      "status": "fail",
+      "outcome": {
+        "category": "reward",
+        "reward": 0,
+        "exceptionType": null,
+        "reason": "reward 0 != 1",
+        "agentParticipation": "ran"
+      }
+    }
+  ],
+  "counts": {
+    "pass": 0,
+    "fail": 1,
+    "infraRetryable": 0,
+    "protocolInvalid": 0,
+    "valid": true,
+    "denominator": 1,
+    "passRate": 0,
+    "agentNeverInitialized": 0
+  },
+  "artifactSha256": "a29f9e6624467b3a2bcff7cf88668b7db04c0cc0a27445828c916d938c61f03f"
+}

@@ -246,3 +246,58 @@ test 和 negative default-export fixture。它是后续 candidate/codegen/benchm
 ## Debugger v4 acceptance (ADR-070)
 
 Require parent isolation, all-failure report coverage, empty/all-success overviews, forged/future quote rejection, unknown and repaired/debt abstention, >192 event preservation, budget skip and crash/replay contracts. Run TypeScript, unit/contract, real Loader, Harbor extract-elf and crash checks; retain actual receipts. No diagnosis-quality or benchmark claim follows from engineering verification.
+
+## Offline attribution acceptance (ADR-071)
+
+Require label/metadata noninterference, exact source-step round-trip, fixed denominator,
+malformed/failed/budget-skipped visibility, deterministic confidence intervals, equal per-case
+envelopes, immutable source/route manifest, no-network preparation/scoring and real SIGKILL
+replay of stage/report publication. Paid scoring requires fixture twins; preserve all phase
+inputs/outputs and usage receipts. An offline localization score is not a benchmark solve improvement.
+
+### Advisory citation acceptance (ADR-072)
+
+Require formatting/paraphrase acceptance, uncapped failureMode, truthful null
+spans on unmatched evidence, matched-span preservation, structural/future
+reference rejection, distinct-event unmatched clustering, report schema checks,
+remote prompt contracts, controller profile freezing and crash/replay checks.
+No paid model or benchmark rerun is implied by implementing this profile.
+
+### Model-judgment State acceptance (ADR-073)
+
+Test non-final failure support, active preservation under cropping, fixed lifecycle
+preservation without mandatory anchors, evidence issue visibility, invalid identity
+and enum rejection, legacy strict replay, profile freezing and shared production
+validation/selection in a read-only State-rule ablation. Preserve Loader and
+crash/replay contracts; no paid model rerun is needed for this engineering change.
+
+### Full-trajectory debugger profile (ADR-074)
+
+New runs freeze trajectoryPolicy=full-trajectory: one Detect request sees all
+redacted events, original indices, tests, terminal facts and input coverage;
+State sees all events/tests/terminal without field truncation or reduced context.
+Detect still proposes at most eight findings; Cluster/State/Select/Recover remain
+separate. An oversized request is explicitly budget-skipped with input-envelope,
+never silently split or truncated. Earlier-reference chronology remains enforced.
+Old manifests/configs without this policy retain windowed replay semantics.
+Require full-context cross-boundary evidence, mixed-source index preservation,
+oversized-input no-call, new-profile freezing, Loader and crash/replay tests.
+Changed source/profile requires a fresh identity; no historical paid score rewrite
+or attribution-quality improvement claim follows from implementation.
+
+### Native capability acceptance (ADR-075)
+
+Require contract tests plus the real production Loader for automatic compaction,
+child candidate/task-tool inheritance, aggregate usage/evidence, count/concurrency/
+step limits, parent cancellation and quiescent unload. Cover both proposal and
+solve. Preserve existing crash/replay checks and run real Harbor extract-elf
+smoke for adapter changes. No paid benchmark or sealed claim follows from these
+engineering checks.
+
+### Controlled event acceptance (ADR-076)
+
+Verify the supported event projection, read-only bounded facts, exactly-once
+waterfall delegation, failure/overflow behavior and foreign-session filtering.
+Real production Loader tests must register callbacks through the actual SDK,
+observe solve/proposal/child invocations and checkpoint effects, and unload to a
+quiescent inventory. Preserve cancellation and crash/replay regression checks.

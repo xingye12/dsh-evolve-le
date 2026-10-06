@@ -141,3 +141,12 @@ scratch/
 
 # Gate 7 release artifacts (content-addressed into evidence/gate7 instead).
 release/
+
+# Native capability engineering receipts and retained Harbor smoke artifacts.
+!evidence/native-capabilities-20261006/
+!evidence/native-capabilities-20261006/**
+!evidence/native-capabilities-20261006/**/*.log
+
+# Controlled candidate lifecycle engineering evidence.
+!evidence/candidate-events-20261006/
+!evidence/candidate-events-20261006/**

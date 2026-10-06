@@ -103,6 +103,7 @@ async function main(argv: string[]): Promise<number> {
     disposeAdapter = installNativeLlmAdapter(ctx, {
       provider: TEST_PROVIDER,
       model: TEST_MODEL,
+      contextWindowTokens: 1_000_000,
       complete: async (request) => {
         completionCount += 1
         if (completionCount === 1) {
@@ -133,7 +134,9 @@ async function main(argv: string[]): Promise<number> {
     })
     turnMs = performance.now() - started
     const toolCallEventCount = result.toolTrace.filter((event) => event.type === 'tool/call').length
-    const toolResultEventCount = result.toolTrace.filter((event) => event.type === 'tool/result').length
+    const toolResultEventCount = result.toolTrace.filter(
+      (event) => event.type === 'tool/result',
+    ).length
     turn = {
       assistantText: result.assistantText,
       eventCount: result.eventCount,

@@ -297,6 +297,7 @@ export interface RemoteSandboxModel {
   provider: string
   model: string
   maxTokens?: number
+  contextWindowTokens?: number
 }
 
 export interface RunProposalSandboxOptions {
@@ -493,6 +494,7 @@ export async function runProposalSandbox(
               nativeDsh: {
                 provider: options.model.provider,
                 model: options.model.model,
+                contextWindowTokens: options.model.contextWindowTokens,
                 ...(options.model.maxTokens === undefined
                   ? {}
                   : { maxTokens: options.model.maxTokens }),

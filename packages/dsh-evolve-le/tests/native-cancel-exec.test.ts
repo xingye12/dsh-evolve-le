@@ -94,6 +94,7 @@ const PLAN: Omit<RemoteRoutePlan, 'baseUrl'> = {
   routeId: 'deepseek/zen-compatible',
   model: 'deepseek-v4-flash',
   temperature: 0,
+  retry: { maxAttempts: 1, backoffMs: [] },
   maxOutputTokens: 512,
   inputUsdPerMTok: 3,
   outputUsdPerMTok: 15,
@@ -339,148 +340,155 @@ async function mountTls(
 // The E2E.
 // ---------------------------------------------------------------------------
 
-describeNative('capsule native cancel-exec E2E (ADR-030: session/cancel kills the in-flight terminal)', () => {
-  let caDir = ''
+describeNative(
+  'capsule native cancel-exec E2E (ADR-030: session/cancel kills the in-flight terminal)',
+  () => {
+    let caDir = ''
 
-  beforeAll(async () => {
-    expect(existsSync(acpBootPath), `built runner missing (run \`pnpm build\` first)`).toBe(true)
-    caDir = await freshScratch('native-cancel-exec-ca-')
-    await exec('openssl', [
-      'req',
-      '-x509',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-keyout',
-      join(caDir, 'server.key'),
-      '-out',
-      join(caDir, 'server.crt'),
-      '-subj',
-      '/CN=127.0.0.1',
-      '-days',
-      '2',
-      '-addext',
-      'subjectAltName=IP:127.0.0.1',
-    ])
-  }, 30_000)
+    beforeAll(async () => {
+      expect(existsSync(acpBootPath), `built runner missing (run \`pnpm build\` first)`).toBe(true)
+      caDir = await freshScratch('native-cancel-exec-ca-')
+      await exec('openssl', [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        join(caDir, 'server.key'),
+        '-out',
+        join(caDir, 'server.crt'),
+        '-subj',
+        '/CN=127.0.0.1',
+        '-days',
+        '2',
+        '-addext',
+        'subjectAltName=IP:127.0.0.1',
+      ])
+    }, 30_000)
 
-  it('session/cancel mid-tool-execution fires solve_exec kill-once over the wire and settles cancelled', async () => {
-    const root = await freshScratch('native-cancel-exec-')
-    const workspace = join(root, 'workspace')
-    await mkdir(workspace, { recursive: true })
-    const configPath = await buildNativeComposition(root, closureRoot as string)
+    it('session/cancel mid-tool-execution fires solve_exec kill-once over the wire and settles cancelled', async () => {
+      const root = await freshScratch('native-cancel-exec-')
+      const workspace = join(root, 'workspace')
+      await mkdir(workspace, { recursive: true })
+      const configPath = await buildNativeComposition(root, closureRoot as string)
 
-    // The command must outlive the test unless killed: `sleep 300` runs five
-    // minutes; only the kill-once path ends it inside the budget.
-    const upstream = new ScriptedExecUpstream('sleep', ['300'])
-    const baseUrl = await upstream.listen()
-    const gateway = openSolveGateway({
-      stateDir: join(root, 'solve-gateway'),
-      plan: { ...PLAN, baseUrl },
-      credential: 'sk-SECRET-native-cancel-exec-credential',
-    })
-    const mounted = await mountTls(gateway, caDir)
-    const client = new CancelExecTestClient()
-    let child: ReturnType<typeof spawn> | undefined
-    try {
-      await gateway.ready()
-      const { tokenFilePath } = await gateway.enrollTrial('native-cancel-exec')
-      child = spawn(process.execPath, [acpBootPath, configPath], {
-        cwd: workspace,
-        env: {
-          ...process.env,
-          DSH_SOLVE_GATEWAY_URL: mounted.url,
-          DSH_SOLVE_GATEWAY_TOKEN_FILE: tokenFilePath,
-          DSH_SOLVE_GATEWAY_ROUTE_HASH: gateway.routeHash,
-          DSH_SOLVE_AGENT_TIMEOUT_MS: '2700000',
-          DSH_NATIVE_PROVIDER: 'zen-compatible',
-          DSH_NATIVE_MODEL: 'deepseek-v4-flash',
-          DSH_BOOT_BARE_MODULE_BASE_URL:
-            pathToFileURL(join(closureRoot as string, 'node_modules')).href + '/',
-          SSL_CERT_FILE: join(caDir, 'server.crt'),
-        },
-        stdio: ['pipe', 'pipe', 'pipe'],
+      // The command must outlive the test unless killed: `sleep 300` runs five
+      // minutes; only the kill-once path ends it inside the budget.
+      const upstream = new ScriptedExecUpstream('sleep', ['300'])
+      const baseUrl = await upstream.listen()
+      const gateway = openSolveGateway({
+        stateDir: join(root, 'solve-gateway'),
+        plan: { ...PLAN, baseUrl },
+        credential: 'sk-SECRET-native-cancel-exec-credential',
       })
-      const stderrChunks: string[] = []
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderrChunks.push(chunk.toString('utf8'))
-      })
-      const connection = new ClientSideConnection(
-        () => client,
-        ndJsonStream(Writable.toWeb(child.stdin!), Readable.toWeb(child.stdout!)),
-      )
-      const timer = setTimeout(() => child?.kill('SIGKILL'), 120_000)
+      const mounted = await mountTls(gateway, caDir)
+      const client = new CancelExecTestClient()
+      let child: ReturnType<typeof spawn> | undefined
       try {
-        await connection.initialize({
-          protocolVersion: PROTOCOL_VERSION,
-          clientInfo: { name: 'dsh-evolve-le-native-cancel-exec-test', version: '0.0.1' },
-          clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+        await gateway.ready()
+        const { tokenFilePath } = await gateway.enrollTrial('native-cancel-exec')
+        child = spawn(process.execPath, [acpBootPath, configPath], {
+          cwd: workspace,
+          env: {
+            ...process.env,
+            DSH_SOLVE_GATEWAY_URL: mounted.url,
+            DSH_SOLVE_GATEWAY_TOKEN_FILE: tokenFilePath,
+            DSH_SOLVE_GATEWAY_ROUTE_HASH: gateway.routeHash,
+            DSH_SOLVE_AGENT_TIMEOUT_MS: '2700000',
+            DSH_NATIVE_PROVIDER: 'zen-compatible',
+            DSH_NATIVE_MODEL: 'deepseek-v4-flash',
+            DSH_NATIVE_CONTEXT_WINDOW: '1000000',
+            DSH_BOOT_BARE_MODULE_BASE_URL:
+              pathToFileURL(join(closureRoot as string, 'node_modules')).href + '/',
+            SSL_CERT_FILE: join(caDir, 'server.crt'),
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
         })
-        const session = await connection.newSession({ cwd: workspace, mcpServers: [] })
-        const promptPromise = connection.prompt({
-          sessionId: session.sessionId,
-          prompt: [{ type: 'text', text: 'run sleep 300, then answer' }],
+        const stderrChunks: string[] = []
+        child.stderr.on('data', (chunk: Buffer) => {
+          stderrChunks.push(chunk.toString('utf8'))
         })
-        // Cancel only after the terminal is actually running: the loop has
-        // dispatched the tool call and solve_exec is parked in waitForExit.
-        // This is the ordering harbor's session/cancel produces when the user
-        // interrupts a long command, not a model request.
-        for (let i = 0; i < 100 && client.terminalCalls.length === 0; i += 1) {
-          await new Promise<void>((resolveTick) => setTimeout(resolveTick, 100))
+        const connection = new ClientSideConnection(
+          () => client,
+          ndJsonStream(Writable.toWeb(child.stdin!), Readable.toWeb(child.stdout!)),
+        )
+        const timer = setTimeout(() => child?.kill('SIGKILL'), 120_000)
+        try {
+          await connection.initialize({
+            protocolVersion: PROTOCOL_VERSION,
+            clientInfo: { name: 'dsh-evolve-le-native-cancel-exec-test', version: '0.0.1' },
+            clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+          })
+          const session = await connection.newSession({ cwd: workspace, mcpServers: [] })
+          const promptPromise = connection.prompt({
+            sessionId: session.sessionId,
+            prompt: [{ type: 'text', text: 'run sleep 300, then answer' }],
+          })
+          // Cancel only after the terminal is actually running: the loop has
+          // dispatched the tool call and solve_exec is parked in waitForExit.
+          // This is the ordering harbor's session/cancel produces when the user
+          // interrupts a long command, not a model request.
+          for (let i = 0; i < 100 && client.terminalCalls.length === 0; i += 1) {
+            await new Promise<void>((resolveTick) => setTimeout(resolveTick, 100))
+          }
+          expect(
+            client.terminalCalls,
+            JSON.stringify({ stderr: stderrChunks.join(''), updates: client.updates }),
+          ).toEqual([{ command: 'sleep', args: ['300'], cwd: workspace }])
+          await connection.cancel({ sessionId: session.sessionId })
+          const prompt = await promptPromise
+
+          // The cancel crossed into the native agent: the loop aborted the step,
+          // its turn/end record carries reason.kind 'aborted', and the ACP stop
+          // reason is cancelled — never a fake end_turn for a killed turn.
+          expect(prompt.stopReason).toBe('cancelled')
+
+          // Kill-once over the wire: the abort listener fired killOnce() and the
+          // aborted branch awaited it again — the memoized promise means the
+          // client's killTerminal ran EXACTLY once for the terminal.
+          expect(client.killedTerminals).toEqual(['t0'])
+
+          // The killed process really died: waitForTerminalExit observed the
+          // SIGKILL exit, and the tool's finally released the terminal.
+          const exit = client.exitStatuses.get('t0')
+          expect(exit?.signal).toBe('SIGKILL')
+          expect(client.releasedTerminals).toEqual(['t0'])
+
+          // Exactly one model request crossed the wire: the cancelled turn never
+          // reached for a second completion.
+          expect(upstream.requests).toHaveLength(1)
+          const fact = await gateway.terminalFact('native-cancel-exec')
+          expect(fact.ok).toBe(true)
+          expect(fact.usage.requests).toBe(1)
+        } finally {
+          clearTimeout(timer)
+          child.stdin!.end()
+          const exit = await new Promise<{ code: number | null }>((resolveClosed) => {
+            child?.on('close', (code) => resolveClosed({ code }))
+            setTimeout(() => child?.kill('SIGKILL'), 30_000).unref()
+          })
+          const stderr = stderrChunks.join('')
+          const reportLine = stderr
+            .split('\n')
+            .filter((line) => line.startsWith(REPORT_PREFIX))
+            .at(-1)
+          const report =
+            reportLine === undefined
+              ? undefined
+              : (JSON.parse(reportLine.slice(REPORT_PREFIX.length)) as RunnerReport)
+          // A cancelled tool execution must not strand the terminal, a timer, or
+          // a socket: the unload invariant is checked against the serving
+          // baseline exactly as in a clean round.
+          expect(exit.code, `stderr: ${stderr.slice(-600)}`).toBe(0)
+          expect(report?.quiescent, `stderr: ${stderr.slice(-600)}`).toBe(true)
         }
-        expect(client.terminalCalls).toEqual([{ command: 'sleep', args: ['300'], cwd: workspace }])
-        await connection.cancel({ sessionId: session.sessionId })
-        const prompt = await promptPromise
-
-        // The cancel crossed into the native agent: the loop aborted the step,
-        // its turn/end record carries reason.kind 'aborted', and the ACP stop
-        // reason is cancelled — never a fake end_turn for a killed turn.
-        expect(prompt.stopReason).toBe('cancelled')
-
-        // Kill-once over the wire: the abort listener fired killOnce() and the
-        // aborted branch awaited it again — the memoized promise means the
-        // client's killTerminal ran EXACTLY once for the terminal.
-        expect(client.killedTerminals).toEqual(['t0'])
-
-        // The killed process really died: waitForTerminalExit observed the
-        // SIGKILL exit, and the tool's finally released the terminal.
-        const exit = client.exitStatuses.get('t0')
-        expect(exit?.signal).toBe('SIGKILL')
-        expect(client.releasedTerminals).toEqual(['t0'])
-
-        // Exactly one model request crossed the wire: the cancelled turn never
-        // reached for a second completion.
-        expect(upstream.requests).toHaveLength(1)
-        const fact = await gateway.terminalFact('native-cancel-exec')
-        expect(fact.ok).toBe(true)
-        expect(fact.usage.requests).toBe(1)
       } finally {
-        clearTimeout(timer)
-        child.stdin!.end()
-        const exit = await new Promise<{ code: number | null }>((resolveClosed) => {
-          child?.on('close', (code) => resolveClosed({ code }))
-          setTimeout(() => child?.kill('SIGKILL'), 30_000).unref()
-        })
-        const stderr = stderrChunks.join('')
-        const reportLine = stderr
-          .split('\n')
-          .filter((line) => line.startsWith(REPORT_PREFIX))
-          .at(-1)
-        const report =
-          reportLine === undefined
-            ? undefined
-            : (JSON.parse(reportLine.slice(REPORT_PREFIX.length)) as RunnerReport)
-        // A cancelled tool execution must not strand the terminal, a timer, or
-        // a socket: the unload invariant is checked against the serving
-        // baseline exactly as in a clean round.
-        expect(exit.code, `stderr: ${stderr.slice(-600)}`).toBe(0)
-        expect(report?.quiescent, `stderr: ${stderr.slice(-600)}`).toBe(true)
+        await mounted.close()
+        await gateway.close()
+        await upstream.close()
+        await rm(root, { recursive: true, force: true })
       }
-    } finally {
-      await mounted.close()
-      await gateway.close()
-      await upstream.close()
-      await rm(root, { recursive: true, force: true })
-    }
-  }, 180_000)
-})
+    }, 180_000)
+  },
+)

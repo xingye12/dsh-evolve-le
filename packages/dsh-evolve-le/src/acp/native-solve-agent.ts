@@ -1,3 +1,15 @@
+import {
+  installCandidateStrategyEvents,
+  installCandidateEventBridge,
+  queueCandidateCheckpoint,
+  type CandidateStrategyEventsRegistry,
+} from '../dsh/candidate-events.js'
+import {
+  isolateNativeStrategyContext,
+  installNativeSubagents,
+  type NativeSessionEvidence,
+  NATIVE_CAPABILITIES_POLICY,
+} from '../dsh/native-capabilities.js'
 /** ACP transport over an upstream DSH agent/session scope. */
 
 import { randomUUID } from 'node:crypto'
@@ -130,45 +142,18 @@ type CandidateWorkflowRegistry = {
   snapshot(): readonly CandidateWorkflow[]
 }
 
-type CandidateStrategyEvent = { name: string; handler: (...args: unknown[]) => unknown }
-type CandidateStrategyEventsRegistry = {
-  register(event: CandidateStrategyEvent): () => void
-  emit(name: string, input: unknown): Promise<unknown[]>
-  snapshot(): readonly CandidateStrategyEvent[]
-}
 type CandidateStrategyTool = { name: string; run(input: unknown): Promise<unknown> }
 type CandidateStrategyToolsRegistry = {
   register(tool: CandidateStrategyTool): () => void
   snapshot(): readonly CandidateStrategyTool[]
 }
 
-function installCandidateStrategyEvents(agentCtx: Context): CandidateStrategyEventsRegistry {
-  const events: CandidateStrategyEvent[] = []
-  const provide = (agentCtx as unknown as { provide?: (name: string, value: unknown) => void }).provide
-  if (typeof provide !== 'function') throw new Error('native solve: agent context cannot provide candidateStrategyEvents')
-  const registry: CandidateStrategyEventsRegistry = {
-    register(event) {
-      events.push(event)
-      return () => {
-        const index = events.indexOf(event)
-        if (index >= 0) events.splice(index, 1)
-      }
-    },
-    async emit(name, input) {
-      const values: unknown[] = []
-      for (const event of events) if (event.name === name) values.push(await event.handler(input))
-      return values
-    },
-    snapshot: () => [...events],
-  }
-  provide.call(agentCtx, 'candidateStrategyEvents', registry)
-  return registry
-}
-
 function installCandidateStrategyTools(agentCtx: Context): CandidateStrategyToolsRegistry {
   const tools: CandidateStrategyTool[] = []
-  const provide = (agentCtx as unknown as { provide?: (name: string, value: unknown) => void }).provide
-  if (typeof provide !== 'function') throw new Error('native solve: agent context cannot provide candidateStrategyTools')
+  const provide = (agentCtx as unknown as { provide?: (name: string, value: unknown) => void })
+    .provide
+  if (typeof provide !== 'function')
+    throw new Error('native solve: agent context cannot provide candidateStrategyTools')
   const registry: CandidateStrategyToolsRegistry = {
     register(tool) {
       tools.push(tool)
@@ -183,17 +168,8 @@ function installCandidateStrategyTools(agentCtx: Context): CandidateStrategyTool
   return registry
 }
 
-/**
- * ADR-060: the capsule's outer scope carries the candidate-workflow-stub
- * (ADR-054) so candidate plugins can publish workflow declarations at Loader
- * activation. Cordis forbids re-providing a service that already exists in
- * an ancestor scope — the agent Fiber's state copies the root, so the
- * per-Fiber fresh registry the ADR-054 draft assumed is structurally
- * impossible; the ADR-059 smoke's mockReplay turn proved it with a duplicate
- * provision throw. When the stub is present the runner reuses it: candidate
- * registration/disposal stay effect-scoped through the same registry object,
- * and the TCB still executes only the fixed solve-policy name. Stub-free
- * scopes (unit fixtures, pre-ADR-054 capsules) keep the fresh provision.
+/** Reuse the session's isolated registry during setup (before its Fiber is
+ * active). Historical structural fixtures may inherit the Loader stub.
  */
 function installCandidateWorkflowRegistry(agentCtx: Context): {
   workflows: () => readonly CandidateWorkflow[]
@@ -233,9 +209,9 @@ function installCandidateWorkflowRegistry(agentCtx: Context): {
 
 function inheritedCandidateWorkflows(agentCtx: Context): CandidateWorkflowRegistry | undefined {
   try {
-    const service = (agentCtx as unknown as { get?: (name: string) => unknown }).get?.(
-      'candidateWorkflows',
-    )
+    const service = (
+      agentCtx as unknown as { get?: (name: string, strict?: boolean) => unknown }
+    ).get?.('candidateWorkflows', false)
     return service !== null && typeof service === 'object'
       ? (service as CandidateWorkflowRegistry)
       : undefined
@@ -264,6 +240,9 @@ export interface NativeSolveSession {
   deadlineTimer?: ReturnType<typeof setTimeout> | undefined
   /** Emits the bounded end-of-session strategy event once, during disposal. */
   completeStrategySession?: () => Promise<void>
+  candidateEvents?: () => readonly unknown[]
+  drainStrategyEvents?: () => Promise<void>
+  subagents?: NativeSessionEvidence[]
   strategyUsage: {
     workflowInvocations: number
     strategyToolInvocations: number
@@ -283,6 +262,8 @@ export interface NativeSolveSession {
  */
 export interface NativeSolveUsageSink {
   costUsdMicros: number
+  inputTokens?: number
+  outputTokens?: number
 }
 
 export interface NativeSolveAgentOptions {
@@ -417,6 +398,7 @@ export function createNativeSolveAgent(
         agentEventInvocations: 0,
         sessionEventInvocations: 0,
       }
+      let bridge: ReturnType<typeof installCandidateEventBridge> | undefined
       let strategyEvents: CandidateStrategyEventsRegistry | undefined
       let strategyTools: CandidateStrategyToolsRegistry | undefined
       let pendingSessionCheckpoints: string[] = []
@@ -431,6 +413,7 @@ export function createNativeSolveAgent(
         phase,
         observation: observation.snapshot(),
       })
+      const subagentEvidence: NativeSessionEvidence[] = []
       const handle = await createNativeDshAgent(ctx, {
         sessionId,
         cwd: params.cwd,
@@ -439,6 +422,7 @@ export function createNativeSolveAgent(
         ...(options.model === undefined ? {} : { model: options.model }),
         ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
         setup: async (agentCtx) => {
+          agentCtx = isolateNativeStrategyContext(agentCtx)
           // The workflow registry is an explicit candidate surface.  Candidate
           // setup may register many audit workflows, but the TCB executes only
           // the fixed solve-policy name below and only as a bounded checkpoint
@@ -447,6 +431,16 @@ export function createNativeSolveAgent(
           strategyEvents = installCandidateStrategyEvents(agentCtx)
           strategyTools = installCandidateStrategyTools(agentCtx)
           await candidateStrategySetupOf(ctx)?.(agentCtx)
+          bridge = installCandidateEventBridge(
+            agentCtx,
+            strategyEvents,
+            (turn, step) => strategyContext('pre-step', turn, step),
+            (c) => queueCandidateCheckpoint(pendingSessionCheckpoints, c),
+            (surface, count) => {
+              if (surface === 'agent') strategyUsage.agentEventInvocations += count
+              else strategyUsage.sessionEventInvocations += count
+            },
+          )
           installNativePromptSections(agentCtx, [NATIVE_SOLVE_POLICY_SECTION])
           installNativeSolveTools(agentCtx, {
             connection,
@@ -455,6 +449,97 @@ export function createNativeSolveAgent(
             observation,
             ...(limits === undefined ? {} : { commandTimeoutMs: limits.commandTimeoutMs }),
           })
+          await installNativeSubagents(
+            agentCtx,
+            async (childCtx) => {
+              childCtx = isolateNativeStrategyContext(childCtx)
+              const workflows = installCandidateWorkflowRegistry(childCtx)
+              const events = installCandidateStrategyEvents(childCtx)
+              const tools = installCandidateStrategyTools(childCtx)
+              await candidateStrategySetupOf(ctx)?.(childCtx)
+              installNativePromptSections(childCtx, [NATIVE_SOLVE_POLICY_SECTION])
+              const childObservation = createCandidateSolveObservationTracker()
+              installNativeSolveTools(childCtx, {
+                connection,
+                sessionId,
+                cwd: params.cwd,
+                observation: childObservation,
+                ...(limits === undefined ? {} : { commandTimeoutMs: limits.commandTimeoutMs }),
+              })
+              const context = (
+                phase: 'session-start' | 'pre-step' | 'session-end',
+                turn: number,
+                step: number,
+              ) => ({
+                protocol: CANDIDATE_STRATEGY_CONTEXT_PROTOCOL,
+                phase,
+                turn,
+                step,
+                observation: childObservation.snapshot(),
+              })
+              const childBridge = installCandidateEventBridge(
+                childCtx,
+                events,
+                (turn, step) => context('pre-step', turn, step),
+                (c) => queueCandidateCheckpoint(checkpoints, c),
+              )
+              const initial = await events.emit(
+                CANDIDATE_SESSION_START_EVENT,
+                context('session-start', 0, 0),
+              )
+              let checkpoints = initial.flatMap((value) => {
+                const c = checkpointOf(value)
+                return c === undefined ? [] : [c]
+              })
+              childCtx.on(
+                'agent/pre-step' as never,
+                (async (
+                  payload: { turn: number; step: number },
+                  next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
+                ) => {
+                  await childBridge.drain()
+                  const admitted = await next()
+                  if (admitted.kind === 'reject') return admitted
+                  const input = context('pre-step', payload.turn, payload.step)
+                  const values = await events.emit(CANDIDATE_AGENT_PRE_STEP_EVENT, input)
+                  for (const tool of tools.snapshot().slice(0, 4))
+                    values.push(await tool.run(input))
+                  for (const workflow of workflows
+                    .workflows()
+                    .filter(
+                      (w) =>
+                        w.name === CANDIDATE_SOLVE_POLICY_WORKFLOW && typeof w.run === 'function',
+                    )) {
+                    values.push(
+                      await workflow.run!({
+                        protocol: CANDIDATE_SOLVE_POLICY_PROTOCOL,
+                        turn: payload.turn,
+                        step: payload.step,
+                        observation: childObservation.snapshot(),
+                      }),
+                    )
+                  }
+                  for (const value of values) {
+                    const c = checkpointOf(value)
+                    if (c !== undefined) queueCandidateCheckpoint(checkpoints, c)
+                  }
+                  const messages = checkpoints.map((c) =>
+                    nativeUserMessage(
+                      `<candidate-solve-checkpoint>${c}</candidate-solve-checkpoint>`,
+                    ),
+                  )
+                  checkpoints = []
+                  return { kind: 'enter', messages: [...admitted.messages, ...messages] }
+                }) as never,
+              )
+              childCtx.effect(() => async () => {
+                await childBridge.drain()
+                await events.emit(CANDIDATE_SESSION_END_EVENT, context('session-end', 0, 0))
+              })
+              return { drain: childBridge.drain, audit: events.audit }
+            },
+            subagentEvidence,
+          )
           const solvePolicies = workflowRegistry.workflows().filter(
             // ADR-060: stub-registered records may carry declaration-only
             // entries; only an executable solve-policy workflow runs.
@@ -466,9 +551,7 @@ export function createNativeSolveAgent(
             limits !== undefined ||
             solvePolicies.length > 0 ||
             strategyTools.snapshot().length > 0 ||
-            strategyEvents
-              .snapshot()
-              .some((event) => event.name === CANDIDATE_AGENT_PRE_STEP_EVENT)
+            strategyEvents.snapshot().length > 0
           ) {
             // Turn cap: upstream AgentOptions has no maxTurns, so reject the
             // proposed step once the loop's own turn counter passes the cap.
@@ -478,6 +561,7 @@ export function createNativeSolveAgent(
               payload: { turn: number },
               next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
             ): Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }> => {
+              await bridge?.drain()
               if (limits !== undefined && payload.turn > limits.maxTurns) return { kind: 'reject' }
               const admitted = await next()
               if (admitted.kind === 'reject') return admitted
@@ -492,12 +576,12 @@ export function createNativeSolveAgent(
               strategyUsage.agentEventInvocations += eventValues.length
               for (const value of eventValues) {
                 const checkpoint = checkpointOf(value)
-                if (checkpoint !== undefined) checkpoints.push(checkpoint)
+                if (checkpoint !== undefined) queueCandidateCheckpoint(checkpoints, checkpoint)
               }
               for (const tool of strategyTools!.snapshot().slice(0, 4)) {
                 strategyUsage.strategyToolInvocations += 1
                 const checkpoint = checkpointOf(await tool.run(input))
-                if (checkpoint !== undefined) checkpoints.push(checkpoint)
+                if (checkpoint !== undefined) queueCandidateCheckpoint(checkpoints, checkpoint)
               }
               for (const policy of solvePolicies) {
                 strategyUsage.workflowInvocations += 1
@@ -509,7 +593,7 @@ export function createNativeSolveAgent(
                     observation: observation.snapshot(),
                   }),
                 )
-                if (checkpoint !== undefined) checkpoints.push(checkpoint)
+                if (checkpoint !== undefined) queueCandidateCheckpoint(checkpoints, checkpoint)
               }
               if (checkpoints.length === 0) return admitted
               return {
@@ -538,17 +622,22 @@ export function createNativeSolveAgent(
         strategyUsage.sessionEventInvocations += eventValues.length
         for (const value of eventValues) {
           const checkpoint = checkpointOf(value)
-          if (checkpoint !== undefined) pendingSessionCheckpoints.push(checkpoint)
+          if (checkpoint !== undefined)
+            queueCandidateCheckpoint(pendingSessionCheckpoints, checkpoint)
         }
       }
       const session: NativeSolveSession = {
         sessionId,
         cwd: params.cwd,
         handle,
+        subagents: subagentEvidence,
+        drainStrategyEvents: () => bridge?.drain() ?? Promise.resolve(),
+        candidateEvents: () => strategyEvents?.audit() ?? [],
         emittedEvents: 0,
         createdAt: (options.now ?? Date.now)(),
         strategyUsage,
         completeStrategySession: async () => {
+          await bridge?.drain()
           if (strategyEvents === undefined) return
           const eventValues = await strategyEvents.emit(
             CANDIDATE_SESSION_END_EVENT,
@@ -586,23 +675,41 @@ export function createNativeSolveAgent(
       }
       session.handle.agent.followup(nativeUserMessage(promptText(params)))
       await session.handle.agent.whenIdle()
+      let callbackFailure: unknown
+      try {
+        await session.drainStrategyEvents?.()
+      } catch (error) {
+        callbackFailure = error
+      }
       const events = session.handle.agent.session?.events ?? []
       await emit(session.sessionId, events, session.emittedEvents)
       session.emittedEvents = events.length
       // Usage authority (same split as the compatibility loop): token totals
       // from the agent-loop's own session events; cost from the gateway
       // receipt sink, read now that the in-flight turn has settled.
-      const { inputTokens, outputTokens } = sessionTokenUsage(events)
+      const counted = sessionTokenUsage(events)
+      const inputTokens = options.usageSink?.inputTokens ?? counted.inputTokens
+      const outputTokens = options.usageSink?.outputTokens ?? counted.outputTokens
       const costUsdMicros = options.usageSink?.costUsdMicros ?? 0
       await connection.sessionUpdate({
         sessionId: session.sessionId,
         update: {
           sessionUpdate: 'usage_update',
+          _meta: {
+            'dsh-evolve-le/native-evidence': {
+              protocol: NATIVE_CAPABILITIES_POLICY.protocol,
+              sessionId: session.sessionId,
+              events,
+              subagents: session.subagents ?? [],
+              candidateEvents: session.candidateEvents?.() ?? [],
+            },
+          },
           used: inputTokens + outputTokens,
           size: inputTokens + outputTokens,
           cost: { amount: costUsdMicros / 1_000_000, currency: 'USD' },
         },
       })
+      if (callbackFailure !== undefined) throw callbackFailure
       return {
         stopReason: latestTurnAborted(events) ? 'cancelled' : 'end_turn',
         usage: {

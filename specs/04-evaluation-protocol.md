@@ -375,3 +375,67 @@ status: local / independently reproduced / official leaderboard
 
 必须同时发布 point estimate、uncertainty、raw per-task table（sealed reveal 后）、failed trials、完整
 manifest 和 analysis code。不得只展示 best seed、best candidate 或 best-of-k 而称 Pass@1。
+
+## Offline attribution localization (ADR-071)
+
+`dsh-evolve-le/swepro-attribution-evaluation/v1` is a separate public-data offline evaluation,
+not a Terminal-Bench search/sealed profile. Freeze all 86 English SWE-Bench Pro TrajErrBench
+trajectories, original zero-based labels, source digests, model/route/parameters, prompts, budgets
+and bootstrap seed before paid requests. Gold labels and extra metadata MUST NOT enter model
+inputs. Exact-step accuracy uses all 86 failures; missing/unknown/invalid/budget-skipped results
+are misses. Report answered accuracy and coverage alongside exact accuracy, Wilson 95% CIs,
+47/39 length strata at 120 events, and paired task bootstrap against single-pass localization.
+Recovered calls MUST NOT be paid again. Human causal review and repair efficacy are separate.
+The manifest MAY freeze a method subset for independent baseline-first runs. A baseline-only
+run requires 86 records for completeness, executes no v4 stages and publishes no paired difference.
+Method selection is immutable; a later v4 comparison uses a distinct run identity and explicitly
+verifies dataset/route/request/cap compatibility before comparing separately collected results.
+
+### Advisory attribution profile (ADR-072)
+
+New offline v4 runs freeze citationPolicy=advisory in debuggerProfile and require a
+fresh run identity. Unmatched quotations and long failureMode descriptions no
+longer invalidate otherwise structurally valid v4 outputs. Exact-step scoring,
+the fixed denominator and gold-label isolation remain unchanged. Report citation
+verification separately from answered coverage; wider acceptance is not improved
+accuracy. The historical single-pass baseline remains strict; disclose this
+contract difference in any comparison. Frozen historical scores are unchanged.
+
+### State-rule ablation (ADR-073)
+
+Use the same frozen Detect pool and recorded State responses for local comparisons
+of validation rules. Report raw/retained lifecycle counts, selected root coverage
+and exact-step agreement separately. Gold labels are applied only after selection.
+New Detect candidates lack corresponding State replies and are excluded from this
+comparison. These post-hoc results do not replace frozen historical scores or
+constitute a new live evaluation of current prompts and the full pipeline.
+
+### Full-trajectory debugger profile (ADR-074)
+
+New runs freeze trajectoryPolicy=full-trajectory: one Detect request sees all
+redacted events, original indices, tests, terminal facts and input coverage;
+State sees all events/tests/terminal without field truncation or reduced context.
+Detect still proposes at most eight findings; Cluster/State/Select/Recover remain
+separate. An oversized request is explicitly budget-skipped with input-envelope,
+never silently split or truncated. Earlier-reference chronology remains enforced.
+Old manifests/configs without this policy retain windowed replay semantics.
+Require full-context cross-boundary evidence, mixed-source index preservation,
+oversized-input no-call, new-profile freezing, Loader and crash/replay tests.
+Changed source/profile requires a fresh identity; no historical paid score rewrite
+or attribution-quality improvement claim follows from implementation.
+
+### Native compression/delegation accounting (ADR-075)
+
+Summary and child completions count against the same trial/proposal gateway
+request, token and cost ceilings. Adapter usage aggregates these completions;
+receipt chains remain the cost authority. Native capability/closure changes are
+protocol changes requiring fresh run identities and baseline calibration, not
+reinterpretation of historical trials. Engineering Loader tests do not establish
+reward improvement or sealed promotion.
+
+### Candidate lifecycle protocol changes (ADR-076)
+
+Expanded hooks change candidate behavior and SDK/runtime bytes. Freeze native-v3
+and candidate-events/v2, regenerate the SDK-inclusive closure lock and calibrate a
+fresh baseline. Engineering callback tests cannot reinterpret historical trials
+or establish benchmark improvement; historical manifests retain their old policies.

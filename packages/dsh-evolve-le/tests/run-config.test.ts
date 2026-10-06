@@ -119,6 +119,9 @@ describe('run config schema (specs/07 §7)', () => {
       agentDebuggerRoute: 'deepseek/zen-compatible',
     })
     expect(config.agentDebugger?.maxOutputTokens).toBe(32_768)
+    expect(config.agentDebugger?.profile?.citationPolicy).toBe('advisory')
+    expect(config.agentDebugger?.profile?.statePolicy).toBe('model-judgment')
+    expect(config.agentDebugger?.profile?.trajectoryPolicy).toBe('full-trajectory')
   })
 
   it('requires an explicit legacy source when tree-v2 migration is selected', () => {

@@ -75,6 +75,8 @@ describe('v4 driver lifecycle and parent export', () => {
     expect(runner.exportDirs).toHaveLength(1)
     const runManifest = JSON.parse(await readFile(join(fx.runRoot, 'run-manifest.json'), 'utf8'))
     expect(runManifest.debuggerProfile).toMatchObject({ maxEvents: 60, maxInstances: 12 })
+    expect(runManifest.debuggerProfile.statePolicy).toBe('strict')
+    expect(runManifest.debuggerProfile.trajectoryPolicy).toBe('windowed')
     expect(runManifest.debuggerProtocol).toBe('dsh-evolve-le/agent-debugger/v4')
     const ceremony = runSplitCeremony({
       runId: fx.config.runId,

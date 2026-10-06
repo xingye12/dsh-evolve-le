@@ -151,3 +151,37 @@ be recorded into a fresh evidence directory with:
 ```sh
 node --import tsx/esm scripts/record-debugger-v4-crash.ts
 ```
+
+## Native context compression and subagents
+
+New native capsules use `native-dsh/v3` with the policies in ADR-075/076. Regenerate
+`native-dsh.lock.json` using `pnpm native-dsh:inspect` against a catalog containing
+the pinned rc.5 compaction, token-meter and subagent packages, and start a fresh
+run. An old closure lock or capsule must not be relabelled as v3. The closure also
+includes compiled candidate SDK bytes; regenerate it after SDK changes.
+
+The frozen model route's `contextWindowTokens` is passed to proposal workers and
+Harbor solve jobs (`DSH_NATIVE_CONTEXT_WINDOW`). Automatic compression starts at
+80% pressure and keeps a 16% tail plus an upstream checkpoint; raw events are
+preserved. Summary calls use the existing model route and count against its
+request/token/cost budget. The gateway's output cap remains authoritative.
+
+Both proposal and solve agents expose the upstream `subagent` tool. A child gets
+the candidate strategy and the same bounded task tools: `solve_*` through ACP,
+or `proposal_*` through the shared proposal backend. Only foreground spawn is
+supported: depth 1, four starts per root, two concurrent workers, 32 child steps.
+Children share a workspace and should coordinate writes. Cancellation and disposal
+propagate; child events and stop reasons are retained in proposal transcripts or
+solve ACP usage metadata. This capability does not apply to recorded replay or
+to the controller's TrajDebug model calls.
+
+To verify the native composition without paid requests, assemble the catalog
+closure with `assembleOfflineNodeModules`, build, then run
+`native-capabilities.subprocess.test.ts` with `DSH_NATIVE_CLOSURE_ROOT` pointing to
+that closure. This test skips when the pinned runtime is absent; a skipped test
+is not evidence of capability validation.
+
+Controlled lifecycle hooks are documented in [candidate-events.md](candidate-events.md).
+The existing agent-events surface includes tool pre/post/result notifications;
+expanded callbacks receive the safe v2 event context and produce bounded next-step
+checkpoints. Callback audit evidence is separate from original DSH session events.

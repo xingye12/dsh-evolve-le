@@ -181,3 +181,12 @@ promotion for the tree-v2 identity.
 These gates are implemented and unit-tested in the trusted core. No sealed result,
 cost target, +5 percentage-point claim or SOTA claim is implied without the
 corresponding frozen Terminal-Bench evidence.
+
+### Expanded lifecycle hooks (ADR-076)
+
+The existing agent-events surface also carries tool lifecycle hooks named
+`candidate:agent/tool-*`; declare exact names in agentEventNames. No seventh
+manifest capability is introduced. Native v3 emits the 20 controlled names in
+[the lifecycle guide](candidate-events.md), with isolated solve/proposal/child
+registries, safe context projections, bounded next-step checkpoints and separate
+callback audit evidence. Unsupported names remain declarations.

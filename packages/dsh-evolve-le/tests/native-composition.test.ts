@@ -16,8 +16,8 @@ import {
 import { runNativeDshTurn } from '../src/dsh/native-runner.js'
 
 describe('native DSH composition seam', () => {
-  it('pins the upstream runtime and keeps native protocol identity stable', () => {
-    expect(NATIVE_DSH_PROTOCOL).toBe('dsh-evolve-le/native-dsh/v1')
+  it('pins the upstream runtime and versions the native composition contract', () => {
+    expect(NATIVE_DSH_PROTOCOL).toBe('dsh-evolve-le/native-dsh/v3')
     expect(NATIVE_DSH_PACKAGE_PINS.map(([name]) => name)).toEqual([
       '@deepseek-ai/dsh-agent',
       '@deepseek-ai/dsh-agent-loop',
@@ -27,6 +27,10 @@ describe('native DSH composition seam', () => {
       '@deepseek-ai/dsh-session',
       '@deepseek-ai/dsh-tools',
       '@deepseek-ai/dsh-skill',
+      '@deepseek-ai/dsh-token-meter',
+      '@deepseek-ai/dsh-compaction-basic',
+      '@deepseek-ai/dsh-subagent',
+      '@deepseek-ai/dsh-tool-subagent',
     ])
     expect(() =>
       assertNativeDshClosure(NATIVE_DSH_PACKAGE_PINS.map(([name, version]) => ({ name, version }))),

@@ -171,6 +171,7 @@ export function remoteProposalRunner(options: {
           provider: options.route.provider,
           model: plan.model,
           maxTokens: plan.maxOutputTokens,
+          contextWindowTokens: options.route.contextWindowTokens,
         },
       })
     } finally {

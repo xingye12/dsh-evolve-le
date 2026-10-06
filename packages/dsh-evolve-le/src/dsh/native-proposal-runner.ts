@@ -1,3 +1,14 @@
+import {
+  installCandidateStrategyEvents,
+  installCandidateEventBridge,
+  candidateCheckpoint,
+  queueCandidateCheckpoint,
+} from './candidate-events.js'
+import {
+  isolateNativeStrategyContext,
+  installNativeSubagents,
+  type NativeSessionEvidence,
+} from './native-capabilities.js'
 /**
  * Native DSH proposal driver.
  *
@@ -94,8 +105,72 @@ export async function runNativeProposal(
 
   const state: NativeProposalToolState = { calls: 0, disposers: [] }
   const candidateSetup = options.candidateSetup ?? candidateStrategySetupOf(options.ctx)
+  const eventDrains: Array<() => Promise<void>> = []
+  const candidateEventAudits: Array<() => readonly unknown[]> = []
   const handles: NativeDshAgent[] = []
+  const subagentEvidence: NativeSessionEvidence[] = []
   const recoverySessionId = `recovery-${createHash('sha256').update(options.sessionId).digest('hex')}`
+  const setupEvents = async (agentCtx: Context) => {
+    const registry = installCandidateStrategyEvents(agentCtx)
+    const observation = {
+      toolCalls: { exec: 0, read: 0, write: 0 },
+      previousAction: 'none',
+      lastExec: { outcome: 'none', consecutiveRepeated: 0 },
+      writesSinceLastExec: 0,
+    }
+    const input = (phase: string, turn: number, step: number) => ({
+      protocol: 'dsh-evolve-le/candidate-strategy-context/v1',
+      phase,
+      turn,
+      step,
+      observation,
+    })
+    const pending: string[] = []
+    const accept = (values: unknown[]) => {
+      for (const v of values) {
+        const c = candidateCheckpoint(v)
+        if (c !== undefined) queueCandidateCheckpoint(pending, c)
+      }
+    }
+    await candidateSetup?.(agentCtx)
+    const bridge = installCandidateEventBridge(
+      agentCtx,
+      registry,
+      (turn, step) => input('pre-step', turn, step),
+      (c) => queueCandidateCheckpoint(pending, c),
+    )
+    eventDrains.push(bridge.drain)
+    candidateEventAudits.push(registry.audit)
+    accept(await registry.emit('candidate:session/start', input('session-start', 0, 0)))
+    agentCtx.on(
+      'agent/pre-step' as never,
+      (async (
+        payload: { turn: number; step: number },
+        next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
+      ) => {
+        await bridge.drain()
+        const admitted = await next()
+        if (admitted.kind === 'reject') return admitted
+        accept(
+          await registry.emit(
+            'candidate:agent/pre-step',
+            input('pre-step', payload.turn, payload.step),
+          ),
+        )
+        const messages = pending
+          .splice(0)
+          .map((c) =>
+            nativeUserMessage(`<candidate-solve-checkpoint>${c}</candidate-solve-checkpoint>`),
+          )
+        return { kind: 'enter', messages: [...admitted.messages, ...messages] }
+      }) as never,
+    )
+    agentCtx.effect(() => async () => {
+      await bridge.drain()
+      await registry.emit('candidate:session/end', input('session-end', 0, 0))
+    })
+    return { drain: bridge.drain, audit: registry.audit }
+  }
   const createSession = async (sessionId: string): Promise<NativeDshAgent> => {
     const handle = await createNativeDshAgent(options.ctx, {
       sessionId,
@@ -106,11 +181,24 @@ export async function runNativeProposal(
       ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       setup: async (agentCtx) => {
+        agentCtx = isolateNativeStrategyContext(agentCtx)
         if (options.tcbPromptSections !== undefined) {
           installNativePromptSections(agentCtx, options.tcbPromptSections)
         }
-        await candidateSetup?.(agentCtx)
+        await setupEvents(agentCtx)
         installNativeProposalTools(agentCtx, options.backend, state)
+        await installNativeSubagents(
+          agentCtx,
+          async (childCtx) => {
+            childCtx = isolateNativeStrategyContext(childCtx)
+            if (options.tcbPromptSections !== undefined)
+              installNativePromptSections(childCtx, options.tcbPromptSections)
+            const events = await setupEvents(childCtx)
+            installNativeProposalTools(childCtx, options.backend, state)
+            return events
+          },
+          subagentEvidence,
+        )
         if (options.maxTurns !== undefined) {
           const runtime = agentCtx as unknown as {
             on?: (
@@ -147,6 +235,7 @@ export async function runNativeProposal(
     let handle = await createSession(options.sessionId)
     handle.agent.followup(nativeUserMessage(options.prompt))
     await handle.agent.whenIdle()
+    await Promise.all(eventDrains.map((drain) => drain()))
     // Repair15 showed two distinct premature endings: after an actionable
     // finalizer error, and after child files existed but before submission.
     // Give one fresh, separately-audited native session exactly one recovery
@@ -172,6 +261,7 @@ export async function runNativeProposal(
         ),
       )
       await handle.agent.whenIdle()
+      await Promise.all(eventDrains.map((drain) => drain()))
     }
     const events = handles.flatMap((created) => eventsOf(created))
     const proposal = state.proposal
@@ -189,6 +279,8 @@ export async function runNativeProposal(
         protocol: NATIVE_PROPOSAL_PROTOCOL,
         ok: false,
         eventCount: events.length,
+        subagents: subagentEvidence,
+        candidateEvents: candidateEventAudits.flatMap((audit) => audit()),
         toolCalls: state.calls,
         finishAttempts: state.finishAttempts ?? 0,
         recoveryTurnInjected: needsRecoveryTurn,
@@ -221,6 +313,8 @@ export async function runNativeProposal(
     const transcript = {
       protocol: NATIVE_PROPOSAL_PROTOCOL,
       eventCount: events.length,
+      subagents: subagentEvidence,
+      candidateEvents: candidateEventAudits.flatMap((audit) => audit()),
       toolCalls: state.calls,
       finishAttempts: state.finishAttempts ?? 0,
       recoveryTurnInjected: needsRecoveryTurn,
@@ -243,6 +337,27 @@ export async function runNativeProposal(
       turns: 1,
       transcriptPath,
     }
+  } catch (error) {
+    // Callback/driver failures must retain the same audit as finalizer failures.
+    // Keep an already-written detailed finalizer transcript immutable.
+    const failurePath = options.proposalPath.replace(/proposal\.json$/, 'failure-transcript.jsonl')
+    await mkdir(dirname(failurePath), { recursive: true })
+    await writeFile(
+      failurePath,
+      JSON.stringify({
+        protocol: NATIVE_PROPOSAL_PROTOCOL,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        events: handles.flatMap(eventsOf),
+        candidateEvents: candidateEventAudits.flatMap((audit) => audit()),
+        subagents: subagentEvidence,
+        toolCalls: state.calls,
+      }) + '\n',
+      { encoding: 'utf8', flag: 'wx' },
+    ).catch((writeError: unknown) => {
+      if ((writeError as { code?: string }).code !== 'EEXIST') throw writeError
+    })
+    throw error
   } finally {
     disposeNativeProposalTools(state)
     await Promise.all(handles.map((handle) => handle.dispose()))

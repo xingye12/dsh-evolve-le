@@ -2853,3 +2853,173 @@ search-visible development failures (baseline/discovery/search), regardless of
 frozen pool membership. Siblings, ancestors, guard, tournament, sealed and
 full-set evidence are excluded. Pool scoring and selection remain unchanged.
 Engineering tests do not establish diagnosis accuracy or benchmark improvement.
+
+## ADR-071 — Frozen SWE-Bench Pro offline attribution evaluation (2026-10-05)
+
+The accepted evaluation uses the 86 English TrajErrBench SWE-Bench Pro trajectories from the
+local TrajDebug checkout `5b04f98b1995ec758d9aba70940d17bb7d2d169b`. Unified schema and
+`detector/score_steps.py` establish zero-based original message-step labels; the release
+`data/trajerrbench/en/README.md` documents Chinese/English pairing, so paired editions are
+not independent samples. Labels are scorer-only and never enter the model input.
+
+Use a TypeScript adapter and the existing trusted controller attribution saga. Compare an
+evidence-bound single-pass localization baseline with current v4 Detect/Cluster/State/Select,
+without network Recover calls or environment reruns. Alternate method order; freeze a shared
+route and equal per-case resource caps. All 86 cases remain in the exact-step denominator,
+including abstentions, failures and budget skips. Report coverage, answered accuracy, Wilson
+intervals, length strata and paired task bootstrap differences with fixed seed 20261005.
+
+This is a separate offline protocol/run identity. It changes neither Terminal-Bench evaluation
+scoring nor production debugger behavior. Existing helpers are exported for identical quotation
+validation. Snapshots, request/output refs and reports are immutable journal publications;
+uncertain calls consume reservations and cannot be repaid. Historical runs remain untouched.
+Success means engineering replay and a complete auditable metric report, not increased task
+success or validated causal explanations. Human blind causal review is an independent artifact.
+
+## ADR-072 — Advisory citations and concise failure modes (2026-10-05)
+
+At the user's request, new TrajDebug runs use an advisory citation profile: text
+mismatch no longer rejects Detect findings or State evidence, and failureMode
+has no field length limit. Prompts request a short phrase and faithful excerpts
+or paraphrases. This removes formatting-based losses observed in case-001; it
+does not establish semantic equivalence or causal correctness. Structural event,
+source, actor, chronology and lifecycle requirements remain.
+
+Retain exact/whitespace span matching as an audit signal. Unmatched citations
+store the claimed quote and index with matchStatus=unmatched and null original
+span fields. A selected cause with unmatched evidence has insufficient verified
+evidence. Cluster unmatched references by conflict axis, reference event and
+normalized claimed text to avoid merging unrelated events. This is an explicit
+trade-off: greater candidate coverage can also admit fabricated claims.
+
+New generated controller configs freeze profile.citationPolicy=advisory; old
+configs without the field retain strict validation. The offline v4 manifest
+freezes the new profile. The single-pass baseline retains its historical strict
+contract. Source/profile changes require a new run identity; no old report, metric
+or paid request is overwritten or retried. Fixture checks are engineering evidence;
+new accuracy claims require a fresh live evaluation.
+
+## ADR-073 — Preserve model lifecycle judgments; audit State support separately (2026-10-05)
+
+The frozen SWE-Pro responses contained 140 active and 88 fixed instances, but
+strict State validation retained 0 active and 40 fixed. At the user's request,
+new runs freeze statePolicy=model-judgment: terminal support may come from any
+relevant event; cropped context never automatically changes active to unknown;
+missing, malformed or out-of-order repair/impact/terminal/wasted-step anchors
+become evidenceIssues rather than destroying a valid lifecycle judgment.
+State enum/instance identity and nonempty explanation remain structural checks.
+
+Prompts ask the model to assess lifecycle and causal influence, provide anchors
+when available, and identify limitations. Evidence issues make selected-cause
+evidenceSufficiency insufficient but do not gate root output. Deterministic
+selection still excludes unknown, none/unknown terminal connections, and fixed
+instances without a claimed irreversible/budget-debt residual effect. Selection
+is a model-supported hypothesis, not proof of semantic or causal truth.
+
+Legacy configs without statePolicy retain strict interpretation. New generated
+configs and offline manifests freeze the new policy. Historical runs stay read
+only. A no-network ablation fixes the original Detect pool and interprets its
+recorded State replies under strict, citation-only and model-judgment policies;
+it cannot evaluate newly admitted Detect candidates or new prompt behavior.
+This trade-off removes procedural rejection at the cost of accepting more
+unsupported judgments, which remain explicitly auditable.
+
+## ADR-074 — Full-trajectory Detect and State for new runs (2026-10-05)
+
+The user requested removing Detect windows so the debugger sees the same complete
+trajectory as the single-pass baseline. Local windows omitted earlier code/tool
+observations and later consequences; merging findings cannot recover an error
+that was never proposed. The frozen profile now declares
+`trajectoryPolicy: full-trajectory`. Detect receives all redacted events with
+original bundle indices, tests, terminal facts and input coverage in one request;
+State receives the same complete events, tests and terminal facts. Neither stage
+truncates fields or selects a reduced context in this policy. Candidate clustering,
+State lifecycle judgments, deterministic selection and suggestion-only Recover
+remain separate. Detect still returns at most eight findings per trajectory.
+
+The tradeoff is a larger individual request and a fixed candidate output cap.
+Exceeding the frozen byte envelope records budget-skipped/input-envelope without
+splitting, truncating or paying for a partial analysis. Prompt overhead is still
+reserved by the existing callers; no model or budget envelope changes. Seeing
+future observations does not establish that they were known at the blamed action:
+existing source, identity and prior-reference checks remain.
+
+`windowed` retains the old algorithm for audit/replay. Missing trajectoryPolicy
+in old controller config or audit manifest resolves to windowed, while newly
+composed controller configs and offline manifests explicitly freeze full-trajectory.
+Source/profile changes require a fresh run identity. Historical paid results are
+unchanged. Engineering tests do not demonstrate improved attribution accuracy;
+a new live evaluation is required to measure that.
+
+## ADR-075 — Native compaction and bounded foreground delegation (2026-10-06)
+
+New native capsules retain `dsh-agent-spine-demo` and compose the pinned rc.5
+`dsh-token-meter`, `dsh-compaction-basic`, `dsh-subagent` and
+`dsh-tool-subagent` packages through the real Cordis Loader. The composition
+protocol is `dsh-evolve-le/native-dsh/v2`; capsule provenance freezes
+`native-capabilities/v1`. Historical v1 capsules remain evidence, not resumable
+v2 runs. A changed source/closure/policy requires a fresh run identity.
+
+Compaction is automatic at 80% of the adapter-owned context capacity, retains a
+16% context tail and uses the upstream checkpoint/event projection. Original
+session events remain intact. Summary requests use the same frozen gateway route
+and budget as normal requests; the upstream 8192-token summary hint does not
+replace the gateway's frozen output cap. Missing model capacity fails closed at
+native worker boot. Compression can lose task details; this is a measured
+engineering capability, not a benchmark improvement claim.
+
+The standard `subagent` tool delegates to a TCB-owned foreground spawn provider.
+This small provider reuses upstream child metadata/composition helpers and
+`ctx.agents.create()` to install candidate hooks and task tools before publication.
+It does not implement an agent loop. Each root permits depth 1, four started
+children, two concurrent children and 32 steps per child; failed starts consume
+count. Background, fork, caller model overrides and recursive delegation are
+unavailable. Children share the root's route, gateway receipts, task filesystem
+and proposal tool budget. They are separate sessions within the same disposable
+candidate capsule, not additional security boundaries. Same-workspace concurrent
+writes can conflict and must be coordinated by the model.
+
+Each agent receives isolated candidate workflow/event/tool registries. Parent
+cancellation reaches child requests; disposal drains children. Solve ACP
+`usage_update` metadata exports parent/child raw events and stop reasons;
+proposal transcripts retain the same child evidence. Adapter usage includes
+summary and child completions. Existing disk receipts remain authoritative for
+cost/replay. Tests use scripted completions through a real production Loader;
+real Harbor extract-elf smoke remains separate from native-model validation.
+
+## ADR-076 — Project more lifecycle events onto controlled candidate callbacks (2026-10-06)
+
+The previous runner emitted only pre-step/session-start/session-end despite the
+SDK permitting other names. New native-dsh/v3 capsules freeze candidate-events/v2
+in native-capabilities/v2. The runner bridges pinned DSH request/error/status,
+tool pre/post/result and selected durable turn/step/compaction notifications.
+Tool hooks remain agent-scoped declarations in `agentEvents`/`agentEventNames`;
+the existing six manifest surfaces and admission fingerprint checks remain.
+Their names use `candidate:agent/tool-*`, rather than introducing another
+capability category. Unsupported names remain declarations, not executable hooks.
+
+Expanded callbacks receive candidate-strategy-context/v2, phase=event and safe
+facts: event name, coarse tool kind/outcome, idle/running status, selected session
+event type or terminal reason. No arguments, result content, error messages,
+model route, budget, credentials or foreign session data crosses this projection.
+Legacy three callbacks retain their v1 context. SDK optional lookups use
+`ctx.get(name,false)` because setup runs before the owning Fiber becomes active;
+otherwise SDK registrations can silently fall back to inert namespaced listeners.
+
+The TCB serializes emitting observers, drains them before the next step and
+settlement, and propagates callback failures. Waterfalls call next exactly once
+without changing its result. Only bounded checkpoints affect a later admitted
+step; request recovery and tool settlement remain upstream/TCB decisions. The
+queue caps pending notifications at 256 and next-step checkpoints at 64. A
+candidate cannot turn an observer into a tool-result replacement or arbitrary
+host hook. Proposal, solve and foreground child sessions all mount the bridge.
+
+Callback audits record session identity, projected input, success/failure and
+checkpoint digest in separate candidateEvents fields in ACP metadata, proposal
+transcripts and child evidence. They are not custom DSH session log events:
+the pinned upstream persistence reader rejects unknown required event types,
+and upstream remains read-only. Foreground children drain their callbacks before
+result publication and retain final audit snapshots after disposal. New runtime
+semantics require a fresh run/baseline; historical capsule manifests accept their
+original v1/v2 policy and are not rewritten. Engineering checks establish live
+hook behavior and cleanup, not score improvement.

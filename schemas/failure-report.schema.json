@@ -66,90 +66,10 @@
             "type": "string"
           },
           "wrongContentQuote": {
-            "type": "object",
-            "properties": {
-              "source": {
-                "enum": ["events", "tests"]
-              },
-              "index": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "field": {
-                "type": "string"
-              },
-              "start": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "end": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "quote": {
-                "type": "string"
-              },
-              "actualQuote": {
-                "type": "string"
-              },
-              "eventId": {
-                "type": ["string", "null"]
-              }
-            },
-            "required": [
-              "source",
-              "index",
-              "field",
-              "start",
-              "end",
-              "quote",
-              "actualQuote",
-              "eventId"
-            ],
-            "additionalProperties": false
+            "$ref": "#/$defs/citationAnchor"
           },
           "referenceQuote": {
-            "type": "object",
-            "properties": {
-              "source": {
-                "enum": ["events", "tests"]
-              },
-              "index": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "field": {
-                "type": "string"
-              },
-              "start": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "end": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "quote": {
-                "type": "string"
-              },
-              "actualQuote": {
-                "type": "string"
-              },
-              "eventId": {
-                "type": ["string", "null"]
-              }
-            },
-            "required": [
-              "source",
-              "index",
-              "field",
-              "start",
-              "end",
-              "quote",
-              "actualQuote",
-              "eventId"
-            ],
-            "additionalProperties": false
+            "$ref": "#/$defs/citationAnchor"
           }
         },
         "required": [
@@ -197,47 +117,7 @@
           "terminalEvidence": {
             "anyOf": [
               {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "enum": ["events", "tests"]
-                  },
-                  "index": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "field": {
-                    "type": "string"
-                  },
-                  "start": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "end": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "quote": {
-                    "type": "string"
-                  },
-                  "actualQuote": {
-                    "type": "string"
-                  },
-                  "eventId": {
-                    "type": ["string", "null"]
-                  }
-                },
-                "required": [
-                  "source",
-                  "index",
-                  "field",
-                  "start",
-                  "end",
-                  "quote",
-                  "actualQuote",
-                  "eventId"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/citationAnchor"
               },
               {
                 "type": "null"
@@ -247,47 +127,7 @@
           "fixEvidence": {
             "anyOf": [
               {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "enum": ["events", "tests"]
-                  },
-                  "index": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "field": {
-                    "type": "string"
-                  },
-                  "start": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "end": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "quote": {
-                    "type": "string"
-                  },
-                  "actualQuote": {
-                    "type": "string"
-                  },
-                  "eventId": {
-                    "type": ["string", "null"]
-                  }
-                },
-                "required": [
-                  "source",
-                  "index",
-                  "field",
-                  "start",
-                  "end",
-                  "quote",
-                  "actualQuote",
-                  "eventId"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/citationAnchor"
               },
               {
                 "type": "null"
@@ -297,47 +137,7 @@
           "impactEvidence": {
             "anyOf": [
               {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "enum": ["events", "tests"]
-                  },
-                  "index": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "field": {
-                    "type": "string"
-                  },
-                  "start": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "end": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "quote": {
-                    "type": "string"
-                  },
-                  "actualQuote": {
-                    "type": "string"
-                  },
-                  "eventId": {
-                    "type": ["string", "null"]
-                  }
-                },
-                "required": [
-                  "source",
-                  "index",
-                  "field",
-                  "start",
-                  "end",
-                  "quote",
-                  "actualQuote",
-                  "eventId"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/citationAnchor"
               },
               {
                 "type": "null"
@@ -347,51 +147,17 @@
           "wastedSteps": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "source": {
-                  "enum": ["events", "tests"]
-                },
-                "index": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "field": {
-                  "type": "string"
-                },
-                "start": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "end": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "quote": {
-                  "type": "string"
-                },
-                "actualQuote": {
-                  "type": "string"
-                },
-                "eventId": {
-                  "type": ["string", "null"]
-                }
-              },
-              "required": [
-                "source",
-                "index",
-                "field",
-                "start",
-                "end",
-                "quote",
-                "actualQuote",
-                "eventId"
-              ],
-              "additionalProperties": false
+              "$ref": "#/$defs/citationAnchor"
             }
           },
           "explanation": {
             "type": "string"
+          },
+          "evidenceIssues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -594,5 +360,88 @@
     "originalEvidence",
     "terminal"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "citationAnchor": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "enum": ["events", "tests"]
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "field": {
+          "type": ["string", "null"]
+        },
+        "start": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "end": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "quote": {
+          "type": "string"
+        },
+        "actualQuote": {
+          "type": ["string", "null"]
+        },
+        "eventId": {
+          "type": ["string", "null"]
+        },
+        "matchStatus": {
+          "const": "unmatched"
+        }
+      },
+      "required": ["source", "index", "field", "start", "end", "quote", "actualQuote", "eventId"],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": ["matchStatus"],
+          "properties": {
+            "field": {
+              "type": "null"
+            },
+            "start": {
+              "type": "null"
+            },
+            "end": {
+              "type": "null"
+            },
+            "actualQuote": {
+              "type": "null"
+            },
+            "matchStatus": {
+              "const": "unmatched"
+            }
+          }
+        },
+        {
+          "not": {
+            "required": ["matchStatus"],
+            "properties": {
+              "matchStatus": {}
+            }
+          },
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "start": {
+              "type": "integer"
+            },
+            "end": {
+              "type": "integer"
+            },
+            "actualQuote": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
 }

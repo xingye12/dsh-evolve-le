@@ -1,7 +1,253 @@
 # Project status
 
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`；`TREE_V2_K80_REPAIR30_TERMINAL`（2026-09-14：STOPPED:NO_DEVELOPMENT_IMPROVEMENT——tournament 294/294、champion adjudication 判定 y2vhojev 胜（最佳候选 y2vhojev paired 均值 +10.5pp、90% LCB 2.0pp）、sealed 未运行、无 champion、无提升声明）**
-**更新时间：2026-10-04（Asia/Shanghai）**
+**更新时间：2026-10-06（Asia/Shanghai）**
+
+## 2026-10-06 扩展候选受控事件（工程验证完成）
+
+ADR-076 将运行时实际触发的事件从 3 个扩展为 20 个：agent request/request-error/
+error/status/turn-stopping、工具 pre/post/result，以及 session turn/step/compaction
+生命周期与选定 event 通知。工具 hook 使用 `candidate:agent/tool-*`，仍属于现有
+agent-events 演化面；原有六类 manifest surface 和真实 Loader 指纹检查保留。
+[事件清单与候选写法](docs/candidate-events.md)。
+
+扩展回调使用 candidate-strategy-context/v2、phase=event，只有脱敏的类型、坐标、
+粗粒度 tool kind/outcome、status 或 stop reason。原 3 个回调保留 v1 context。
+所有 waterfall 保留 next() 决定；checkpoint 在后续 admitted pre-step 注入，不替换
+工具结果或模型路由。最多 256 个 pending 通知、64 个待注入 checkpoint；错误与溢出
+fail closed。solve/proposal/子 agent 各自注册、排队和 drain。SDK 修正 unpublished
+Fiber 中的可选服务查找，使注册进入真正的候选 registry。
+
+candidateEvents 回执单独写入 ACP metadata、proposal transcript 与 child evidence，
+包括 session identity、投影输入、成功/失败和 checkpoint digest；不增加上游未知的
+session event type。回调失败仍先导出 solve 审计或保存 proposal failure transcript，
+再传播错误。原始 DSH session history 保持其可重放格式。
+
+验证：主回归 120 项通过、0 跳过，包含 builder/SDK/tree-v2/proposer、真实 production
+Loader、取消工具/model 请求，以及 11 项真实 SIGKILL crash/replay。随后协议兼容性
+7 项及异常路径 35 项补测通过，验证 failed callback 审计、proposal failure 落盘与
+卸载。初轮 cancel-exec 单次失败保留；独立重验和最终回归通过。Build、相关 lint/
+format、provenance/upstream 和 whitespace 检查通过。
+[验证 receipt](evidence/candidate-events-20261006/verification.json)。
+
+新 capsule 为 native-dsh/v3、native-capabilities/v2；v1/v2 历史 manifest 仍按原 policy
+校验。SDK bytes 使 closure digest 更新为 `c783df92…`，本地 native-dsh.lock.json 已
+重新生成；新 baseline/run identity 必须重新冻结。没有付费模型评测、Harbor adapter
+改动或 sealed 结论；不声称 benchmark 提升。上一节的 v2 验证产物保持历史状态。
+
+## 2026-10-06 Native 上下文压缩与 subagent（工程验证完成）
+
+ADR-075 保留 `dsh-agent-spine-demo`，在新的 `native-dsh/v2` capsule 中通过真实
+Cordis Loader 加装 rc.5 token-meter、compaction-basic、subagent registry 与标准
+subagent tool。上下文容量由冻结 model route 传入；80% 压力时自动压缩，保留 16%
+尾部和 checkpoint，原始事件不删除。摘要仍使用网关冻结输出上限及共享预算。
+
+Solve 和 proposal 均支持前台 spawn：深度 1、每 root 最多 4 次启动、并发 2、
+每 child 32 steps。子 agent 继承 candidate strategy、模型路由和同一任务工具；
+proposal 共用工具预算，solve 使用同一 ACP task session。每会话候选注册表隔离；
+取消传递、卸载等待 child 清理，子会话事件/终态保留在 ACP metadata 或 proposal
+transcript，summary/child 用量纳入 adapter 累计。子 agent 与父 agent 共用 workspace，
+不构成额外安全边界，写入需要协调。未启用后台、fork、递归委派或模型覆盖。
+
+验证：相关回归 109 项通过（25 项 CLI 默认跳过）；指定已构建 native catalog 后，
+CLI solver route 另有 6 项通过。覆盖真实 production Loader 的 2 次摘要、6 个
+compaction events、solve/proposal child 工具与候选继承、次数/并发/步数限制、
+取消、0 残留 agents 与 quiescent unload，以及 11 项真实 SIGKILL crash/replay 测试。
+Build、相关 lint/format、provenance/upstream、diff whitespace 均通过。
+[验证 receipt](evidence/native-capabilities-20261006/verification.json)。中间 schema
+strictRequired 和测试期间重建输出导致的失败报告保留；修复后静态输出回归全绿。
+
+真实 Harbor extract-elf 回放 smoke 全部 acceptance flags 为 true；主 trial reward=0，
+独立 verifier 探针为预期 RewardFileNotFoundError/shared-only，均保留原始 jobs。
+该 smoke 不验证真模型解题提升。[原始 smoke](evidence/native-capabilities-20261006/harbor/e2e.json)。
+没有付费模型调用、search 或 sealed。新 policy/closure 需要 fresh run identity 和新
+baseline；不能用该工程验证声称正式 benchmark 提升。本地 `native-dsh.lock.json`
+已生成（闭包 digest `1bc574a4…`），历史 manifest/capsule 不改写。
+
+## 2026-10-05 Full-trajectory TrajDebug（工程验证完成）
+
+按用户要求，ADR-074 新增并冻结 `trajectoryPolicy=full-trajectory`。新模式的 Detect
+一次读取所有脱敏事件及原始索引、tests、terminal 和 coverage；取消事件窗口和字段
+3,000 字符裁剪。State 同样读取完整 events/tests/terminal，不再裁剪或降为局部上下文。
+Cluster、State 生命周期判断、确定性 Select 和建议型 Recover 保留，Detect 每轨迹最多
+8 个 findings。超出冻结输入信封时明确记录 budget-skipped/input-envelope，不自动分窗，
+不为局部分析付费。旧配置/审计 manifest 缺少该 policy 时仍按 windowed 重放；新生成
+controller 配置和离线 manifest 显式冻结 full-trajectory，需要 fresh run identity。
+历史 paid run、报告和准确率不改写。
+
+工程验证：12 个相关测试文件通过，122 项通过、2 项跳过，覆盖 242 事件及未裁剪长字段、
+跨原窗口边界引用、混合来源原始索引、超预算无调用、旧分窗重放、真实 Cordis Loader
+远程接入和 SIGKILL 恢复。build、修改文件格式、diff whitespace、upstream 检查通过；
+lint 无错误，保留现有 warnings。[验证 receipt](evidence/debugger-full-trajectory/verification.json)。
+
+对原 86 条输入做只读 Detect 请求预检，验证原始对象 digest；全部装入 524,288-byte
+信封，最大 486,836 bytes，模型调用 0 次，未触发裁剪或拆窗。
+[预检产物](evidence/debugger-full-trajectory/preflight.json)。State 加入实例和证据后仍受
+独立请求信封约束，此预检不保证所有 State 请求可装入。未重跑付费 86 条评测或 Harbor
+solver（adapter 未改动），没有归因准确率或 benchmark 改善结论。
+
+## 2026-10-05 State model-judgment 规则与只读对比（工程验证完成）
+
+按用户要求，ADR-073 引入新的 `statePolicy=model-judgment`：终态证据不必指向最后事件；
+裁剪不再自动把 active 降为 unknown；缺失、格式错误或时序不明确的修复/影响/终态/浪费
+证据改记 evidenceIssues，不清空合法的模型生命周期判断。实例身份、状态枚举、非空解释
+继续校验；原始 State 产物保留，无法解析的 anchor 不伪造位置。模型 unknown 不默认变为
+active，fixed 没有声称不可逆或预算债务影响仍不进入根因选择。证据问题会让
+evidenceSufficiency=insufficient，但不阻止 root 输出。新配置与离线 manifest 冻结 policy，
+旧配置缺少 statePolicy 时仍使用 strict，不 resume 或改写历史 paid run。
+
+只读脚本 [revalidate-swepro-state.ts](scripts/revalidate-swepro-state.ts) 固定原先 308 个 Detect
+findings、261 个实例，验证来源 digest 后使用生产共享 validator/selector 解释 80 个保存的
+State 响应；没有 controller 写入、模型调用、Recover 或新费用。结果单独存放于
+[comparison.md](evidence/debugger-state-rules/comparison.md) 和
+[comparison.json](evidence/debugger-state-rules/comparison.json)。原始模型返回
+active=140/fixed=88/unknown=33。Strict 重放与历史生命周期完全一致：0/40/221，根因 1/86、
+步骤命中 0/86；只放宽引文仍为 0/41/220、根因 1/86、命中 0/86；新 State 规则为
+140/88/33，根因 62/86（72.09%）、严格步骤命中 6/86（6.98%），回答内命中 6/62（9.68%）。
+命中 case-004、035、059、068、072、078。所有实例都有 evidenceIssues（输入裁剪等），
+保留模型判断不等于因果证据已充分核实。
+
+这是事后规则消融，只评估原先有 State 响应的固定候选池；前一修改中新保留的 Detect 候选
+没有相应 State，不能套用旧响应或把此对比称为当前全流程 live 准确率。原 0/86 冻结结果不变。
+case-001 在固定旧候选池下仍选 56；其新加入的 50 等步骤需要新的 State 调用判断。
+
+工程验证：12 个相关文件共 120 项通过、1 项跳过，包括规则/schema/远程 prompt、配置、
+只读对比 fixture、真实 Cordis Loader 与 15 个真实 SIGKILL 恢复边界。build、相关脚本严格
+TypeScript、修改文件格式、diff whitespace 与 upstream 检查通过；lint 无错误，driver 保留
+两条已有 no-useless-spread warning。[验证 receipt](evidence/debugger-state-rules/verification.json)。
+未运行新付费评测、Harbor solver、search 或 sealed，不声称正式 benchmark 或因果质量提升。
+
+## 2026-10-05 TrajDebug advisory 引文与简短 failureMode（工程验证完成）
+
+按用户要求，新的 TrajDebug profile 使用 `citationPolicy=advisory`：取消 failureMode
+字段长度上限，提示词要求尽可能简短；Detect 和 State 不再因文本无法原文/空白匹配而
+拒绝候选或状态。真实事件/index、来源、actor、前后时序、修复/终态连接及预算门仍校验。
+可匹配引文保留原文位置；未匹配引文标记 `matchStatus=unmatched`，actualQuote、field、
+start/end 为 null。关键失败可产出，但使用未匹配引文的实例 evidenceSufficiency 为
+insufficient，不能把模型声称的依据当成已核实原文。
+
+ADR-072 与 specs/03、04、06、07、schema、领域术语和 runbook 已同步。新生成 controller
+配置显式冻结 advisory；缺少该字段的旧配置及单次基线保留 strict。离线 v4 manifest
+冻结 debuggerProfile；source/profile 改动必须使用新 run identity。原先 86 条产物与
+0/86 严格命中保持不变，没有付费补测或重写历史报告。
+
+不调用模型重验 case-001 的 6 条原始 Detect 候选，新规则保留 6/6（原 1/6），其中
+第 50 步引文因反引号差异标记 unmatched，4 条 112–143 字符 failureMode 不再被拒绝。
+候选集合已变，旧 State 不能作为新实例的判断；这不证明最终选择或准确率改善。
+
+工程验证：11 个相关测试文件共 111 项通过、1 项跳过，包括契约/schema、远程阶段提示词、
+新配置冻结、离线审计、真实 Cordis Loader 的 parent 证据读取和 15 个 SIGKILL 恢复边界。
+build、审计脚本严格 TypeScript、修改文件格式与 upstream 检查通过；lint 无错误，保留
+iteration/driver.ts 两条已有 no-useless-spread warning。
+[验证 receipt](evidence/debugger-advisory/verification.json) 记录源身份、命令与 case-001 检查。
+未运行新的 live 86 条评测、Harbor solver、search 或 sealed，没有归因质量或 benchmark 提升结论。
+
+## 2026-10-05 SWE-Bench Pro v4／65,536（86 条执行与审计完成）
+
+用户要求提高输出上限并测当前 TrajDebug。独立 run 为
+`swepro86-deepseek-flash-v4-64k-20261005-v1`，冻结 methods=[v4]、deepseek-flash、
+maxOutputTokens=65536；全部 86 条、每窗口 60 事件、每字段 3000 字符、每次 8 findings、
+State 每批 12 实例和既有引用/状态/选择规则保持当前实现。Recover 沿用离线定位协议，不调用
+模型；没有修改生产归因逻辑。总费用上限 $20、墙钟 6 小时、请求 timeout 180 秒、单轨迹
+16 calls / 2M tokens / $1 上限；阶段失败不重付、不从分母删除。
+
+[config](evidence/swepro-attribution/v4-64k-20261005-v1.config.json) 对应的六小时批次结束，
+80 条执行、6 条因墙钟上限跳过；269 次付费请求，保守计账 $8.163279，3 个请求超时按
+预留上界结算（unpriced=3）。原批次全部 86 条保留；严格命中 0/86、有效根因 1/86，
+Detect 命中 18/86，包含未执行的 6 条，不能作为已全量执行的结果。
+[原批次 metrics](evidence/swepro-attribution/v4-64k-20261005-v1/metrics.json) 与
+[逐条审计](evidence/swepro-attribution/v4-64k-20261005-v1/v4-audit.json) 已落盘；报告与输入
+重验通过，score 无网络重放得到相同 metrics digest，未重复模型调用。
+
+为完成用户要求的全部 86 条，用新 identity
+`swepro86-deepseek-flash-v4-64k-20261005-v1-tail-v1` 补测 case-081–086：
+[补测日志](evidence/swepro-attribution/v4-64k-20261005-tail-v1/live.log)。选择只基于原先墙钟
+跳过且零付费请求，原 80 条不重跑、失败不重试；模型、输出上限和生产归因规则相同。新批次
+重新冻结六小时墙钟，费用上限为原 $20 减已结算费用，合计仍不超过 $20。原批次不改写；
+完整结果另存双批次来源与合并指标，不把它称为原六小时批次的结果。
+
+两批合计 86 条全部执行、289 次模型请求、0 重试、0 付费 Recover；$8.898773 保守计账，
+其中 5 次 Detect 超时按完整预留上界结算（实际用量未知）。完整合并结果：严格步骤命中
+**0/86（0%，Wilson 95% 上界 4.28%）**；有效关键失败 **1/86（1.16%）**，回答内命中
+0/1；Detect 命中标注步骤 **18/86（20.93%）**；completed=19、partial=67，无 missing 或
+剩余预算跳过。原始输出、usage、引用和逐轨迹报告全部保留。
+
+[完整结果与解释](evidence/swepro-attribution/v4-64k-20261005-tail-v1/v4-results.md)、
+[合并 metrics](evidence/swepro-attribution/v4-64k-20261005-tail-v1/combined-metrics.json)、
+[补测审计](evidence/swepro-attribution/v4-64k-20261005-tail-v1/v4-audit.json) 和
+[验证 receipt](evidence/swepro-attribution/v4-64k-20261005-tail-v1/verification.json)。
+完整 metrics digest 为 `fe6fec3fb84462ad045803049e1dc72f145b1c902c4fa7359975e75f387f0d5d`；
+原批次、补测及合并 score 无网络重放得到相同 digest，没有新增模型调用或费用。
+
+主要瓶颈：80 次 State 中 65 次阶段记录存在状态校验问题（按最后保留原因，58 次终态连接
+证据问题）；80/86 条上下文不完整，17 个实例因裁剪从 active 转为 unknown；另有 340 个
+finding 被拒绝。State 的最后事件约束没有在 prompt 中明确说明，属于后续需要检查的适配
+问题；本轮未修改生产流程。数据不支持当前长轨迹归因提高定位准确率的结论。
+
+v4-only／65,536 与相关 16 项测试（含真实 SIGKILL）、审计 fixture、3 项补测契约共 20 项
+通过；build、脚本 TypeScript、改动文件 lint/格式通过。审计 fixture 首次因 I/O 慢触发 60 秒
+测试超时，改为 180 秒后通过，模型请求 timeout 未改变。上一轮基线输出上限 32768，不能
+声称同参数条件下的纯算法改善，不产生正式 paired comparison。未验证因果解释、修复效用
+或 Terminal-Bench 提升。
+
+## 2026-10-05 SWE-Bench Pro baseline-first（86 条付费评测与审计完成）
+
+用户要求先用 DeepSeek Flash 单次诊断基线测全部 86 条轨迹。独立 run identity 为
+`swepro86-deepseek-flash-baseline-20261005-v1`，配置在
+[baseline config](evidence/swepro-attribution/baseline-20261005-v1.config.json)，run 根为
+`evidence/swepro-attribution/baseline-20261005-v1/`。冻结 `methods:["single-pass"]`，不执行 v4
+或 Recover；单方法 completeness 要求 86 条记录，不产生配对差值。费用上限 $20，按峰值价格
+保守计账；现有外部凭据经无付费 `/models` 检查可访问 `deepseek-flash`。每条最多一次模型调用，
+调用失败、格式错误和弃权保留在分母，不通过重付调整结果。
+
+新增 baseline-only contract 通过，build、脚本 TypeScript、lint 和修改源码格式通过；相关契约
+15 项通过，包含原有真实 SIGKILL 恢复场景。86 条全部留存，86 次模型调用、0 次重试，
+严格步骤命中 2/86（2.33%，Wilson 95% 区间 0.64%–8.09%）；有效根因回答 24/86（27.91%），
+回答内命中 2/24（8.33%）。执行 completed=29，其中 5 条弃权；invalid-output=34；
+call-failed=23；missing=0，无预算跳过。累计请求耗时约 2 小时 13 分钟，峰值 cache-miss
+单价保守计账 $3.803569，不代表服务商实收账单。
+
+逐请求输出、usage、预算结算与预测存入 controller journal/object store。
+[结果与解释](evidence/swepro-attribution/baseline-20261005-v1/baseline-results.md)、
+[metrics](evidence/swepro-attribution/baseline-20261005-v1/metrics.json)、
+[逐条审计](evidence/swepro-attribution/baseline-20261005-v1/baseline-audit.json) 和
+[验证 receipt](evidence/swepro-attribution/baseline-20261005-v1/verification.json) 已落盘。
+审计重验源码身份、原始输入与标签 digest、引用和费用；score 无网络重放得到相同 metrics digest，
+未增加模型调用。23 个调用失败全部最终 content 为空且 completionTokens=32768；34 个校验
+失败中 22 个为引文无法匹配原文。事后绕过引用校验，仅看原始 agent 步骤编号的命中为
+18/86（20.93%），属于探索性诊断，不能替代冻结的严格主指标。
+
+在该基线批次结束时 v4 尚未运行；后续状态见本文件顶部。没有配对改善、因果解释准确性、
+修复效用或 Terminal-Bench 提升结论。
+`metrics.methods.v4` 的 missing/零值是未运行占位，只有 `selectedMethods` 中的 single-pass
+为实测结果。下方预检章节描述该付费运行启动前的历史状态。
+
+## 2026-10-05 SWE-Bench Pro 86 条离线归因评测（实现与预检完成；等待运行预算）
+
+ADR-071 实现 `dsh-evolve-le/swepro-attribution-evaluation/v1`：TypeScript adapter 将
+TrajErrBench 英文 SWE-Bench Pro 的 86 条失败轨迹转换为 v4 输入，保留原始 message step；
+annotation、extra 和 metadata 中的 task description 不进入模型请求。原始 JSON、模型输入、
+源码身份和评分标签分别固化。单次诊断基线与 v4 Detect/Cluster/State/Select 使用同一冻结路由、
+相同 per-case 预算上限，交替串行执行；Recover 不调用模型。阶段请求复用现有 controller
+归因 saga，已完成及不确定请求恢复时不重付。生产 v4 行为未改变，仅导出共享引用验证函数。
+
+严格步骤命中率固定分母 86，弃权、格式错误、调用失败及预算跳过不丢弃；同时记录回答准确率、
+覆盖率、Wilson 95% 区间、47/39 的长度分层、固定 seed 的配对 bootstrap 差值、Detect recall、
+费用和状态分布。新增 `pnpm eval:swepro` 支持 prepare/live/score；score 与 prepare 无网络、
+不读取凭据。运行说明为 [offline evaluation runbook](docs/swepro-attribution-evaluation.md)。
+
+工程验证：[verification receipt](evidence/swepro-attribution/verification.json)；build、脚本
+TypeScript 检查、lint、修改文件格式及上游校验通过；4 个测试文件 25 项通过，Loader/remote
+相关测试 19 项通过、1 项跳过。另有 6 个真实 SIGKILL 边界的逐案 journal、对象和 fixture
+调用记录：[crash receipt](evidence/swepro-attribution/crash-matrix-ready/receipt.json)，恢复后
+没有重复调用或计数。全部 86 条已完成输入快照预检，prepare/score 重放得到同一 metrics digest：
+[prepare view](evidence/swepro-attribution/prepare-ready/summary.md)。
+
+尚未启动付费模型评测，`liveModelCalls=0`；预检中的 missing/零值不是模型准确率。费用上限
+待用户确认。核查 [官方路由与价格](https://api-docs.deepseek.com/quick_start/pricing/) 发现旧
+`deepseek-v4-flash` 已被服务商转到 V4.1-Flash；当前独立配置示例使用 `deepseek-flash`，按
+峰值 cache-miss $0.30/M 输入与 $1.20/M 输出保守计账，旧预检 artifact 保留不改写。
+没有长轨迹归因准确率、修复成功率或 Terminal-Bench 提升结论；解释的因果有效性仍需人工盲审。
 
 ## 2026-10-04 Post-evaluation TrajDebug 与 candidate 错误总览（工程验证完成）
 

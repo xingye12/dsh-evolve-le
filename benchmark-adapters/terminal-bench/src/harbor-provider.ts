@@ -70,6 +70,7 @@ export interface HarborSolveGateway {
   nativeProvider?: string
   nativeModel?: string
   nativeMaxTokens?: number
+  nativeContextWindowTokens?: number
   /** Artifact-listener base URL the trial containers POST to. */
   url: string
   /** Frozen route-plan hash the capsule enforces on every reply. */
@@ -350,6 +351,13 @@ export class HarborProvider implements BenchmarkProvider {
                     : {
                         DSH_NATIVE_PROVIDER: solveGateway.nativeProvider,
                         DSH_NATIVE_MODEL: solveGateway.nativeModel,
+                        ...(solveGateway.nativeContextWindowTokens === undefined
+                          ? {}
+                          : {
+                              DSH_NATIVE_CONTEXT_WINDOW: String(
+                                solveGateway.nativeContextWindowTokens,
+                              ),
+                            }),
                         ...(solveGateway.nativeMaxTokens === undefined
                           ? {}
                           : { DSH_NATIVE_MAX_TOKENS: String(solveGateway.nativeMaxTokens) }),

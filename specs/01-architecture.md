@@ -318,3 +318,20 @@ interface BenchmarkProvider {
 - 多机同时写 Archive 成为明确需求时，引入事务数据库。
 
 这些扩展不能改变 candidate contract、artifact identity 或实验语义。
+
+### Native capabilities v2 (ADR-075)
+
+Native proposal/solve capsules compose pinned upstream token metering, basic
+compaction and foreground subagent tooling on the existing spine. The TCB binds
+context capacity to the frozen route and supplies a bounded spawn provider using
+the native agent factory. Children are sessions in the same disposable capsule,
+share model/tool budgets and receive isolated candidate registries. They do not
+create a new security boundary. Policy and closure changes require a fresh run.
+
+### Controlled lifecycle projection (ADR-076)
+
+Native v3 freezes candidate-events/v2 alongside compaction/delegation. A trusted
+bridge converts pinned request/tool/session lifecycle notifications into content-free
+candidate callbacks in independent root/child registries. Emitting observers are
+serialized and drained; waterfall next() decisions remain upstream-owned. Callback
+inputs/outcomes are separate audit fields, preserving upstream session-log vocabulary.

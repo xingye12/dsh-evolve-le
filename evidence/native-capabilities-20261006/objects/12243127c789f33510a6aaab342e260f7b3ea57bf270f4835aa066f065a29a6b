@@ -1,0 +1,18 @@
+{
+  "children": 1,
+  "childTools": true,
+  "childCandidate": true,
+  "childStop": "completed",
+  "childEvents": 27,
+  "summaryCalls": 2,
+  "compactionEvents": 6,
+  "aggregateUsage": true,
+  "evidenceExported": true,
+  "countLimited": true,
+  "concurrencyLimited": true,
+  "stepLimited": true,
+  "cancellationPassed": true,
+  "proposalPassed": true,
+  "liveAgentsAfterDispose": 0,
+  "quiescent": true
+}

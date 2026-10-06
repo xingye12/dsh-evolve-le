@@ -25,11 +25,7 @@ import {
 
 const TEST_PROVIDER = 'dsh-evolve-proposal-admission'
 const TEST_MODEL = 'dsh-evolve-proposal-admission-model'
-const PROPOSAL_TOOLS = [
-  'proposal_list_files',
-  'proposal_write_child',
-  'proposal_finish',
-] as const
+const PROPOSAL_TOOLS = ['proposal_list_files', 'proposal_write_child', 'proposal_finish'] as const
 
 interface NativeProposalProbeReport {
   config: string
@@ -125,6 +121,7 @@ async function main(argv: string[]): Promise<number> {
     disposeAdapter = installNativeLlmAdapter(ctx, {
       provider: TEST_PROVIDER,
       model: TEST_MODEL,
+      contextWindowTokens: 1_000_000,
       complete: async (request) => {
         completionCount += 1
         if (completionCount === 1) {
@@ -212,7 +209,9 @@ async function main(argv: string[]): Promise<number> {
     })
     proposalMs = performance.now() - started
     const toolCallEventCount = result.toolTrace.filter((event) => event.type === 'tool/call').length
-    const toolResultEventCount = result.toolTrace.filter((event) => event.type === 'tool/result').length
+    const toolResultEventCount = result.toolTrace.filter(
+      (event) => event.type === 'tool/result',
+    ).length
     proposal = {
       childCount: result.proposal.children.length,
       eventCount: result.eventCount,
@@ -230,8 +229,13 @@ async function main(argv: string[]): Promise<number> {
         `native proposal dispatch emitted ${String(toolCallEventCount)} call and ${String(toolResultEventCount)} result events`,
       )
     }
-    if (backendWrites.length !== 1 || !backendWrites[0]?.startsWith('native-probe-child/src/index.ts:')) {
-      throw new Error(`native proposal backend writes were unexpected: ${JSON.stringify(backendWrites)}`)
+    if (
+      backendWrites.length !== 1 ||
+      !backendWrites[0]?.startsWith('native-probe-child/src/index.ts:')
+    ) {
+      throw new Error(
+        `native proposal backend writes were unexpected: ${JSON.stringify(backendWrites)}`,
+      )
     }
   } catch (error) {
     failure = error instanceof Error ? (error.stack ?? error.message) : String(error)

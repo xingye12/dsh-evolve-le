@@ -90,6 +90,7 @@ const PLAN: Omit<RemoteRoutePlan, 'baseUrl'> = {
   routeId: 'deepseek/zen-compatible',
   model: 'deepseek-v4-flash',
   temperature: 0,
+  retry: { maxAttempts: 1, backoffMs: [] },
   maxOutputTokens: 512,
   inputUsdPerMTok: 3,
   outputUsdPerMTok: 15,
@@ -327,7 +328,10 @@ async function buildNativeComposition(dir: string, closure: string): Promise<str
   return configPath
 }
 
-async function mountTls(gateway: SolveGateway, caDir: string): Promise<{ url: string; close(): Promise<void> }> {
+async function mountTls(
+  gateway: SolveGateway,
+  caDir: string,
+): Promise<{ url: string; close(): Promise<void> }> {
   const server = createHttpsServer(
     {
       key: await readFile(join(caDir, 'server.key')),
@@ -390,7 +394,11 @@ describeNative('capsule native live-solve E2E (ADR-030: real spine + real gatewa
     const baseUrl = await upstream.listen()
     upstream.serve(
       [
-        { kind: 'tool', name: 'solve_exec', arguments: { command: 'printf', args: ['native-live-ok'] } },
+        {
+          kind: 'tool',
+          name: 'solve_exec',
+          arguments: { command: 'printf', args: ['native-live-ok'] },
+        },
         { kind: 'text', text: 'native answer: the exec output was verified' },
       ],
       { kind: 'text', text: 'fallback' },
@@ -408,6 +416,7 @@ describeNative('capsule native live-solve E2E (ADR-030: real spine + real gatewa
       DSH_SOLVE_AGENT_TIMEOUT_MS: '2700000',
       DSH_NATIVE_PROVIDER: 'zen-compatible',
       DSH_NATIVE_MODEL: 'deepseek-v4-flash',
+      DSH_NATIVE_CONTEXT_WINDOW: '1000000',
       SSL_CERT_FILE: join(caDir, 'server.crt'),
     }
     const client = new NativeSolveTestClient()
@@ -416,9 +425,8 @@ describeNative('capsule native live-solve E2E (ADR-030: real spine + real gatewa
       await gateway.ready()
       const { tokenFilePath } = await gateway.enrollTrial('native-live')
       childEnv['DSH_SOLVE_GATEWAY_TOKEN_FILE'] = tokenFilePath
-      childEnv['DSH_BOOT_BARE_MODULE_BASE_URL'] = pathToFileURL(
-        join(closureRoot as string, 'node_modules'),
-      ).href + '/'
+      childEnv['DSH_BOOT_BARE_MODULE_BASE_URL'] =
+        pathToFileURL(join(closureRoot as string, 'node_modules')).href + '/'
 
       child = spawn(process.execPath, [acpBootPath, configPath], {
         cwd: workspace,
@@ -556,6 +564,7 @@ describeNative('capsule native live-solve E2E (ADR-030: real spine + real gatewa
           DSH_SOLVE_AGENT_TIMEOUT_MS: '2700000',
           DSH_NATIVE_PROVIDER: 'zen-compatible',
           DSH_NATIVE_MODEL: 'deepseek-v4-flash',
+          DSH_NATIVE_CONTEXT_WINDOW: '1000000',
           DSH_BOOT_BARE_MODULE_BASE_URL:
             pathToFileURL(join(closureRoot as string, 'node_modules')).href + '/',
           SSL_CERT_FILE: join(caDir, 'server.crt'),

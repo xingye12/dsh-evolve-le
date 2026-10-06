@@ -8,7 +8,10 @@
       "path": "./deepseek-harness",
       "vcs": "git",
       "commit": "47f943859bef60e4160492346772ded9b24f765a",
-      "remote": { "owner": "deepseek-ai", "repo": "deepseek-harness" },
+      "remote": {
+        "owner": "deepseek-ai",
+        "repo": "deepseek-harness"
+      },
       "describe": "47f9438",
       "packageJsonVersion": "0.1.0-rc.5",
       "nodeVersion": ">=22.19.0 || >=24.0.0",
@@ -32,7 +35,10 @@
       "path": "./harbor",
       "vcs": "git",
       "commit": "ac398bbda7c4c1073461797d3b95c2455cc671b5",
-      "remote": { "owner": "laude-institute", "repo": "harbor" },
+      "remote": {
+        "owner": "laude-institute",
+        "repo": "harbor"
+      },
       "packageManager": "uv",
       "snapshot": {
         "mode": "tarball",
@@ -49,7 +55,10 @@
       "path": "./tb",
       "vcs": "git",
       "commit": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
-      "remote": { "owner": "laude-institute", "repo": "terminal-bench" },
+      "remote": {
+        "owner": "laude-institute",
+        "repo": "terminal-bench"
+      },
       "packageManager": "uv",
       "snapshot": {
         "mode": "tarball",
@@ -104,7 +113,11 @@
     "@deepseek-ai/dsh-llm": "0.1.0-rc.5",
     "@deepseek-ai/dsh-session": "0.1.0-rc.5",
     "@deepseek-ai/dsh-tools": "0.1.0-rc.5",
-    "@deepseek-ai/dsh-skill": "0.1.0-rc.5"
+    "@deepseek-ai/dsh-skill": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-token-meter": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-compaction-basic": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-subagent": "0.1.0-rc.5",
+    "@deepseek-ai/dsh-tool-subagent": "0.1.0-rc.5"
   },
   "modelCatalog": {
     "note": "Model routes are content-addressed here and in every run manifest; keys never carry credentials. The provider endpoint is recorded for provenance only; live secrets live outside the repo.",

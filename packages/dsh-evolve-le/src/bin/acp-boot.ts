@@ -64,8 +64,7 @@ const teardownSteps: (() => Promise<void> | void)[] = []
 async function sectionNames(ctx: Context): Promise<string[]> {
   const get = (ctx as unknown as { get?: (name: string) => unknown }).get
   const provided = typeof get === 'function' ? get.call(ctx, 'systemPrompt') : undefined
-  const resolved =
-    provided ?? (ctx as unknown as { systemPrompt?: unknown }).systemPrompt
+  const resolved = provided ?? (ctx as unknown as { systemPrompt?: unknown }).systemPrompt
   const service = resolved as
     | {
         snapshot?: () => { name: string }[] | Promise<{ name: string }[]>
@@ -73,7 +72,8 @@ async function sectionNames(ctx: Context): Promise<string[]> {
       }
     | undefined
   if (service === null || service === undefined) return []
-  if (typeof service.snapshot === 'function') return (await service.snapshot()).map((section) => section.name)
+  if (typeof service.snapshot === 'function')
+    return (await service.snapshot()).map((section) => section.name)
   if (typeof service.assemble === 'function') {
     return (await service.assemble()).sections.map((section) => section.name)
   }
@@ -216,10 +216,22 @@ function agentFactory(
     // Receipt-cost accumulator: the gateway reply's costUsdMicros never
     // enters the DSH chunk stream, so the adapter closure accumulates it here
     // and the native solve agent reads it after each turn settles.
-    const usageSink = { costUsdMicros: 0 }
+    const usageSink = { costUsdMicros: 0, inputTokens: 0, outputTokens: 0 }
+    const capacity = process.env.DSH_NATIVE_CONTEXT_WINDOW
+    const contextWindowTokens = capacity === undefined ? undefined : Number(capacity)
+    if (
+      ctx.get('compaction' as never) !== undefined &&
+      (contextWindowTokens === undefined ||
+        !Number.isSafeInteger(contextWindowTokens) ||
+        contextWindowTokens <= 0)
+    ) {
+      throw new Error('acp-boot: compression requires frozen DSH_NATIVE_CONTEXT_WINDOW')
+    }
     const disposeAdapter = installNativeLlmAdapter(ctx, {
       provider,
       model,
+      contextWindowTokens,
+      usageSink,
       ...(nativeMaxTokens === undefined ? {} : { maxTokens: nativeMaxTokens }),
       complete: async (request) => {
         const reply = await client.complete(

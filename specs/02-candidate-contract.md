@@ -98,16 +98,20 @@ The native runner additionally exposes the versioned, content-free
   outcome. The normal model-callable tool remains optional; the automatic
   facet has no ACP, filesystem, network, verifier, controller or credential
   capability.
-- the TCB emits exactly `candidate:agent/pre-step`, `candidate:session/start`
-  and `candidate:session/end`. Registered handlers receive the same context and
-  may return the same bounded outcome. End-of-session outcomes are recorded but
-  cannot modify a closed ACP session. Other `candidate:agent/*` or
-  `candidate:session/*` names are declarations only until a later protocol
-  version pre-registers and emits them.
+- the legacy three events keep their v1 context. ADR-076 adds controlled
+  request/error/status/turn-stopping/tool lifecycle and durable turn/step/
+  compaction events. Expanded callbacks use candidate-strategy-context/v2,
+  phase=event and a content-free event projection. Exact supported names and
+  timing are documented in `docs/candidate-events.md`; unsupported names stay
+  declarations. Tool lifecycle names use `candidate:agent/tool-*` under the
+  existing agent-events surface. They queue bounded checkpoints for a later
+  admitted pre-step; waterfalls preserve next() and TCB decisions.
 
-The context contains only `turn`, `step`, `phase` and the v2 coarse tool
-observation. It excludes raw commands, paths, terminal/file contents, task or
-verifier state, route and budget. The native probe records checkpoint digest
+The context contains `turn`, `step`, `phase`, the coarse tool observation
+and, for expanded callbacks, the safe event facts described in ADR-076. It excludes raw commands, paths, terminal/file contents, task or
+verifier state, route and budget. Pending notifications are capped at 256 and queued checkpoints at 64; overflow
+or callback failure fails closed. Separate callback audits preserve original DSH
+log vocabulary. The native probe records checkpoint digest
 plus workflow/tool/event invocation counts. Candidates may retain state only
 inside the current agent Fiber; cross-session or cross-trial state is forbidden.
 
@@ -444,3 +448,12 @@ packed artifact 验证。
 ## Post-evaluation debugger export (ADR-070)
 
 For explicitly frozen v4 runs, failure-index/v4 binds selected parent, overview digest and observation watermark. Proposer reads candidate-error-overview/v1 before detailed failure-report/v1 and immutable trace shards. Export includes only the parent’s baseline/discovery/search dev-observed failures; guard, tournament, sealed, siblings and ancestors are forbidden. Frozen pool remains the scoring stratum, not the diagnostic export boundary.
+
+### Bounded delegation surface (ADR-075)
+
+New native roots expose the standard `subagent` tool with TCB-fixed foreground
+spawn: depth 1, four starts, two concurrent children, 32 child steps. Children
+inherit the frozen route and candidate strategy and use the same task tools and
+workspace. Candidates cannot override the route, enable background/fork or grant
+new tool permissions. Compaction is supplied by the TCB composition; summary
+requests spend the existing gateway budget and preserve original session events.

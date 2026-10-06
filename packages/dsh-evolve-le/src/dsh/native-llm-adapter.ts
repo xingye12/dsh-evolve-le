@@ -47,6 +47,9 @@ export interface NativeLlmAdapterOptions {
   provider: string
   model: string
   maxTokens?: number
+  contextWindowTokens?: number | undefined
+  /** Counts every completion, including compaction and delegated sessions. */
+  usageSink?: { inputTokens: number; outputTokens: number }
   complete(
     request: NativeLlmCompletionRequest,
   ): Promise<NativeLlmCompletionResult> | NativeLlmCompletionResult
@@ -148,6 +151,14 @@ export function installNativeLlmAdapter(
   ) {
     throw new TypeError('native DSH LLM adapter maxTokens must be a positive safe integer')
   }
+  if (
+    options.contextWindowTokens !== undefined &&
+    (!Number.isSafeInteger(options.contextWindowTokens) || options.contextWindowTokens <= 0)
+  ) {
+    throw new TypeError(
+      'native DSH LLM adapter: contextWindowTokens must be a positive safe integer',
+    )
+  }
   const runtime = runtimeOf(ctx)
   const adapter = {
     providerInfo(provider: string): { id: string; name: string } {
@@ -171,19 +182,18 @@ export function installNativeLlmAdapter(
         provider,
         id: model,
         name: model,
+        ...(options.contextWindowTokens === undefined
+          ? {}
+          : { context: { contextWindow: options.contextWindowTokens } }),
         ...(options.maxTokens === undefined ? {} : { defaultMaxTokens: options.maxTokens }),
       })
     },
     async *stream(request: NativeGenerateOptions): AsyncIterable<NativeStreamChunk> {
-      if (
-        request.provider !== options.provider ||
-        request.model !== options.model ||
-        (request.maxTokens !== undefined &&
-          options.maxTokens !== undefined &&
-          request.maxTokens > options.maxTokens)
-      ) {
+      if (request.provider !== options.provider || request.model !== options.model) {
         throw new Error('native DSH LLM adapter: request does not match locked route')
       }
+      // Output size is frozen by the gateway, including summaries. An upstream
+      // maxTokens hint never changes the route or its spend ceiling.
       const completionRequest: NativeLlmCompletionRequest = {
         provider: request.provider,
         model: request.model,
@@ -202,6 +212,10 @@ export function installNativeLlmAdapter(
         result.promptTokens ??
         countTokens(request.system ?? '') + countTokens(conversationOf(request.messages))
       const completionTokens = result.completionTokens ?? countTokens(result.responseText)
+      if (options.usageSink !== undefined) {
+        options.usageSink.inputTokens += promptTokens
+        options.usageSink.outputTokens += completionTokens
+      }
       let index = 0
       if (result.responseText.length > 0) {
         yield { type: 'block-start', index, blockType: 'text' }

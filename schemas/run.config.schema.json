@@ -101,6 +101,15 @@
             "concurrency": {
               "type": "integer",
               "const": 1
+            },
+            "citationPolicy": {
+              "enum": ["strict", "advisory"]
+            },
+            "statePolicy": {
+              "enum": ["strict", "model-judgment"]
+            },
+            "trajectoryPolicy": {
+              "enum": ["windowed", "full-trajectory"]
             }
           },
           "required": ["maxEvents", "maxFieldChars", "maxFindings", "maxInstances", "concurrency"],

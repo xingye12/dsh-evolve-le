@@ -836,7 +836,12 @@ export class IterationDriver {
       ...(config.agentDebugger?.protocol === 'v4'
         ? {
             debuggerProtocol: TRAJDEBUG_PROTOCOL,
-            debuggerProfile: PROFILE,
+            debuggerProfile: {
+              ...PROFILE,
+              citationPolicy: config.agentDebugger.profile?.citationPolicy ?? 'strict',
+              statePolicy: config.agentDebugger.profile?.statePolicy ?? 'strict',
+              trajectoryPolicy: config.agentDebugger.profile?.trajectoryPolicy ?? 'windowed',
+            },
             debuggerRetryAttempts: 1,
           }
         : {}),

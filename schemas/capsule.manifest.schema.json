@@ -9,13 +9,22 @@
       "type": "string",
       "const": "https://dsh-evolve-le.local/schemas/capsule.manifest.schema.json"
     },
-    "schemaVersion": { "type": "integer", "const": 1 },
-    "protocol": { "const": "dsh-evolve-le/capsule/v1" },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "protocol": {
+      "const": "dsh-evolve-le/capsule/v1"
+    },
     "identity": {
       "type": "object",
       "properties": {
-        "candidateId": { "$ref": "#/$defs/candidateId" },
-        "sourceDigest": { "$ref": "#/$defs/sha256Ref" }
+        "candidateId": {
+          "$ref": "#/$defs/candidateId"
+        },
+        "sourceDigest": {
+          "$ref": "#/$defs/sha256Ref"
+        }
       },
       "required": ["candidateId", "sourceDigest"],
       "additionalProperties": false
@@ -23,8 +32,14 @@
     "contents": {
       "type": "object",
       "properties": {
-        "fileCount": { "type": "integer", "minimum": 1 },
-        "bytes": { "type": "integer", "minimum": 1 },
+        "fileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
         "sha256SumsDigest": {
           "$ref": "#/$defs/sha256Hex",
           "description": "sha256 of the capsule's own SHA256SUMS file."
@@ -36,8 +51,13 @@
     "candidate": {
       "type": "object",
       "properties": {
-        "digest": { "$ref": "#/$defs/sha256Hex" },
-        "entry": { "type": "string", "pattern": "^lib/[a-z0-9/._-]+\\.js$" }
+        "digest": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^lib/[a-z0-9/._-]+\\.js$"
+        }
       },
       "required": ["digest", "entry"],
       "additionalProperties": false
@@ -45,8 +65,13 @@
     "runner": {
       "type": "object",
       "properties": {
-        "digest": { "$ref": "#/$defs/sha256Hex" },
-        "entry": { "type": "string", "minLength": 1 }
+        "digest": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "entry": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "required": ["digest", "entry"],
       "additionalProperties": false
@@ -54,20 +79,39 @@
     "runtime": {
       "type": "object",
       "properties": {
-        "kind": { "enum": ["pinned-closure", "install-manifest"] },
-        "digest": { "$ref": "#/$defs/sha256Hex" },
-        "detail": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["pinned-closure", "install-manifest"]
+        },
+        "digest": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        },
         "nativeDsh": {
           "type": "object",
           "properties": {
-            "protocol": { "const": "dsh-evolve-le/native-dsh/v1" },
+            "protocol": {
+              "enum": [
+                "dsh-evolve-le/native-dsh/v1",
+                "dsh-evolve-le/native-dsh/v2",
+                "dsh-evolve-le/native-dsh/v3"
+              ]
+            },
             "packages": {
               "type": "array",
               "items": {
                 "type": "array",
                 "prefixItems": [
-                  { "type": "string", "pattern": "^@deepseek-ai/dsh-[a-z0-9-]+$" },
-                  { "type": "string", "const": "0.1.0-rc.5" }
+                  {
+                    "type": "string",
+                    "pattern": "^@deepseek-ai/dsh-[a-z0-9-]+$"
+                  },
+                  {
+                    "type": "string",
+                    "const": "0.1.0-rc.5"
+                  }
                 ],
                 "minItems": 2,
                 "maxItems": 2,
@@ -75,18 +119,151 @@
               },
               "minItems": 1,
               "uniqueItems": true
+            },
+            "capabilities": {
+              "anyOf": [
+                {
+                  "const": {
+                    "protocol": "dsh-evolve-le/native-capabilities/v1",
+                    "compaction": {
+                      "auto": true,
+                      "thresholdRatio": 0.8,
+                      "retainRatio": 0.16,
+                      "maxTokens": 8192,
+                      "compactionRetries": 0,
+                      "maxOverflowRetries": 1
+                    },
+                    "subagents": {
+                      "maxDepth": 1,
+                      "maxChildren": 4,
+                      "maxConcurrent": 2,
+                      "maxSteps": 32,
+                      "background": false
+                    }
+                  }
+                },
+                {
+                  "const": {
+                    "protocol": "dsh-evolve-le/native-capabilities/v2",
+                    "compaction": {
+                      "auto": true,
+                      "thresholdRatio": 0.8,
+                      "retainRatio": 0.16,
+                      "maxTokens": 8192,
+                      "compactionRetries": 0,
+                      "maxOverflowRetries": 1
+                    },
+                    "subagents": {
+                      "maxDepth": 1,
+                      "maxChildren": 4,
+                      "maxConcurrent": 2,
+                      "maxSteps": 32,
+                      "background": false
+                    },
+                    "events": {
+                      "protocol": "dsh-evolve-le/candidate-events/v2",
+                      "maxPending": 256,
+                      "maxCheckpointsPerStep": 64
+                    }
+                  }
+                }
+              ]
             }
           },
           "required": ["protocol", "packages"],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "protocol": {
+                    "const": "dsh-evolve-le/native-dsh/v2"
+                  }
+                },
+                "required": ["protocol"]
+              },
+              "then": {
+                "required": ["capabilities"],
+                "properties": {
+                  "capabilities": {
+                    "const": {
+                      "protocol": "dsh-evolve-le/native-capabilities/v1",
+                      "compaction": {
+                        "auto": true,
+                        "thresholdRatio": 0.8,
+                        "retainRatio": 0.16,
+                        "maxTokens": 8192,
+                        "compactionRetries": 0,
+                        "maxOverflowRetries": 1
+                      },
+                      "subagents": {
+                        "maxDepth": 1,
+                        "maxChildren": 4,
+                        "maxConcurrent": 2,
+                        "maxSteps": 32,
+                        "background": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "protocol": {
+                    "const": "dsh-evolve-le/native-dsh/v3"
+                  }
+                },
+                "required": ["protocol"]
+              },
+              "then": {
+                "required": ["capabilities"],
+                "properties": {
+                  "capabilities": {
+                    "const": {
+                      "protocol": "dsh-evolve-le/native-capabilities/v2",
+                      "compaction": {
+                        "auto": true,
+                        "thresholdRatio": 0.8,
+                        "retainRatio": 0.16,
+                        "maxTokens": 8192,
+                        "compactionRetries": 0,
+                        "maxOverflowRetries": 1
+                      },
+                      "subagents": {
+                        "maxDepth": 1,
+                        "maxChildren": 4,
+                        "maxConcurrent": 2,
+                        "maxSteps": 32,
+                        "background": false
+                      },
+                      "events": {
+                        "protocol": "dsh-evolve-le/candidate-events/v2",
+                        "maxPending": 256,
+                        "maxCheckpointsPerStep": 64
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
         },
         "nodeRuntime": {
           "type": "object",
           "description": "The pinned node interpreter embedded at runtime/node and exec'd by the ACP entrypoint. TB task images ship no node, so the capsule carries its own (specs/02 §12). Optional only because pre-Gate-8-fix capsules predate it; every capsule built after dsh-evolve-le-builder-0.0.2 records it.",
           "properties": {
-            "version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
-            "path": { "const": "runtime/node" },
-            "sha256": { "$ref": "#/$defs/sha256Hex" }
+            "version": {
+              "type": "string",
+              "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "path": {
+              "const": "runtime/node"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256Hex"
+            }
           },
           "required": ["version", "path", "sha256"],
           "additionalProperties": false
@@ -98,8 +275,12 @@
     "sbom": {
       "type": "object",
       "properties": {
-        "path": { "const": "sbom.spdx.json" },
-        "sha256": { "$ref": "#/$defs/sha256Hex" }
+        "path": {
+          "const": "sbom.spdx.json"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256Hex"
+        }
       },
       "required": ["path", "sha256"],
       "additionalProperties": false

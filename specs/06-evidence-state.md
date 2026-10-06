@@ -400,3 +400,54 @@ cannot change an export or descendant identity through object key order.
 ## Debugger evidence (ADR-070)
 
 diagnostic-trace-bundle/v3 stores all redacted source events in immutable ordered shards; sourceIndex and source establish per-source chronology only. failure-report/v1 binds run/candidate/action/task/attempt/split/input digest, stages, rejected findings and coverage. candidate-error-overview/v1 JSON and Markdown versions are published by journal reference after reports. Every failure is counted once per group; overlapping group percentages cannot be summed. Phase action IDs bind trial/version/stage/window and completed or uncertain requests are never called again. Overview/report publication is atomic and replayable; no mutable Harbor directory is reopened by a consumer.
+
+ADR-072: the frozen debugger profile declares `citationPolicy`. Advisory anchors with no
+text match store `matchStatus: "unmatched"`, the model's `quote`, and the referenced event
+or test index; `field`, `start`, `end`, and `actualQuote` must all be null. Matched anchors
+and historical reports retain the original representation. If any citation used by the
+selected instance is unmatched, `criticalFailure` may be present while `evidenceSufficiency`
+is `insufficient`; accepted output and verified evidence are separate facts. Changed source
+or profile requires a fresh run identity; historical reports and metrics are never rewritten.
+
+ADR-073: the frozen profile declares statePolicy. Model-judgment instances add
+evidenceIssues for cropped context and incomplete/invalid support while retaining
+the raw valid lifecycle classification. Invalid anchors have null parsed fields;
+the original stage artifact retains the model's raw claim. Any selected instance
+with evidenceIssues has insufficient verified support but may yield criticalFailure.
+Post-hoc rule comparisons are separate content-addressed artifacts referencing
+the immutable source reports and State input/output refs, never new paid runs or
+rewrites of historical metrics.
+
+### Full-trajectory debugger profile (ADR-074)
+
+New runs freeze trajectoryPolicy=full-trajectory: one Detect request sees all
+redacted events, original indices, tests, terminal facts and input coverage;
+State sees all events/tests/terminal without field truncation or reduced context.
+Detect still proposes at most eight findings; Cluster/State/Select/Recover remain
+separate. An oversized request is explicitly budget-skipped with input-envelope,
+never silently split or truncated. Earlier-reference chronology remains enforced.
+Old manifests/configs without this policy retain windowed replay semantics.
+Require full-context cross-boundary evidence, mixed-source index preservation,
+oversized-input no-call, new-profile freezing, Loader and crash/replay tests.
+Changed source/profile requires a fresh identity; no historical paid score rewrite
+or attribution-quality improvement claim follows from implementation.
+
+### Native child evidence (ADR-075)
+
+Native v2 capsule provenance freezes `native-capabilities/v1`. Solve
+`usage_update._meta['dsh-evolve-le/native-evidence']` retains raw parent events
+and child session id, parent id, depth, stop reason, events and any start/run
+error. Proposal transcripts retain the same child records. Compaction appends
+upstream checkpoint events rather than deleting history. Disk gateway receipts
+continue to reconstruct authoritative shared spend after a crash; foreground
+child sessions have no independently resumable controller state.
+
+### Controlled event callback audits (ADR-076)
+
+`candidateEvents` fields in solve ACP native-evidence metadata, proposal transcripts
+and child records retain each invoked callback's event name, session identity,
+projected context, success/failure and checkpoint digest. They never store raw tool
+arguments/results, messages or provider errors. Audit records are separate from
+upstream session events so the pinned persistence vocabulary stays replayable.
+Pending notifications and next-step checkpoints have frozen caps; callback failures
+propagate at awaited boundaries rather than being silently discarded.

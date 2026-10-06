@@ -14,6 +14,8 @@
  * @module @dsh-evolve-le/core/builder/capsule
  */
 
+import { NATIVE_CAPABILITIES_POLICY } from '../dsh/native-capabilities.js'
+
 import { createHash } from 'node:crypto'
 import { chmod, cp, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -137,6 +139,19 @@ export function bootConfig(
       // candidate workflow declaration so Loader activation does not depend
       // on a candidate-provided service.  The actual execution registry is
       // installed freshly by native-solve-agent in that agent Fiber.
+      '- id: native-token-meter',
+      "  name: '@deepseek-ai/dsh-token-meter'",
+      '',
+      '- id: native-compaction',
+      "  name: '@deepseek-ai/dsh-compaction-basic'",
+      '  config:',
+      ...Object.entries(NATIVE_CAPABILITIES_POLICY.compaction).map(
+        ([key, value]) => `    ${key}: ${value}`,
+      ),
+      '',
+      '- id: native-subagents',
+      "  name: '@deepseek-ai/dsh-subagent'",
+      '',
       '- id: candidate-workflow-stub',
       "  name: './runtime/candidate-workflow-stub.mjs'",
       '',
@@ -380,6 +395,14 @@ export async function assembleCapsule(options: {
     join(runnerSourceDir, 'bin/native-solve-probe.js'),
     join(capsuleDir, 'runner/bin/native-solve-probe.js'),
   )
+  await cp(
+    join(runnerSourceDir, 'dsh/candidate-events.js'),
+    join(capsuleDir, 'runner/dsh/candidate-events.js'),
+  )
+  await cp(
+    join(runnerSourceDir, 'dsh/native-capabilities.js'),
+    join(capsuleDir, 'runner/dsh/native-capabilities.js'),
+  )
   await cp(join(runnerSourceDir, 'bin/acp-boot.js'), join(capsuleDir, 'runner/bin/acp-boot.js'))
   await cp(join(runnerSourceDir, 'cordis/boot.js'), join(capsuleDir, 'runner/cordis/boot.js'))
   await cp(
@@ -548,6 +571,7 @@ export async function assembleCapsule(options: {
         ? {
             nativeDsh: {
               protocol: NATIVE_DSH_COMPOSITION_PROTOCOL,
+              capabilities: NATIVE_CAPABILITIES_POLICY,
               packages: NATIVE_DSH_PACKAGE_PINS.map(([name, version]) => [name, version]),
             },
           }

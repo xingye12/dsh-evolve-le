@@ -61,10 +61,20 @@ export interface CandidateToolExecution {
 }
 
 export interface CandidateStrategyContext {
-  protocol: 'dsh-evolve-le/candidate-strategy-context/v1'
+  protocol:
+    'dsh-evolve-le/candidate-strategy-context/v1' | 'dsh-evolve-le/candidate-strategy-context/v2'
   turn: number
   step: number
-  phase: 'session-start' | 'pre-step' | 'session-end'
+  phase: 'session-start' | 'pre-step' | 'session-end' | 'event'
+  /** Safe TCB projection; only expanded v2 lifecycle callbacks have this field. */
+  event?: {
+    name: string
+    toolKind?: string
+    outcome?: 'pending' | 'succeeded' | 'failed'
+    status?: string
+    sessionEventType?: string
+    stopReason?: string
+  }
   observation: {
     toolCalls: { exec: number; read: number; write: number }
     previousAction: 'none' | 'exec' | 'read' | 'write'
@@ -216,13 +226,13 @@ export interface CandidatePlugin<Config extends CandidateRuntime> {
 }
 
 function serviceOf<T>(ctx: Context, name: string): T | undefined {
-  const get = (ctx as unknown as { get?: (serviceName: string) => unknown }).get
+  const get = (ctx as unknown as { get?: (serviceName: string, strict?: boolean) => unknown }).get
   // Native AgentLoop runs candidate setup in an unpublished Fiber. Cordis
   // deliberately rejects guarded `ctx.service` property access there unless
   // that service was injected into the Fiber; `ctx.get()` is the supported
   // optional lookup and still respects scope visibility.
   if (typeof get === 'function') {
-    const provided = get.call(ctx, name) as T | undefined
+    const provided = get.call(ctx, name, false) as T | undefined
     if (provided !== undefined) return provided
   }
   // Structural test doubles and the compatibility probe intentionally expose

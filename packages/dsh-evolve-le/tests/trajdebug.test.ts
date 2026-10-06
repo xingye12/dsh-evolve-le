@@ -3,8 +3,12 @@ import {
   diagnoseTrace,
   candidateOverview,
   renderOverview,
+  validateFinding,
+  stateAnchor,
+  validateInstanceState,
   type TraceEvent,
 } from '../src/attribution/trajdebug.js'
+import { validateDiagnosticArtifact } from '../src/attribution/schemas.js'
 const events: TraceEvent[] = [
   {
     eventId: 'atif-0',
@@ -54,7 +58,7 @@ const finding = {
   module: 'verify',
 }
 describe('TrajDebug v4 contracts', () => {
-  it('abstains on missing state; retains rejected future and fabricated citations', async () => {
+  it('abstains on missing state; rejects future references and audits unmatched citations', async () => {
     const report = await diagnoseTrace(input, async (request) => ({
       status: 'completed',
       output:
@@ -73,8 +77,16 @@ describe('TrajDebug v4 contracts', () => {
             }
           : { states: [] },
     }))
-    expect(report.findings).toHaveLength(1)
-    expect(report.rejectedFindings).toHaveLength(2)
+    expect(report.findings).toHaveLength(2)
+    expect(report.rejectedFindings).toHaveLength(1)
+    expect(report.findings[1]?.wrongContentQuote).toMatchObject({
+      quote: 'invented',
+      matchStatus: 'unmatched',
+      actualQuote: null,
+      field: null,
+      start: null,
+      end: null,
+    })
     expect(report.instances[0]?.resolution).toBe('unknown')
     expect(report.criticalFailure).toBeNull()
   })
@@ -137,11 +149,77 @@ describe('TrajDebug v4 contracts', () => {
       sourceIndex: i,
     }))
     const report = await diagnoseTrace(
-      { ...input, bundle: { ...input.bundle, events: long } },
+      { ...input, trajectoryPolicy: 'windowed', bundle: { ...input.bundle, events: long } },
       async () => ({ status: 'budget-skipped', output: null }),
     )
     expect(report.stages).toHaveLength(5)
     expect(report.executionStatus).toBe('budget-skipped')
+  })
+  it('shows all events and uncropped fields to Detect and State in one trajectory', async () => {
+    const content = 'start ' + 'x'.repeat(5000) + ' end'
+    const long = [
+      ...events,
+      ...Array.from({ length: 238 }, (_, i) => ({
+        ...events[1]!,
+        eventId: `atif-${i + 3}`,
+        sourceIndex: i + 3,
+        data: { content },
+      })),
+      { ...events[2]!, eventId: 'acp-0', source: 'acp' as const, sourceIndex: 0 },
+    ]
+    const seen: string[] = []
+    const report = await diagnoseTrace(
+      { ...input, maxInputBytes: 2000000, bundle: { ...input.bundle, events: long } },
+      async (request) => {
+        seen.push(request.stage)
+        if (request.stage === 'detect') {
+          expect(request.window).toBe(0)
+          expect(request.payload.events).toHaveLength(242)
+          expect((request.payload.events as TraceEvent[])[3]!.data).toEqual({ content })
+          expect(request.payload.references).toEqual([])
+          expect(request.payload.tests).toEqual(input.bundle.tests)
+          return {
+            status: 'completed',
+            output: {
+              findings: [
+                {
+                  ...finding,
+                  eventId: 'atif-200',
+                  referenceEventId: 'atif-3',
+                  conflictWith: 'self',
+                  wrongContentQuote: ' end',
+                  referenceQuote: 'start ',
+                },
+              ],
+            },
+          }
+        }
+        expect((request.payload.context as { events: TraceEvent[] }).events).toHaveLength(242)
+        expect((request.payload.context as { events: TraceEvent[] }).events[3]!.data).toEqual({
+          content,
+        })
+        expect(request.payload.contextIncomplete).toBe(false)
+        return { status: 'completed', output: { states: [] } }
+      },
+    )
+    expect(seen).toEqual(['detect', 'state'])
+    expect(report.findings[0]?.step).toBe(200)
+    expect(report.findings[0]?.referenceQuote.index).toBe(3)
+    expect(report.coverage.omissions).toEqual([])
+    expect(report.coverage.contextIncomplete).toBe(false)
+  })
+  it('records an oversized full trajectory without splitting or paying for a partial view', async () => {
+    const report = await diagnoseTrace({ ...input, maxInputBytes: 100 }, async () => {
+      throw Error('must not call')
+    })
+    expect(report.stages).toHaveLength(1)
+    expect(report.stages[0]).toMatchObject({
+      stage: 'detect',
+      status: 'budget-skipped',
+      reason: 'input-envelope',
+    })
+    expect(report.executionStatus).toBe('budget-skipped')
+    expect(report.criticalFailure).toBeNull()
   })
   it('counts trials once per group, keeps candidate ownership and excludes guarded/tournament rows', () => {
     const observations = [
@@ -188,10 +266,135 @@ describe('TrajDebug v4 contracts', () => {
 })
 
 describe('repair and quote qualification', () => {
+  it('accepts failure evidence before the final summary and retains active with cropped context', async () => {
+    const report = await diagnoseTrace(
+      {
+        ...input,
+        trajectoryPolicy: 'windowed',
+        bundle: {
+          ...input.bundle,
+          events: [
+            ...events,
+            {
+              ...events[1]!,
+              eventId: 'atif-3',
+              sourceIndex: 3,
+              data: { content: 'Task completed. ' + 'x'.repeat(4000) },
+            },
+          ],
+        },
+      },
+      async (request) => ({
+        status: 'completed',
+        output:
+          request.stage === 'detect'
+            ? { findings: [finding] }
+            : request.stage === 'state'
+              ? {
+                  states: [
+                    {
+                      instanceId: (request.payload.instances as { instanceId: string }[])[0]!
+                        .instanceId,
+                      resolution: 'active',
+                      terminalConnection: 'semantic',
+                      terminalEvidence: { source: 'events', index: 2, quote: 'failed' },
+                      explanation: 'The failed test demonstrates the unresolved error.',
+                    },
+                  ],
+                }
+              : { suggestions: [] },
+      }),
+    )
+    expect(report.coverage.contextIncomplete).toBe(true)
+    expect(report.instances[0]?.resolution).toBe('active')
+    expect(report.instances[0]?.terminalEvidence?.index).toBe(2)
+    expect(report.instances[0]?.evidenceIssues).toContain('context-incomplete')
+    expect(report.criticalFailure?.originStep).toBe(1)
+    validateDiagnosticArtifact('failure-report', report)
+  })
+  it.each([
+    ['active', 'semantic'],
+    ['fixed', 'none'],
+    ['fixed', 'irreversible'],
+    ['fixed', 'budget-debt'],
+  ])(
+    'retains %s/%s judgment when supporting anchors are absent',
+    (resolution, terminalConnection) => {
+      const state = validateInstanceState(
+        { resolution, terminalConnection, explanation: 'Model judgment.' },
+        input.bundle,
+        { step: 1, source: 'atif' },
+        { statePolicy: 'model-judgment', citationPolicy: 'advisory', contextIncomplete: false },
+      )
+      expect(state.resolution).toBe(resolution)
+      expect(state.terminalConnection).toBe(terminalConnection)
+      expect(state.evidenceIssues?.length).toBeGreaterThan(0)
+    },
+  )
+  it('audits malformed or out-of-order anchors without discarding a valid lifecycle judgment', () => {
+    const state = validateInstanceState(
+      {
+        resolution: 'fixed',
+        terminalConnection: 'budget-debt',
+        fixEvidence: { source: 'events', index: 99, quote: 'repair' },
+        terminalEvidence: { source: 'events', index: 0, quote: 'must test' },
+        wastedSteps: [{ source: 'events', index: 0, quote: 'must test' }],
+        explanation: 'A claimed repair with incomplete support.',
+      },
+      input.bundle,
+      { step: 1, source: 'atif' },
+      { statePolicy: 'model-judgment', citationPolicy: 'advisory', contextIncomplete: false },
+    )
+    expect(state.resolution).toBe('fixed')
+    expect(state.fixEvidence).toBeNull()
+    expect(state.evidenceIssues).toEqual(
+      expect.arrayContaining([
+        'fixEvidence: Error: missing evidence index',
+        'terminal-order-unverified',
+        'wasted-step-order-unverified',
+      ]),
+    )
+  })
+  it('still rejects malformed lifecycle states and preserves legacy gating', () => {
+    const options = {
+      statePolicy: 'model-judgment' as const,
+      citationPolicy: 'advisory' as const,
+      contextIncomplete: false,
+    }
+    expect(() =>
+      validateInstanceState(
+        { resolution: 'invented', terminalConnection: 'semantic', explanation: 'x' },
+        input.bundle,
+        { step: 1, source: 'atif' },
+        options,
+      ),
+    ).toThrow('invalid lifecycle state')
+    expect(() =>
+      validateInstanceState(
+        { resolution: 'active', terminalConnection: 'invented', explanation: 'x' },
+        input.bundle,
+        { step: 1, source: 'atif' },
+        options,
+      ),
+    ).toThrow('invalid lifecycle state')
+    expect(() =>
+      validateInstanceState(
+        {
+          resolution: 'active',
+          terminalConnection: 'semantic',
+          terminalEvidence: { source: 'events', index: 1, quote: 'skip tests' },
+          explanation: 'x',
+        },
+        input.bundle,
+        { step: 1, source: 'atif' },
+        { ...options, statePolicy: 'strict' },
+      ),
+    ).toThrow('connection requires subsequent or terminal evidence')
+  })
   it.each(['semantic', 'irreversible', 'budget-debt'])(
     'does not select a fixed %s cause without specific impact/debt evidence',
     async (connection) => {
-      const report = await diagnoseTrace(input, async (request) => ({
+      const report = await diagnoseTrace({ ...input, statePolicy: 'strict' }, async (request) => ({
         status: 'completed',
         output:
           request.stage === 'detect'
@@ -249,8 +452,24 @@ describe('repair and quote qualification', () => {
   })
 })
 
-describe('content citation requirement', () => {
-  it('rejects a quote matching only nested event identity metadata', async () => {
+describe('advisory citation policy', () => {
+  it('preserves the strict profile for legacy diagnosis replay', async () => {
+    const report = await diagnoseTrace({ ...input, citationPolicy: 'strict' }, async () => ({
+      status: 'completed',
+      output: {
+        findings: [
+          { ...finding, wrongContentQuote: '`skip tests`' },
+          { ...finding, failureMode: 'x'.repeat(101) },
+        ],
+      },
+    }))
+    expect(report.findings).toEqual([])
+    expect(report.rejectedFindings.map((f) => f.reason)).toEqual([
+      'Error: quote absent from evidence content',
+      'Error: invalid text',
+    ])
+  })
+  it('does not mistake nested event identity metadata for matched content', async () => {
     const bundle = {
       ...input.bundle,
       events: [
@@ -263,8 +482,119 @@ describe('content citation requirement', () => {
       status: 'completed',
       output: { findings: [{ ...finding, wrongContentQuote: 'atif-1' }] },
     }))
-    expect(report.findings).toEqual([])
-    expect(report.rejectedFindings[0]?.reason).toContain('quote absent')
+    expect(report.findings).toHaveLength(1)
+    expect(report.findings[0]?.wrongContentQuote).toMatchObject({
+      matchStatus: 'unmatched',
+      actualQuote: null,
+      quote: 'atif-1',
+    })
     expect(report.criticalFailure).toBeNull()
+  })
+  it('accepts formatting differences, paraphrases and failure modes longer than 3000 characters', async () => {
+    const report = await diagnoseTrace(input, async (request) => ({
+      status: 'completed',
+      output:
+        request.stage === 'detect'
+          ? {
+              findings: [
+                {
+                  ...finding,
+                  wrongContentQuote: '`skip tests`',
+                  referenceQuote: 'Testing is mandatory',
+                  failureMode: 'x'.repeat(4000),
+                },
+              ],
+            }
+          : request.stage === 'state'
+            ? {
+                states: [
+                  {
+                    instanceId: (request.payload.instances as { instanceId: string }[])[0]!
+                      .instanceId,
+                    resolution: 'active',
+                    terminalConnection: 'semantic',
+                    terminalEvidence: {
+                      source: 'events',
+                      index: 2,
+                      quote: 'The tests did not pass',
+                    },
+                    explanation: 'The omission persisted.',
+                  },
+                ],
+              }
+            : { suggestions: [] },
+    }))
+    expect(report.findings).toHaveLength(1)
+    expect(report.findings[0]?.failureMode).toHaveLength(4000)
+    expect(report.rejectedFindings).toEqual([])
+    expect(report.criticalFailure?.originStep).toBe(1)
+    expect(report.instances[0]?.terminalEvidence?.matchStatus).toBe('unmatched')
+    expect(report.evidenceSufficiency).toBe('insufficient')
+    validateDiagnosticArtifact('failure-report', report)
+    const forged = structuredClone(report)
+    forged.findings[0]!.wrongContentQuote.actualQuote = 'pretend verified'
+    expect(() => validateDiagnosticArtifact('failure-report', forged)).toThrow()
+  })
+  it('keeps strict legacy helpers and structural evidence checks', () => {
+    const allowed = new Set(events.map((e) => e.eventId))
+    expect(() =>
+      validateFinding({ ...finding, wrongContentQuote: 'invented' }, input.bundle, allowed, 'f'),
+    ).toThrow('quote absent')
+    expect(() =>
+      validateFinding({ ...finding, eventId: 'missing' }, input.bundle, allowed, 'f', 'advisory'),
+    ).toThrow()
+    expect(() =>
+      validateFinding(
+        { ...finding, referenceEventId: 'missing' },
+        input.bundle,
+        allowed,
+        'f',
+        'advisory',
+      ),
+    ).toThrow()
+    expect(() =>
+      validateFinding(
+        { ...finding, wrongContentQuote: '' },
+        input.bundle,
+        allowed,
+        'f',
+        'advisory',
+      ),
+    ).toThrow()
+    expect(() =>
+      stateAnchor({ source: 'events', index: 99, quote: 'anything' }, input.bundle, 'advisory'),
+    ).toThrow()
+    expect(() =>
+      stateAnchor({ source: 'unknown', index: 2, quote: 'anything' }, input.bundle, 'advisory'),
+    ).toThrow()
+  })
+  it('does not merge unmatched references from different events', async () => {
+    const report = await diagnoseTrace(
+      {
+        ...input,
+        bundle: {
+          ...input.bundle,
+          events: [
+            { ...events[0]! },
+            { ...events[0]!, eventId: 'other-rule', sourceIndex: 1 },
+            { ...events[1]!, sourceIndex: 2 },
+            { ...events[2]!, sourceIndex: 3 },
+          ],
+        },
+      },
+      async (request) => ({
+        status: 'completed',
+        output:
+          request.stage === 'detect'
+            ? {
+                findings: [finding, { ...finding, referenceEventId: 'other-rule' }].map((f) => ({
+                  ...f,
+                  referenceQuote: 'Testing is mandatory',
+                })),
+              }
+            : { states: [] },
+      }),
+    )
+    expect(report.instances).toHaveLength(2)
   })
 })

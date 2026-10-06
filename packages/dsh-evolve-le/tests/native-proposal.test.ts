@@ -392,6 +392,9 @@ describe('native proposal runner: failure transcripts (ADR-035)', () => {
         }) {
           sessionIds.push(options.sessionId)
           await options.setup?.({
+            provide() {},
+            effect() {},
+            on() {},
             tools: {
               register(definition: { name: string; execute(args: unknown): Promise<unknown> }) {
                 tools.set(definition.name, definition)
@@ -472,6 +475,8 @@ describe('native proposal runner: failure transcripts (ADR-035)', () => {
       agents: {
         async create(options: { setup?: (agentCtx: object) => void | Promise<void> }) {
           await options.setup?.({
+            provide() {},
+            effect() {},
             tools: { register: () => () => undefined },
             on(event: string, listener: typeof preStep) {
               if (event === 'agent/pre-step') preStep = listener
@@ -543,6 +548,9 @@ describe('native proposal runner: failure transcripts (ADR-035)', () => {
       agents: {
         async create(options: { setup?: (agentCtx: object) => void | Promise<void> }) {
           await options.setup?.({
+            provide() {},
+            effect() {},
+            on() {},
             tools: { register: () => () => undefined },
           })
           return {
@@ -594,4 +602,88 @@ describe('native proposal runner: failure transcripts (ADR-035)', () => {
     expect(String(transcript['error'])).toContain('agent exited without proposal_finish')
     await rm(scratch, { recursive: true, force: true })
   })
+})
+
+it('retains callback failure audit before disposing a failed proposal', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'dsh-proposal-event-failure-'))
+  const listeners = new Map<string, (...args: any[]) => any>(),
+    services = new Map<string, any>()
+  let disposed = false
+  const ctx = {
+    agents: {
+      async create(options: any) {
+        await options.setup({
+          provide(n: string, v: unknown) {
+            services.set(n, v)
+          },
+          get(n: string) {
+            return services.get(n)
+          },
+          on(n: string, fn: any) {
+            listeners.set(n, fn)
+          },
+          effect() {},
+          tools: {
+            register() {
+              return () => {}
+            },
+          },
+        })
+        return {
+          agent: {
+            session: { events: [] },
+            followup() {},
+            async whenIdle() {
+              try {
+                await listeners.get('agent/request')!({ turn: 0, step: 1 }, async () => ({}))
+              } catch {}
+            },
+          },
+          async dispose() {
+            disposed = true
+          },
+        }
+      },
+    },
+  } as unknown as Context
+  try {
+    await expect(
+      runNativeProposal({
+        ctx,
+        sessionId: 'event-failure',
+        cwd: scratch,
+        provider: 'fixture',
+        model: 'fixture',
+        prompt: 'propose',
+        proposalPath: join(scratch, 'proposal.json'),
+        candidateSetup(agent) {
+          ;(agent.get('candidateStrategyEvents' as never) as any).register({
+            name: 'candidate:agent/request',
+            handler: () => {
+              throw Error('candidate callback failed')
+            },
+          })
+        },
+        backend: {
+          async listInput() {
+            return []
+          },
+          async readInput() {
+            return ''
+          },
+          async writeChildFile() {},
+          async finalizeProposal() {
+            throw Error('unused')
+          },
+        },
+      }),
+    ).rejects.toThrow('candidate callback failed')
+    const transcript = JSON.parse(await readFile(join(scratch, 'failure-transcript.jsonl'), 'utf8'))
+    expect(transcript.candidateEvents).toEqual([
+      expect.objectContaining({ name: 'candidate:agent/request', ok: false }),
+    ])
+    expect(disposed).toBe(true)
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
+  }
 })

@@ -353,3 +353,35 @@ Self-Harness 的一种实验算法，但在 80 次适应性选择后，held-out 
 ## Post-evaluation attribution (ADR-070)
 
 V4 runs process committed development failures serially after evaluation waves and before the next search decision. Detect windows use at most 60 source-ordered events, 3000 characters per display field and 8 findings; C1 clusters normalized reference text within conflict axis, C2 scores at most 12 instances, C3 selects earliest verified eligible origin with stable instance tie-break. Missing state is unknown; fixed errors require irreversible or quoted wasted-step debt. Recover only suggests changes/tests, never executes them. Failed/skipped/unanalyzable diagnoses do not stop search or alter scoring.
+
+ADR-072 introduces the advisory citation profile for new runs. `failureMode` is a nonempty
+string without a field length ceiling; prompts request a short phrase. Detect and State
+retain unmatched excerpts/paraphrases without rejecting them for text mismatch. Event/index,
+actor, source and chronology checks remain. Exact/whitespace matches retain verified spans;
+unmatched claims carry no fabricated span or actual quote. Unmatched clustering includes
+reference event identity and normalized claimed text. Selection remains deterministic and
+does not prove the model's causal claims. Legacy profiles without `citationPolicy` stay strict.
+
+ADR-073: for statePolicy=model-judgment, lifecycle and causal influence are model
+judgments. The controller retains valid resolution/terminalConnection values;
+evidence checks record evidenceIssues, not forced unknown transitions. Terminal
+evidence need not come from the final event, and incomplete display context is
+an audit flag. Missing/malformed/misordered repair, impact or wasted-step support
+is reported without clearing the model state. Invalid instance identity, lifecycle
+enums or missing explanation remain structural failures. Strict State behavior is
+retained for legacy profiles. Fixed causes still need a model-claimed irreversible
+or budget-debt connection to participate in deterministic root selection.
+
+### Full-trajectory debugger profile (ADR-074)
+
+New runs freeze trajectoryPolicy=full-trajectory: one Detect request sees all
+redacted events, original indices, tests, terminal facts and input coverage;
+State sees all events/tests/terminal without field truncation or reduced context.
+Detect still proposes at most eight findings; Cluster/State/Select/Recover remain
+separate. An oversized request is explicitly budget-skipped with input-envelope,
+never silently split or truncated. Earlier-reference chronology remains enforced.
+Old manifests/configs without this policy retain windowed replay semantics.
+Require full-context cross-boundary evidence, mixed-source index preservation,
+oversized-input no-call, new-profile freezing, Loader and crash/replay tests.
+Changed source/profile requires a fresh identity; no historical paid score rewrite
+or attribution-quality improvement claim follows from implementation.

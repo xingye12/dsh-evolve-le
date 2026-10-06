@@ -1,0 +1,62 @@
+{
+  "protocol": "dsh-evolve-le/tb-run/v1",
+  "jobName": "dsh-f77286695826d897e8362e20",
+  "jobDir": "/tmp/dsh-gate2-d5yW6y/jobs/dsh-f77286695826d897e8362e20",
+  "idempotencyKey": "f77286695826d897e8362e20fd61ff25fe12de4df94bfd069983c7648bf134c9",
+  "identity": {
+    "runId": "gate2-dev",
+    "capsuleArchiveSha256": "7ad2bb4555472bb489a3f1100186ca788a4f17f254e92d8cd7779c8712fb029c",
+    "inventorySha256": "27c443a4d06d1a49ba7595e906f97bdeb3a5c491d8d1e9e21e624313c63a0501",
+    "handles": [
+      "extract-elf-separate-probe"
+    ],
+    "attempts": 1,
+    "harborVersion": "0.21.0"
+  },
+  "plannedTrials": 1,
+  "trials": [
+    {
+      "protocol": "dsh-evolve-le/tb-trial/v1",
+      "identity": {
+        "runId": "gate2-dev",
+        "capsuleArchiveSha256": "7ad2bb4555472bb489a3f1100186ca788a4f17f254e92d8cd7779c8712fb029c",
+        "inventorySha256": "27c443a4d06d1a49ba7595e906f97bdeb3a5c491d8d1e9e21e624313c63a0501",
+        "handle": "extract-elf-separate-probe",
+        "attempt": 0
+      },
+      "trialName": "extract-elf-separate-probe__9aV26ZP",
+      "taskName": "terminal-bench/extract-elf",
+      "agentInfo": {
+        "name": "dsh-evolve-le-capsule",
+        "version": "7ad2bb4555472bb489a3f1100186ca788a4f17f254e92d8cd7779c8712fb029c"
+      },
+      "usage": {
+        "agentExecutionMs": 1205,
+        "verifierMs": 17458,
+        "nInputTokens": null,
+        "nOutputTokens": null,
+        "costUsd": null
+      },
+      "resultDigest": "a818736a08ea62e03803067ffdaa16a0c8822b846f20e9d6a9494df6b79a8218",
+      "status": "fail",
+      "outcome": {
+        "category": "exception",
+        "reward": null,
+        "exceptionType": "RewardFileNotFoundError",
+        "reason": "No reward file found at /tmp/dsh-gate2-d5yW6y/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/verifier/reward.txt or /tmp/dsh-gate2-d5yW6y/jobs/dsh-f77286695826d897e8362e20/extract-elf-separate-probe__9aV26ZP/verifier/reward.json",
+        "agentParticipation": "ran"
+      }
+    }
+  ],
+  "counts": {
+    "pass": 0,
+    "fail": 1,
+    "infraRetryable": 0,
+    "protocolInvalid": 0,
+    "valid": true,
+    "denominator": 1,
+    "passRate": 0,
+    "agentNeverInitialized": 0
+  },
+  "artifactSha256": "b7360bfc9d459add0d79d2f3af1f96b77a72c86fe236134e42c3436ca6cb788c"
+}

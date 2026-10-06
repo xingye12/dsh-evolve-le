@@ -90,7 +90,9 @@ function checkpointDigest(events: readonly unknown[]): { count: number; sha256: 
       from = end + close.length
     }
   }
-  const framed = checkpoints.map((checkpoint) => `${String(Buffer.byteLength(checkpoint))}:${checkpoint}`).join('\n')
+  const framed = checkpoints
+    .map((checkpoint) => `${String(Buffer.byteLength(checkpoint))}:${checkpoint}`)
+    .join('\n')
   return {
     count: checkpoints.length,
     sha256: `sha256:${createHash('sha256').update(framed).digest('hex')}`,
@@ -195,6 +197,7 @@ async function main(argv: string[]): Promise<number> {
     disposeAdapter = installNativeLlmAdapter(ctx, {
       provider: TEST_PROVIDER,
       model: TEST_MODEL,
+      contextWindowTokens: 1_000_000,
       complete: async (request) => {
         completionCount += 1
         const expected = ['solve_exec', 'solve_read', 'solve_write'] as const
@@ -264,7 +267,8 @@ async function main(argv: string[]): Promise<number> {
       } as never)
       const live = agent.sessions.get(session.sessionId)
       const events = live?.handle.agent.session?.events ?? []
-      if (live === undefined) throw new Error('native solve session disappeared before probe readout')
+      if (live === undefined)
+        throw new Error('native solve session disappeared before probe readout')
       const toolCallEventCount = events.filter((event) => event.type === 'tool/call').length
       const toolResultEventCount = events.filter((event) => event.type === 'tool/result').length
       const checkpoints = checkpointDigest(events)

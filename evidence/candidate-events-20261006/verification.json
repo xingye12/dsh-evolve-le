@@ -1,0 +1,379 @@
+{
+  "protocol": "dsh-evolve-le/candidate-event-verification/v1",
+  "recordedAt": "2026-10-06T05:47:03.808727+00:00",
+  "sourceCommit": "024f12908a39f59d76f3c0630e9ad79980913c38",
+  "dirtyWorktree": true,
+  "existingChangesPreserved": true,
+  "sourceDigests": {
+    "packages/dsh-evolve-le/src/dsh/candidate-events.ts": "e638f84157ed891b8e2d5a40b6fe991369dffe089175609a60372b0e7df18954",
+    "packages/dsh-evolve-le/src/dsh/native-capabilities.ts": "83134cb63ed80d68559492a0fae013b220bcf81214e4c67bd5fa9c2fdb921e61",
+    "packages/dsh-evolve-le/src/dsh/native-composition.ts": "6047780e02abefdd9ed072605556ec29ec922e025523612b352431933c13fd2b",
+    "packages/dsh-evolve-le/src/dsh/native-proposal-runner.ts": "bf0062e035e4fe2c0276e9ff6e8c465bc697a8a09123bea8d3e3f46db6d473f2",
+    "packages/dsh-evolve-le/src/acp/native-solve-agent.ts": "dd246193a201b5a4580d01a2fc9d58b6ad3bf9ef5958ca4c2ec3748bb25effb9",
+    "packages/dsh-evolve-le/src/builder/capsule.ts": "dc5e60c27346d273f2715ea8abe52209a07b558a0e78fac4f3916432718ccec0",
+    "packages/dsh-evolve-le/src/proposer/prompt-text.ts": "8755fc4495c08e0b162369923f8e879e39062b66d9a69f6687a932665e1ae41b",
+    "packages/candidate-sdk/src/index.ts": "3fd7425293847602f841cf982f02114b33f7769c11bb54e10efa126e739c8b9d",
+    "schemas/capsule.manifest.schema.json": "58dd640cf6beb9fb7acacf2ef1245c44ea196a75719e1c2e9b7bce24a9c50805",
+    "packages/dsh-evolve-le/tests/candidate-events.test.ts": "6229d9e9a9387709be65c5d117b8b2e276214e28dfbab10e6d7dd87a7cb07c6f",
+    "packages/dsh-evolve-le/tests/native-capabilities.subprocess.test.ts": "d81311426f7cf8be474e3e3e8fa638c1020fb8c461da070ba0b9c86155506514",
+    "packages/dsh-evolve-le/tests/fixtures/native-capabilities-child.mjs": "9af64ad12eb904f3e45329ed2450989148116fc7cb51d6cbd1ddbac8c8d2e089",
+    "packages/dsh-evolve-le/tests/native-proposal.test.ts": "2821beefb5bbb86d393a1af360f2ab0cf983e083bce21946df3437e71a7991f2",
+    "packages/dsh-evolve-le/tests/native-cancel-exec.test.ts": "11e36b447fd79754204fcbd71f18efaff4c6d8d6179ecf2adce8f2e8ec295741",
+    "docs/candidate-events.md": "de9f23a51d835574634f9a9ebada70207515456b9d05ec0884a9e634af4fce43",
+    "PROJECT_STATUS.md": "181a6cb253a12f15365177578823cce8827677126092d5ab8863552e422f63c5"
+  },
+  "nativeClosure": {
+    "catalogRoot": "/root/vibe/dsh/scratch/native-dsh-catalog",
+    "dependencyClosureSha256": "c783df9247be693047751382c9e4bcd69b0ea0a7539408898474499511fe3c81",
+    "packages": [
+      {
+        "name": "@agentclientprotocol/sdk",
+        "version": "0.25.1"
+      },
+      {
+        "name": "@deepseek-ai/cordis",
+        "version": "4.0.1"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-group",
+        "version": "1.0.1"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-include",
+        "version": "1.0.6"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-loader",
+        "version": "1.0.2"
+      },
+      {
+        "name": "@deepseek-ai/cordis-plugin-timer",
+        "version": "1.1.3"
+      },
+      {
+        "name": "@deepseek-ai/cosmokit",
+        "version": "1.8.2"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-default-model",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-instructions",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-loop",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-spine-demo",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-attachment",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-brand",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-code-runtime",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-commands",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-compaction",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-compaction-basic",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-fs",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-goal",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-goal-round-driver",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-home-paths",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-invariants",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-jobs",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-jobs-local",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-llm",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-llm-retry",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-output-retention",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-sandbox",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-sandbox-policy",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-scope",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-persistence",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-projection",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-title",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-settings",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-shell",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-shell-env",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-skill",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-skill-filesystem",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-subagent",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-subprocess",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-system-prompt",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-timeout",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-token-meter",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-bash",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-goal",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-jobs",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-skill",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-subagent",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-tools",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-typert-protocol",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/dsh-user-approval",
+        "version": "0.1.0-rc.5"
+      },
+      {
+        "name": "@deepseek-ai/schemastery",
+        "version": "3.18.1"
+      },
+      {
+        "name": "@dsh-evolve-le/candidate-sdk",
+        "version": "0.0.1"
+      },
+      {
+        "name": "@standard-schema/spec",
+        "version": "1.1.0"
+      },
+      {
+        "name": "argparse",
+        "version": "2.0.1"
+      },
+      {
+        "name": "chokidar",
+        "version": "5.0.0"
+      },
+      {
+        "name": "js-yaml",
+        "version": "4.2.0"
+      },
+      {
+        "name": "readdirp",
+        "version": "5.0.0"
+      },
+      {
+        "name": "yaml",
+        "version": "2.9.0"
+      },
+      {
+        "name": "zod",
+        "version": "4.4.3"
+      }
+    ],
+    "fileCount": 2834
+  },
+  "checks": {
+    "build": "pass",
+    "changedFilesLint": "pass",
+    "changedFilesFormat": "pass",
+    "diffWhitespace": "pass",
+    "provenance": "pass",
+    "upstreamsReadOnly": "pass",
+    "tests": {
+      "final-regression-vitest.json": {
+        "numPassedTests": 120,
+        "numFailedTests": 0,
+        "numPendingTests": 0
+      },
+      "policy-contract-vitest.json": {
+        "numPassedTests": 7,
+        "numFailedTests": 0,
+        "numPendingTests": 0
+      },
+      "failure-path-vitest.json": {
+        "numPassedTests": 35,
+        "numFailedTests": 0,
+        "numPendingTests": 0
+      }
+    },
+    "realProductionLoader": {
+      "children": 1,
+      "childTools": true,
+      "childCandidate": true,
+      "childStop": "completed",
+      "childEvents": 28,
+      "summaryCalls": 2,
+      "compactionEvents": 6,
+      "aggregateUsage": true,
+      "evidenceExported": true,
+      "countLimited": true,
+      "concurrencyLimited": true,
+      "stepLimited": true,
+      "cancellationPassed": true,
+      "proposalPassed": true,
+      "expandedEventsPassed": true,
+      "childEventsPassed": true,
+      "proposalEventsPassed": true,
+      "eventCheckpointUsed": true,
+      "eventFactsSafe": true,
+      "failedEventAuditExported": true,
+      "expandedNames": [
+        "candidate:session/start",
+        "candidate:agent/status",
+        "candidate:session/event",
+        "candidate:session/turn-start",
+        "candidate:agent/pre-step",
+        "candidate:session/step-start",
+        "candidate:agent/request",
+        "candidate:agent/tool-pre-execute",
+        "candidate:agent/tool-post-execute",
+        "candidate:agent/tool-result",
+        "candidate:session/step-end",
+        "candidate:agent/turn-stopping",
+        "candidate:session/turn-end",
+        "candidate:session/compaction-start",
+        "candidate:session/compaction-summary",
+        "candidate:session/compaction-end",
+        "candidate:agent/request-error",
+        "candidate:agent/error"
+      ],
+      "liveAgentsAfterDispose": 0,
+      "quiescent": true
+    }
+  },
+  "testSequence": "120-test main regression followed by protocol compatibility and final failure-export path tests; final production changes limited to exporting callback failure audit before rejecting ACP/proposal",
+  "failedAttemptsRetained": {
+    "regression-vitest.json": "119 passed; cancel-exec failed once because terminal did not start; independent rerun and final regression passed"
+  },
+  "artifactDigests": {
+    "failure-path-vitest.json": "a90601fc32f58a7f8d80916de5e1988edd8bfb05dbb74eb1d1c785d62307c6d9",
+    "final-regression-vitest.json": "58ab2c9b0ce20aa0eed1e96ad8615e8f4681cd234b185d087f30564f5b7ca0ed",
+    "loader-failure-path-result.json": "fe04a46fe4a531db21bd54d9ebdd1c22450a5528b447acc018b11395f4de488a",
+    "loader-result-final.json": "65e197bf9e9a64ea4c2d3075a15e048b4e9b73eff1062b980c36e343a71019f0",
+    "loader-result.json": "65e197bf9e9a64ea4c2d3075a15e048b4e9b73eff1062b980c36e343a71019f0",
+    "native-dsh.lock.json": "b4a61d38106798a4a8cd1470f6f8672f4e3eef47ff89c6302c12af80bc906296",
+    "policy-contract-vitest.json": "51a6a612ddbe09a335afd2cfe3d5f5e38fd225f8cf40de6a9a40108962ae8067",
+    "regression-vitest.json": "dbcd17dcd92595a9c4feb519290183dd60d740d23a536e193878a80ee8a489cb"
+  },
+  "contentAddressedObjects": [
+    "51a6a612ddbe09a335afd2cfe3d5f5e38fd225f8cf40de6a9a40108962ae8067",
+    "58ab2c9b0ce20aa0eed1e96ad8615e8f4681cd234b185d087f30564f5b7ca0ed",
+    "65e197bf9e9a64ea4c2d3075a15e048b4e9b73eff1062b980c36e343a71019f0",
+    "a90601fc32f58a7f8d80916de5e1988edd8bfb05dbb74eb1d1c785d62307c6d9",
+    "b4a61d38106798a4a8cd1470f6f8672f4e3eef47ff89c6302c12af80bc906296",
+    "dbcd17dcd92595a9c4feb519290183dd60d740d23a536e193878a80ee8a489cb",
+    "fe04a46fe4a531db21bd54d9ebdd1c22450a5528b447acc018b11395f4de488a"
+  ],
+  "limitations": [
+    "Scripted completions and local gateway fixtures; no paid model benchmark or sealed result",
+    "Tool hooks are agentEvents entries named candidate:agent/tool-*; six manifest surfaces retained",
+    "Expanded callbacks only receive safe projections and queue checkpoints for later admitted steps",
+    "Harbor adapter unchanged in this change; no additional Harbor job run",
+    "Callbacks use existing disposable-worker wall-clock/process limits; this bridge bounds queues and does not isolate synchronous candidate code"
+  ]
+}

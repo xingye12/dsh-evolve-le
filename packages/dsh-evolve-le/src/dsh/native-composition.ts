@@ -7,11 +7,12 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { NATIVE_CAPABILITIES_POLICY } from './native-capabilities.js'
 /** Candidate execution mode (kept local so the TCB package has no runtime
  * dependency on the evolvable SDK). */
 export type NativeDshMode = 'solve' | 'propose'
 
-export const NATIVE_DSH_PROTOCOL = 'dsh-evolve-le/native-dsh/v1' as const
+export const NATIVE_DSH_PROTOCOL = 'dsh-evolve-le/native-dsh/v3' as const
 
 /** Exact upstream packages that form the trusted native runtime closure. */
 export const NATIVE_DSH_PACKAGE_PINS = [
@@ -23,6 +24,10 @@ export const NATIVE_DSH_PACKAGE_PINS = [
   ['@deepseek-ai/dsh-session', '0.1.0-rc.5'],
   ['@deepseek-ai/dsh-tools', '0.1.0-rc.5'],
   ['@deepseek-ai/dsh-skill', '0.1.0-rc.5'],
+  ['@deepseek-ai/dsh-token-meter', '0.1.0-rc.5'],
+  ['@deepseek-ai/dsh-compaction-basic', '0.1.0-rc.5'],
+  ['@deepseek-ai/dsh-subagent', '0.1.0-rc.5'],
+  ['@deepseek-ai/dsh-tool-subagent', '0.1.0-rc.5'],
 ] as const
 
 /** Ensure every native pin is represented by an immutable runtime manifest. */
@@ -124,8 +129,7 @@ export function installNativePromptSections(
  */
 export function candidateStrategySetupOf(ctx: Context): CandidateStrategySetup | undefined {
   const get = (ctx as unknown as { get?: (name: string) => unknown }).get
-  const provided =
-    typeof get === 'function' ? get.call(ctx, 'candidateStrategySetup') : undefined
+  const provided = typeof get === 'function' ? get.call(ctx, 'candidateStrategySetup') : undefined
   if (typeof provided === 'function') return provided as CandidateStrategySetup
   const direct = (ctx as unknown as { candidateStrategySetup?: unknown }).candidateStrategySetup
   return typeof direct === 'function' ? (direct as CandidateStrategySetup) : undefined
@@ -267,8 +271,16 @@ export async function mountNativeDshComposition(
   const load = async (specifier: string): Promise<unknown> => import(specifier)
   let spine: { default?: unknown }
   let defaultModel: { default?: unknown }
+  let features: { default?: unknown }[]
   try {
     spine = (await load('@deepseek-ai/dsh-agent-spine-demo')) as { default?: unknown }
+    features = await Promise.all(
+      [
+        '@deepseek-ai/dsh-token-meter',
+        '@deepseek-ai/dsh-compaction-basic',
+        '@deepseek-ai/dsh-subagent',
+      ].map(async (name) => (await load(name)) as { default?: unknown }),
+    )
     defaultModel = (await load('@deepseek-ai/dsh-agent-default-model')) as {
       default?: unknown
     }
@@ -294,6 +306,12 @@ export async function mountNativeDshComposition(
       toolBash: false,
       toolJobs: false,
     })
+    for (const [index, feature] of features.entries()) {
+      await plugin(
+        feature.default ?? feature,
+        index === 1 ? NATIVE_CAPABILITIES_POLICY.compaction : undefined,
+      )
+    }
     if (options.provider !== undefined && options.model !== undefined) {
       await plugin(modelPlugin, { provider: options.provider, model: options.model })
     }
