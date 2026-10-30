@@ -92,3 +92,66 @@ y2vhojev 78/115、baseline 66/115
 见 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md) 与
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。发布产物（tarball、checksums、SPDX SBOM、扫描报告）由
 `pnpm release:artifacts` 从已提交树生成。
+
+## 最终候选树结构：
+ynizgd6s（baseline）
+├─ 3pba4ssd
+│  └─ rimoy7et
+│     ├─ hxg4m2qc
+│     └─ xqx4st3q
+├─ 74ibblsv
+└─ f3tq4dr6
+   ├─ 4pg3zbsu
+   │  ├─ 7rsr3hbz
+   │  ├─ pdzrkfag
+   │  ├─ xk52p7xb
+   │  └─ jabosn6c
+   │     ├─ y2vhojev ★
+   │     │  ├─ 5uv3sn7y
+   │     │  ├─ bxolxal7
+   │     │  │  ├─ 2n3gc7gf
+   │     │  │  ├─ 5wgbus5s
+   │     │  │  └─ gv5ake67
+   │     │  ├─ siwohkab
+   │     │  ├─ tjxfpije
+   │     │  │  ├─ 24f7tvwk
+   │     │  │  ├─ 4wmtzzgd
+   │     │  │  └─ g65rjtqg
+   │     │  └─ wqbladzk
+   │     ├─ mnb5etau
+   │     └─ ycri56do
+   │        ├─ dz5qkf35
+   │        ├─ epv6q4uh
+   │        └─ sjdyeaou
+   ├─ h5hnyybk
+   │  ├─ 23solatl
+   │  │  ├─ 5spued4o
+   │  │  ├─ mh5tkj2n
+   │  │  │  ├─ nfei2umh
+   │  │  │  ├─ nj37uvmw
+   │  │  │  └─ yvesyqfg
+   │  │  └─ xrbvrcpi
+   │  ├─ 3trh5htg
+   │  │  ├─ b5camieo
+   │  │  ├─ fabox6hb
+   │  │  └─ inlhmucy
+   │  └─ 5aoc3x6o
+   │     ├─ 3yd72agu
+   │     ├─ 5byfsp4t
+   │     └─ lzt6mmlb
+   │        ├─ 2upvsv6o
+   │        ├─ gvspit6u
+   │        └─ xed3lkpe
+   │           ├─ c5cyx2ud
+   │           ├─ f2ubibru
+   │           └─ oseggqcc
+   └─ s7akpmy6
+
+   深度为4的y2vhojev ★是冠军
+   ![alt text](tournament.png)
+   ynizgd6s（baseline）:
+   ![alt text](baseline.png)
+   总数：
+   ![alt text](drive-report.png)
+
+

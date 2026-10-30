@@ -1,0 +1,58 @@
+{
+  "runId": "tree-v2-k50-formal-repair-30",
+  "phase": "NO_DEVELOPMENT_IMPROVEMENT",
+  "stopReason": "NO_DEVELOPMENT_IMPROVEMENT",
+  "status": "STOPPED:NO_DEVELOPMENT_IMPROVEMENT",
+  "trials": 653,
+  "discoveryTrials": 14,
+  "importedTrials": 653,
+  "totalSuccesses": 390,
+  "totalFailures": 263,
+  "importedDiscoveryTrials": 14,
+  "admittedNonBaseline": 51,
+  "lineageDepthMax": 6,
+  "expansionAttempts": 0,
+  "consecutiveExpansionFailures": 0,
+  "rebuildRejections": [],
+  "abandonedIntents": [],
+  "failurePool": [
+    "adaptive-rejection-sampler",
+    "break-filter-js-from-html",
+    "code-from-image",
+    "count-dataset-tokens",
+    "filter-js-from-html",
+    "financial-document-processor",
+    "gcode-to-text",
+    "kv-store-grpc",
+    "large-scale-text-editing",
+    "largest-eigenval",
+    "make-mips-interpreter",
+    "model-extraction-relu-logits",
+    "password-recovery",
+    "qemu-startup",
+    "tune-mjcf"
+  ],
+  "stateHash": "4d793436f73d0448a3b37beaf37fe21ce7810fb256fae356042a9e4b44066f12",
+  "budget": {
+    "usd": {
+      "spent": 5525534,
+      "reserved": 0
+    },
+    "task-trials": {
+      "spent": 37,
+      "reserved": 0
+    },
+    "solver-tokens": {
+      "spent": 39595646,
+      "reserved": 0
+    }
+  },
+  "tournamentTrials": 294,
+  "shortlist": [
+    "c_y2vhojeviebqho6raggsi6wz4j",
+    "c_c5cyx2ud4zgcxzamk4qwfdhacj",
+    "c_jabosn6cf7neuiv4s4n7fjm6sl",
+    "c_g65rjtqglp3e5lfjiwm2zdgdvg",
+    "c_gvspit6uhnrsmgusle6ucajd2a"
+  ]
+}
