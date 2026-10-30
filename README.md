@@ -94,6 +94,8 @@ y2vhojev 78/115、baseline 66/115
 `pnpm release:artifacts` 从已提交树生成。
 
 ## 最终候选树结构：
+
+```text
 ynizgd6s（baseline）
 ├─ 3pba4ssd
 │  └─ rimoy7et
@@ -147,11 +149,16 @@ ynizgd6s（baseline）
    │           └─ oseggqcc
    └─ s7akpmy6
 
-   深度为4的y2vhojev ★是冠军:\n
-   ![alt text](tournament.png)
-   ynizgd6s（baseline）:
-   ![alt text](baseline.png)\n
-   总数：
-   ![alt text](drive-report.png)\n
+```
 
+深度为4的y2vhojev ★是冠军:
 
+![y2vhojev 候选评测结果](tournament.png)
+
+ynizgd6s（baseline）:
+
+![ynizgd6s 基线评测结果](baseline.png)
+
+总数：
+
+![运行汇总报告](drive-report.png)
