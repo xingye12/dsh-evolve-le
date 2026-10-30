@@ -147,11 +147,11 @@ ynizgd6s（baseline）
    │           └─ oseggqcc
    └─ s7akpmy6
 
-   深度为4的y2vhojev ★是冠军
+   深度为4的y2vhojev ★是冠军:\n
    ![alt text](tournament.png)
    ynizgd6s（baseline）:
-   ![alt text](baseline.png)
+   ![alt text](baseline.png)\n
    总数：
-   ![alt text](drive-report.png)
+   ![alt text](drive-report.png)\n
 
 
