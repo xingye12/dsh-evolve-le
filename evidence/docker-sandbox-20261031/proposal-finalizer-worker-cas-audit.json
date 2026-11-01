@@ -1,0 +1,12 @@
+{
+  "protocol": "dsh-evolve-le/proposal-worker-cas-audit/v1",
+  "status": "PASS",
+  "checkedRefs": 3322,
+  "finalizationProtocols": [
+    "dsh-evolve-le/proposal-finalization-intent/v1",
+    "dsh-evolve-le/proposal-finalization-result/v1"
+  ],
+  "containerId": "29c07a00e45622924173ee6a705a9a453db09d343546211004e0c6a04964fa42",
+  "containerRemoved": true,
+  "scope": "Engineering v1 proposal submission with trusted CAS finalizer; no production acceptance or Archive admission"
+}

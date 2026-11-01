@@ -1,0 +1,44 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "standaloneProposalBootstrap": true,
+  "frozenCredentialFreeConfig": true,
+  "replayTransportOnly": true,
+  "liveProviderEnabled": false,
+  "blindModelRelaunchRefused": true,
+  "ownerHistorySurvivesMissingFailureIndex": true,
+  "privateStoreGuardBeforeCASWrites": true,
+  "componentTests": 5,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-launch-components-2.json",
+      "sha256": "dcd4e64ddde86196a9c1c96a368699833afff9461c02fdbb2c111245b224082e",
+      "bytes": 3182
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-launch-tests-4.json",
+      "sha256": "b5ade8f553ef5732c55f8b14fe7fb976d20fc013963b1177bf2182d3fb22e120",
+      "bytes": 1024
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-launch-receipt-4.json",
+      "sha256": "a2e80004f6f8caa8402f4614c1da04a8b8a3c05a72435cfa3a53546c5432bc87",
+      "bytes": 842
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-launch-cas-audit.json",
+      "sha256": "ef9b7e11d5354a46070e4807864b5ca97818e9d07e9a148831d2b69614a7c681",
+      "bytes": 267
+    }
+  ],
+  "remaining": [
+    "Explicit orphan reconciliation and full-directory-loss/controller-journal handling",
+    "Live provider credential channel and hard predispatch model budget",
+    "Controller/Archive unique admission and standard service consumers",
+    "Cumulative action resource hard limits and validator TCB isolation",
+    "Real crash matrix, release images/security artifacts and compatible Linux production acceptance"
+  ]
+}

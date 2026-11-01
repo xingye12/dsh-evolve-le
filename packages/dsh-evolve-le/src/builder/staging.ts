@@ -10,7 +10,7 @@
 
 import { createRequire } from 'node:module'
 import { existsSync, type Dirent } from 'node:fs'
-import { cp, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { cp, chmod, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   captureCanonicalSource,
@@ -108,7 +108,9 @@ export async function openNativeDshCatalog(catalogRoot: string): Promise<NativeD
     const entry = join(packageDir, manifest.main)
     const stats = await lstat(entry).catch(() => undefined)
     if (stats === undefined || !stats.isFile() || stats.isSymbolicLink()) {
-      throw new Error(`native DSH catalog ${name}@${version} is not built: missing ${manifest.main}`)
+      throw new Error(
+        `native DSH catalog ${name}@${version} is not built: missing ${manifest.main}`,
+      )
     }
   }
   return { root, packages }
@@ -125,7 +127,9 @@ async function addCatalogPackage(packages: Map<string, string>, packageDir: stri
   if (typeof manifest.name !== 'string' || manifest.name.length === 0) return
   const previous = packages.get(manifest.name)
   if (previous !== undefined) {
-    throw new Error(`native DSH catalog duplicates package ${manifest.name}: ${previous} and ${packageDir}`)
+    throw new Error(
+      `native DSH catalog duplicates package ${manifest.name}: ${previous} and ${packageDir}`,
+    )
   }
   packages.set(manifest.name, packageDir)
 }
@@ -248,7 +252,9 @@ export async function assembleOfflineNodeModules(
         `dependency closure exceeds 160 packages at ${item.name}; refusing to assemble`,
       )
     }
-    const pinDir = nativeCatalog?.packages.get(item.name) ?? (await resolvePackageDirectory(item.fromDir, item.name))
+    const pinDir =
+      nativeCatalog?.packages.get(item.name) ??
+      (await resolvePackageDirectory(item.fromDir, item.name))
     const manifest = await readPackageManifest(pinDir)
     if (manifest.name !== item.name) {
       throw new Error(`closure drift for ${item.name}: resolved ${manifest.name}`)
@@ -290,7 +296,9 @@ export async function assembleOfflineNodeModules(
 export async function inspectNativeDshRuntime(
   catalogRoot: string,
   targetDir: string,
-): Promise<NativeDshRuntimeLock & { fileCount: number; packages: { name: string; version: string }[] }> {
+): Promise<
+  NativeDshRuntimeLock & { fileCount: number; packages: { name: string; version: string }[] }
+> {
   const root = resolve(catalogRoot)
   const closure = await assembleOfflineNodeModules(targetDir, { nativeDshCatalogRoot: root })
   return {
@@ -345,4 +353,75 @@ async function copyPackageFlat(source: string, dest: string): Promise<void> {
     // relative targets only hold inside the pnpm store layout, and none of
     // the pinned packages need them at runtime.
   }
+}
+
+/** Rebuild only the frozen dependency closure from an admitted parent capsule.
+ * The candidate slot is excluded; no candidate package/dependency declaration
+ * can add a compiler/runtime dependency. Used by offline Docker validators.
+ */
+export async function assembleCapsuleDependencies(
+  targetDir: string,
+  capsuleDir: string,
+  expectedDigest: string,
+): Promise<{
+  digest: string
+  fileCount: number
+  packages: Array<{ name: string; version: string }>
+}> {
+  if (!/^[a-f0-9]{64}$/.test(expectedDigest))
+    throw new Error('Docker validator requires a frozen dependency closure digest')
+  const manifest = JSON.parse(
+    await readFile(join(capsuleDir, 'runtime/install-manifest.json'), 'utf8'),
+  ) as { packages?: Array<{ name: string; version: string; digest: string }> }
+  const candidate = JSON.parse(
+    await readFile(join(capsuleDir, 'candidate/package.json'), 'utf8'),
+  ) as { name: string }
+  if (!Array.isArray(manifest.packages) || manifest.packages.length > 160)
+    throw new Error('invalid parent capsule dependency manifest')
+  const packages: Array<{ name: string; version: string }> = [],
+    seen = new Set<string>(),
+    root = join(targetDir, 'node_modules')
+  await mkdir(root, { recursive: true })
+  for (const entry of manifest.packages) {
+    if (entry.name === candidate.name) continue
+    if (
+      !/^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/.test(entry.name) ||
+      entry.name === '.' ||
+      entry.name === '..' ||
+      seen.has(entry.name) ||
+      !/^\d+\.\d+\.\d+/.test(entry.version) ||
+      !/^[a-f0-9]{64}$/.test(entry.digest)
+    )
+      throw new Error('invalid/duplicate dependency manifest entry')
+    seen.add(entry.name)
+    const from = join(capsuleDir, 'node_modules', entry.name),
+      actual = await computeTreeDigest(from)
+    if (actual.digest !== entry.digest)
+      throw new Error(`parent dependency bytes drifted: ${entry.name}`)
+    const target = join(root, entry.name)
+    await mkdir(dirname(target), { recursive: true })
+    await cp(from, target, { recursive: true, dereference: false })
+    // Input trees are sealed 0555. Only the fresh validator scratch copy needs
+    // writable directories so later probe cleanup/reassembly can unlink files.
+    // File modes/bytes stay unchanged; directory modes are not tree identity.
+    const writableDirectories = async (path: string): Promise<void> => {
+      await chmod(path, 0o755)
+      for (const entry of await readdir(path, { withFileTypes: true })) {
+        if (entry.isSymbolicLink()) throw new Error('dependency scratch symlink rejected')
+        if (entry.isDirectory()) await writableDirectories(join(path, entry.name))
+      }
+    }
+    await writableDirectories(target)
+
+    if ((await computeTreeDigest(target)).digest !== entry.digest)
+      throw new Error(`dependency copy drifted: ${entry.name}`)
+    packages.push({ name: entry.name, version: entry.version })
+  }
+  for (const pin of PACKAGE_PINS)
+    if (!packages.some((p) => p.name === pin.name && p.version === pin.version))
+      throw new Error(`parent capsule misses required pin ${pin.name}`)
+  const actual = await computeTreeDigest(root)
+  if (actual.digest !== expectedDigest)
+    throw new Error('parent dependency closure differs from frozen run')
+  return { ...actual, packages }
 }

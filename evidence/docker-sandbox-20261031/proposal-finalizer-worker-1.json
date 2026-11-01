@@ -1,0 +1,234 @@
+{
+  "protocol": "dsh-evolve-le/proposal-worker-engineering-probe/v1",
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "inputManifest": {
+    "algorithm": "sha256",
+    "digest": "af1ee78103586bc5edf9d979a03c069c4f877042ea75a2860e323389141c4a66",
+    "size": 300,
+    "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+    "label": "CONTROLLER_INTERNAL"
+  },
+  "requests": 3,
+  "submitted": 1,
+  "exitCode": 0,
+  "snapshot": {
+    "algorithm": "sha256",
+    "digest": "a16780ee7939eae36e66e5c82d1e007d21f040c7ac2561262d9935c1edaf1cb1",
+    "label": "DEV_OBSERVED",
+    "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+    "size": 421
+  },
+  "artifacts": [
+    {
+      "algorithm": "sha256",
+      "digest": "c9da6ec4cd0d42a1f686bf20bd5baf66bcd8e0cf63406c182f6f6373d097d202",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.tool-arguments+json",
+      "size": 317
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "5fcd9a5c27ce504d6eb519b15bc5386c6f526ea840028c35a2597701c1692f83",
+      "size": 415,
+      "mediaType": "application/vnd.dsh-evolve-le.tool-intent+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "aba380935daac3a686d4c01d98f03036b12780f7fe237a07f6e388968af0e4ac",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.tool-result+json",
+      "size": 795
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "b3e06809ab8fe3759334135534a1f9a8ede0030db13ba3d4ec4168ceb3035568",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.tool-arguments+json",
+      "size": 272
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "ebbe215c4548a903c8ad99f9e7d82eac68c51d17158b9aa1e202d9e70f8bba9b",
+      "size": 413,
+      "mediaType": "application/vnd.dsh-evolve-le.tool-intent+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "d21609882f585d30ce109c5f6719055b20ffff4fdae8ac897f54917375476537",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.tool-result+json",
+      "size": 730
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "0308cde68022d7a19fa7979e4cf44491835c9a1837261895bcfac33afe356fdb",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.tool-arguments+json",
+      "size": 55
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "8f3fb005c3920edcd11a05da1d9fe3323952a57e9c724495eb972711a9f7d4e1",
+      "size": 424,
+      "mediaType": "application/vnd.dsh-evolve-le.tool-intent+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "eae7196e66272e1d5fb1bace7a081d02464760dd7ac5886910aef5e52912cbce",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.tool-result+json",
+      "size": 38
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "88ea28c16b8f11d491b7b4130a6d17546c3fa9a1ba2e8816ddd50a4454487b95",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.shell-receipt+json",
+      "size": 851
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "label": "DEV_OBSERVED",
+      "mediaType": "text/plain; charset=utf-8",
+      "size": 0
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "a16780ee7939eae36e66e5c82d1e007d21f040c7ac2561262d9935c1edaf1cb1",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+      "size": 421
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "4a3f85561741159c2a69bf6ab959e2c17ed04dc591b8f0b841fdd9c77b116c6c",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 10
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "ae20993c8589cfee01c2f534c3a6fd8d1fc41c17ea7b8641ff139a46926d1e07",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-submission+json",
+      "size": 724
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "c33d4982987cfc3a81b6143239421d11ef82f5fd7410047e4eccd94e8560255e",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.model-request+json",
+      "size": 12876
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "ac17eabb91d286296b51424a7195d50501f7f692ea72fb4d67cbda26adf0c5a0",
+      "size": 445,
+      "mediaType": "application/vnd.dsh-evolve-le.model-intent+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "58c688f294db3308408f8d9b0c63e2bef01d0e5f7ef8228e2a94f0d79f0b877c",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.model-settlement+json",
+      "size": 290
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "718c3da8f2a18d25d4ad29e2d72de613f222ab6cfe8227440e83bb79d1f1439f",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.model-request+json",
+      "size": 13426
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "303344b5e3db8e9690c26e587f705e4a97e6b3d0962922a8b01409d4eb0985c1",
+      "size": 445,
+      "mediaType": "application/vnd.dsh-evolve-le.model-intent+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "3f787ec61ab583dc964a449b97151380e57b812d069e25fcbe93821e3b8b86e0",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.model-settlement+json",
+      "size": 424
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "51b1255c5fdb1b33989c27960df6e8e01aa7ea2d4710e031bb64873c42300f0b",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.model-request+json",
+      "size": 14128
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "56924c09b856fc9abb61527a833f7c306fecdf87855c1c14d8fe79b015ef6edc",
+      "size": 445,
+      "mediaType": "application/vnd.dsh-evolve-le.model-intent+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "9bb8972f70c986e2811e18133963d0ea707f94dce19950353392f9138d3ea6c3",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.model-settlement+json",
+      "size": 562
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "79e3c002d0d609ef4b14db3139652a4134022151ca72e273e6e9081b39fc2495",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-finalization+json",
+      "size": 916
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "a16780ee7939eae36e66e5c82d1e007d21f040c7ac2561262d9935c1edaf1cb1",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+      "size": 421
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "4a3f85561741159c2a69bf6ab959e2c17ed04dc591b8f0b841fdd9c77b116c6c",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 10
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "b514d6d1b327d2be4eddfccbf429b89638b2460b645406f0d99c387efc06cf2a",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-finalization+json",
+      "size": 835
+    }
+  ],
+  "stdout": {
+    "algorithm": "sha256",
+    "digest": "304a675ac25664020e637518538ff04088f865cca5ebfb34ca64f56c64a1b8e9",
+    "size": 27013,
+    "mediaType": "application/x-ndjson",
+    "label": "DEV_OBSERVED"
+  },
+  "stderr": {
+    "algorithm": "sha256",
+    "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0,
+    "mediaType": "text/plain",
+    "label": "DEV_OBSERVED"
+  },
+  "inspection": {
+    "algorithm": "sha256",
+    "digest": "c510b4dbdb7ea7eced4fce38f16854af28eea76dbfdc71a60c88d402f47c3e4f",
+    "size": 8673,
+    "mediaType": "application/json",
+    "label": "CONTROLLER_INTERNAL"
+  },
+  "scope": "Engineering Docker profile; replay model; no production host acceptance, validator admission or benchmark result"
+}

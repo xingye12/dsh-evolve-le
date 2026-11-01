@@ -881,3 +881,43 @@ describe('run config: benchmark baseline (specs/04 §4.2, ADR-042)', () => {
     )
   })
 })
+
+it('freezes the local Docker proposer profile and rejects implicit retries or host ambiguity', () => {
+  const config = validConfig()
+  config.nativeDsh = { catalogRoot: '/trusted/catalog', dependencyClosureSha256: 'a'.repeat(64) }
+  config.modelRoutes.push({
+    id: 'local-live',
+    provider: 'zen-compatible',
+    contextWindowTokens: 262144,
+    maxOutputTokens: 4096,
+    inputUsdMicrosPerMTok: 140000,
+    outputUsdMicrosPerMTok: 280000,
+    credentialFile: '/root/private.key',
+    baseUrl: 'https://model.example/v1',
+    model: 'fixed',
+    temperature: 0,
+    retry: { maxAttempts: 1, backoffMs: [] },
+  })
+  config.proposerRoute = 'local-live'
+  config.proposalSandbox = {
+    backend: 'docker-local/v1',
+    hostRoot: '/tmp/dsh-generation',
+    image: {
+      reference: `example.test/proposal@sha256:${'a'.repeat(64)}`,
+      id: `sha256:${'b'.repeat(64)}`,
+      platform: 'linux/amd64',
+    },
+  }
+  expect(validateRunConfig(config).ok).toBe(true)
+  const retry = structuredClone(config)
+  retry.modelRoutes.at(-1)!.retry = { maxAttempts: 2, backoffMs: [1] }
+  expect(validateRunConfig(retry).ok).toBe(false)
+  const host = structuredClone(config)
+  host.proposalSandbox!.hostRoot = '/'
+  expect(validateRunConfig(host).ok).toBe(false)
+  const noProfile = structuredClone(config)
+  delete noProfile.proposalSandbox
+  const selected = validateRunConfig(config),
+    legacy = validateRunConfig(noProfile)
+  expect(selected.ok && legacy.ok && selected.configHash !== legacy.configHash).toBe(true)
+})

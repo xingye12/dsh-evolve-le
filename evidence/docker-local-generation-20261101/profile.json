@@ -1,0 +1,9 @@
+{
+  "backend": "docker-local/v1",
+  "hostRoot": "/tmp/dsh-generation",
+  "image": {
+    "reference": "dsh-evolve-le/proposal-executor@sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+    "id": "sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+    "platform": "linux/amd64"
+  }
+}

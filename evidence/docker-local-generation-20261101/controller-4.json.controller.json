@@ -1,0 +1,368 @@
+{
+  "config": {
+    "protocol": "dsh-evolve-le/proposal-generation/v1",
+    "spec": {
+      "protocol": "dsh-evolve-le/execution/v1",
+      "runId": "local-gen-1793504132623",
+      "actionId": "expand-1",
+      "attemptId": "1",
+      "executionId": "local-gen-1793504132623",
+      "kind": "proposal",
+      "image": {
+        "reference": "dsh-evolve-le/proposal-executor@sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+        "id": "sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+        "platform": "linux/amd64"
+      },
+      "policy": {
+        "algorithm": "sha256",
+        "digest": "589a4662f1bdc2ce37e9db409824e76d88af475f236bafe28f98dcc85100dd51",
+        "size": 3296,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "inputs": [
+        {
+          "algorithm": "sha256",
+          "digest": "c304f84b965551b366cc80aeb77ebc48ead3671af6b85b21eccd1af53ebb1cc4",
+          "size": 300,
+          "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "f90d66597a44d3c73c830c87117e5833039cb5b308855aa7cdbf65c025a5fc11",
+          "size": 1528,
+          "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+          "label": "DEV_OBSERVED"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+          "size": 746625,
+          "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "8483c9ccd685f7154e986f4e9192f8186859086445a95129f5d92775c158e805",
+          "size": 112665,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "7b95d5afd4fd7d5d8b4ce5a3cda588a43a9aa5e7c26ac9145737d1b74f56fef5",
+          "size": 40,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "ca15e7e681f89273c6b3ae1404ce9a6c253bbbbeb1799a448bc290f419db23cb",
+          "size": 522,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        }
+      ],
+      "reservation": {
+        "algorithm": "sha256",
+        "digest": "589a4662f1bdc2ce37e9db409824e76d88af475f236bafe28f98dcc85100dd51",
+        "size": 3296,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "command": [
+        "/input/capsule/runtime/node",
+        "/input/capsule/runner/bin/docker-proposer-worker.js",
+        "/input/config.json"
+      ],
+      "mounts": [
+        {
+          "source": "/tmp/local-generation-nET7QZ/host/dsh-proposal-4ae8e97828529e27f20613da7bdf249c/input",
+          "target": "/input",
+          "readOnly": true
+        },
+        {
+          "source": "/tmp/local-generation-nET7QZ/host/dsh-proposal-4ae8e97828529e27f20613da7bdf249c/workspace",
+          "target": "/workspace",
+          "readOnly": false
+        },
+        {
+          "source": "/tmp/local-generation-nET7QZ/host/dsh-proposal-4ae8e97828529e27f20613da7bdf249c/work",
+          "target": "/work",
+          "readOnly": false
+        },
+        {
+          "source": "/tmp/local-generation-nET7QZ/host/dsh-proposal-4ae8e97828529e27f20613da7bdf249c/ipc",
+          "target": "/gateway",
+          "readOnly": true
+        }
+      ],
+      "limits": {
+        "cpuMillis": 2000,
+        "cpuTimeMs": 30000,
+        "memoryBytes": 805306368,
+        "pids": 128,
+        "nofile": 128,
+        "fileBytes": 1048576,
+        "workspace": {
+          "bytes": 33554432,
+          "inodes": 8192
+        },
+        "work": {
+          "bytes": 16777216,
+          "inodes": 4096
+        },
+        "tmp": {
+          "bytes": 16777216,
+          "inodes": 4096
+        },
+        "shm": {
+          "bytes": 1048576,
+          "inodes": 128
+        },
+        "outputBytes": 8388608,
+        "shellTimeoutMs": 15000,
+        "shellCalls": 64
+      },
+      "deadlineUtc": "2026-11-01T03:40:35.266Z",
+      "maxElapsedMs": 90000,
+      "gateway": {
+        "route": {
+          "algorithm": "sha256",
+          "digest": "37b17e84b52baa914a13f19ff38724f03b98c71294757a737c45ac95b1ff01bd",
+          "size": 1408,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        "authorization": {
+          "algorithm": "sha256",
+          "digest": "589a4662f1bdc2ce37e9db409824e76d88af475f236bafe28f98dcc85100dd51",
+          "size": 3296,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        }
+      }
+    },
+    "inputManifest": {
+      "algorithm": "sha256",
+      "digest": "c304f84b965551b366cc80aeb77ebc48ead3671af6b85b21eccd1af53ebb1cc4",
+      "size": 300,
+      "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    "hostRoot": "/tmp/local-generation-nET7QZ/host",
+    "executionRoot": "/tmp/local-generation-nET7QZ/executions",
+    "storeRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+    "resourceRoot": "/tmp/local-generation-nET7QZ/resources",
+    "cgroupRoot": "/tmp/local-generation-nET7QZ/unused-cgroups",
+    "security": {
+      "profile": "local-generation/v1",
+      "seccompJson": "{\"defaultAction\":\"SCMP_ACT_ERRNO\",\"defaultErrnoRet\":1,\"archMap\":[{\"architecture\":\"SCMP_ARCH_X86_64\",\"subArchitectures\":[]}],\"syscalls\":[{\"names\":[\"accept\",\"accept4\",\"access\",\"arch_prctl\",\"bind\",\"brk\",\"capget\",\"chdir\",\"chmod\",\"clock_getres\",\"clock_gettime\",\"clock_nanosleep\",\"close\",\"close_range\",\"connect\",\"copy_file_range\",\"dup\",\"dup2\",\"dup3\",\"epoll_create\",\"epoll_create1\",\"epoll_ctl\",\"epoll_pwait\",\"epoll_pwait2\",\"epoll_wait\",\"eventfd\",\"eventfd2\",\"execve\",\"execveat\",\"exit\",\"exit_group\",\"faccessat\",\"faccessat2\",\"fadvise64\",\"fallocate\",\"fchdir\",\"fchmod\",\"fchmodat\",\"fcntl\",\"fdatasync\",\"flock\",\"fork\",\"fstat\",\"fstatfs\",\"fsync\",\"ftruncate\",\"futex\",\"futex_waitv\",\"getcwd\",\"getdents\",\"getdents64\",\"getegid\",\"geteuid\",\"getgid\",\"getgroups\",\"getitimer\",\"getpeername\",\"getpgid\",\"getpgrp\",\"getpid\",\"getppid\",\"getpriority\",\"getrandom\",\"getresgid\",\"getresuid\",\"getrlimit\",\"getrusage\",\"getsid\",\"getsockname\",\"getsockopt\",\"gettid\",\"gettimeofday\",\"getuid\",\"inotify_add_watch\",\"inotify_init\",\"inotify_init1\",\"inotify_rm_watch\",\"ioctl\",\"kill\",\"lgetxattr\",\"link\",\"linkat\",\"listen\",\"listxattr\",\"llistxattr\",\"lseek\",\"lstat\",\"madvise\",\"membarrier\",\"memfd_create\",\"mincore\",\"mkdir\",\"mkdirat\",\"mlock\",\"mlock2\",\"mlockall\",\"mmap\",\"mprotect\",\"mremap\",\"msync\",\"munlock\",\"munlockall\",\"munmap\",\"nanosleep\",\"newfstatat\",\"open\",\"openat\",\"openat2\",\"pause\",\"pipe\",\"pipe2\",\"poll\",\"ppoll\",\"prctl\",\"pread64\",\"preadv\",\"preadv2\",\"prlimit64\",\"pselect6\",\"pwrite64\",\"pwritev\",\"pwritev2\",\"read\",\"readahead\",\"readlink\",\"readlinkat\",\"readv\",\"recvfrom\",\"recvmmsg\",\"recvmsg\",\"rename\",\"renameat\",\"renameat2\",\"restart_syscall\",\"rmdir\",\"rseq\",\"rt_sigaction\",\"rt_sigpending\",\"rt_sigprocmask\",\"rt_sigqueueinfo\",\"rt_sigreturn\",\"rt_sigsuspend\",\"rt_sigtimedwait\",\"rt_tgsigqueueinfo\",\"sched_getaffinity\",\"sched_getattr\",\"sched_getparam\",\"sched_getscheduler\",\"sched_yield\",\"select\",\"sendfile\",\"sendmmsg\",\"sendmsg\",\"sendto\",\"set_robust_list\",\"set_tid_address\",\"setitimer\",\"setpgid\",\"setpriority\",\"setrlimit\",\"setsid\",\"setsockopt\",\"shutdown\",\"sigaltstack\",\"signalfd\",\"signalfd4\",\"socketpair\",\"stat\",\"statfs\",\"statx\",\"symlink\",\"symlinkat\",\"sync\",\"sync_file_range\",\"syncfs\",\"sysinfo\",\"tgkill\",\"time\",\"timer_create\",\"timer_delete\",\"timer_getoverrun\",\"timer_gettime\",\"timer_settime\",\"timerfd_create\",\"timerfd_gettime\",\"timerfd_settime\",\"times\",\"tkill\",\"truncate\",\"umask\",\"uname\",\"unlink\",\"unlinkat\",\"utime\",\"utimensat\",\"utimes\",\"vfork\",\"wait4\",\"waitid\",\"write\",\"writev\"],\"action\":\"SCMP_ACT_ALLOW\"},{\"names\":[\"clone\"],\"action\":\"SCMP_ACT_ALLOW\",\"args\":[{\"index\":0,\"value\":2114060288,\"op\":\"SCMP_CMP_MASKED_EQ\",\"valueTwo\":0}]},{\"names\":[\"clone3\"],\"action\":\"SCMP_ACT_ERRNO\",\"errnoRet\":38},{\"names\":[\"socket\"],\"action\":\"SCMP_ACT_ALLOW\",\"args\":[{\"index\":0,\"value\":1,\"op\":\"SCMP_CMP_EQ\"}]}]}",
+      "apparmorProfile": "none",
+      "cgroupParent": "/unused"
+    },
+    "pools": {
+      "proposal": {
+        "slots": 1,
+        "memoryBytes": 1000000000,
+        "cpuMillis": 4000,
+        "pids": 1024,
+        "bytes": 1000000000,
+        "inodes": 100000
+      },
+      "test": {
+        "slots": 1,
+        "memoryBytes": 1000000000,
+        "cpuMillis": 4000,
+        "pids": 1024,
+        "bytes": 1000000000,
+        "inodes": 100000
+      },
+      "validator": {
+        "slots": 1,
+        "memoryBytes": 1000000000,
+        "cpuMillis": 4000,
+        "pids": 1024,
+        "bytes": 1000000000,
+        "inodes": 100000
+      }
+    },
+    "model": {
+      "provider": "replay",
+      "model": "fixed",
+      "route": {
+        "algorithm": "sha256",
+        "digest": "37b17e84b52baa914a13f19ff38724f03b98c71294757a737c45ac95b1ff01bd",
+        "size": 1408,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "limits": {
+        "maxRequests": 8,
+        "maxInputTokens": 131072,
+        "maxOutputTokens": 2048,
+        "maxTotalTokens": 1000000,
+        "maxCostUsdMicros": 1,
+        "maxRequestBytes": 8388608,
+        "inputUsdMicrosPerMillion": 0,
+        "outputUsdMicrosPerMillion": 0
+      },
+      "mode": "replay"
+    }
+  },
+  "result": {
+    "actionId": "expand-1",
+    "status": "COMMITTED",
+    "failureReason": null,
+    "sandboxRoot": "/tmp/local-generation-nET7QZ/controller/sandboxes/expand-1",
+    "summary": {
+      "schemaVersion": 1,
+      "actionId": "expand-1",
+      "sandbox": {
+        "kind": "docker",
+        "uid": 65532,
+        "detail": "local-generation/v1; external immutable snapshot and CLEANED proof"
+      },
+      "capsuleDigest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+      "turns": null,
+      "usage": {
+        "requests": 3,
+        "promptTokens": 300,
+        "completionTokens": 90,
+        "totalTokens": 390,
+        "costUsdMicros": 0
+      },
+      "admitted": [
+        {
+          "childName": "child-1",
+          "sourceHash": "sha256:43f9db07b6f6e0ca955c612ee1d06ad0830338e189d6e9c81d48444b14885ca8",
+          "diffHash": "e88b16ed89c1caf72913f543da5823688fa657625c43ad9ed845a2fc95083cd9",
+          "filesChanged": 1,
+          "linesAdded": 1,
+          "linesRemoved": 0,
+          "admitted": true
+        }
+      ],
+      "rejected": [],
+      "batchErrors": [],
+      "registeredCandidateIds": [
+        "c_ip45wb5w63qmvfk4mexodudk2c"
+      ]
+    }
+  },
+  "artifacts": [
+    {
+      "algorithm": "sha256",
+      "digest": "17c210269d2a9eabbdd4d8f392cdc17b0088fb046d4f4c46063fd204ffbfdd09",
+      "size": 8045,
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-generation+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "e70f791efad830e4343fc370688131c573316f3b18b0eb42f8f327cc9e5eb27a",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-generation-result+json",
+      "size": 866
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "fb480a0d060d0ed34cba4473b2593e2c78efcbf667aeeedd1a3f20a3e832aafd",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-bundle+json",
+      "size": 598542
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "5c53cddffa56fe767b524b21032b55f91379dbc22c9086728b60d57d65963b4f",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-completion+json",
+      "size": 5047
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "72c6f10deead886a57fc39ae0ae7bc019b651692519e0e5a109940fd6e2187d5",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.generation-submission+json",
+      "size": 745
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "d48e80b0ed3c5b0bf132bf442a1d0d1e4f98f5697b3058890363e641ac29af08",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-finalization+json",
+      "size": 933
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "e00902bd0d0264c1f1538b6e15cec9ce237052caaa8166457d8a667b61769d89",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+      "size": 1761
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "3190b27fbb1cdb6c3fd65ce54eca20383c2dd5eeb9031a8a4d5f132eb79c52b8",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 1719
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "cbbbda64b4d476ae731b30cdfd35ade1397098b752289bb2993ffc2e38b93308",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 322
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "4d13da14181b67c7ecfdc550cb076feb260e2598f06db1513090bc9c5e2a9d1e",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 21
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "973cb296624239b4f541efb2ab6e80648bb352c93af122dd7bb5b682417c31b6",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 890
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "d45187f6f67fbadd60dd4348fab25b7708316c489031be6a51982bb7125077ea",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 5059
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "1130675d0121ad758d68b40111e4896341e9840a539233091aa6c53bff1d7c44",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 2511
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "a889cc640f135bf8c0eb8e9e04e2016b0b4d669c4cafb30c5546379036b37fcf",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 136
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "e5acf1b3cdd0117789ad199eeaf1aca0bd69d5d3c8254224b69e26de3995fadd",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-finalization+json",
+      "size": 852
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "d1e2d9a63c0c8f82ee56b4d1d2d11b242b53828df191062cdd142cc8365bc7f4",
+      "size": 884,
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-validation+json",
+      "label": "CONTROLLER_INTERNAL"
+    }
+  ]
+}

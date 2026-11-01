@@ -1,0 +1,45 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "modelLedgerProtocol": "dsh-evolve-le/model-ledger/v1",
+  "requestHistoryLossFailsClosed": true,
+  "startedExecutionRequiresExistingLedger": true,
+  "fullTrustedJournalLossResolved": false,
+  "liveProviderEnabled": false,
+  "paidModelCalls": 0,
+  "componentTests": 25,
+  "nativeReplayRequests": 3,
+  "nativeReplaySubmissions": 1,
+  "casObjectsReadBack": 3104,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/model-ledger-tests-4.json",
+      "bytes": 10471,
+      "sha256": "0c87356f535fabb3c7ecca3022d468f103d9dc0f62e77c8a35817b14c6df696e"
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/model-ledger-worker-tests-1.json",
+      "bytes": 1143,
+      "sha256": "750498547f8043c04ec1ad095d31f8582c9b8ae027e9097fc0248784d6ebaca8"
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/model-ledger-worker-1.json",
+      "bytes": 8444,
+      "sha256": "d4bc77b1400c68daf63a52c1a0089ba4f441a887d21d589662c179fafb38c088"
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/model-ledger-cas-audit-1.json",
+      "bytes": 261,
+      "sha256": "42886cfa870290bb2763a41be167db23ebe2d5b30f46af782c4ce0435db99b72"
+    }
+  ],
+  "remaining": [
+    "Live provider credentials and predispatch token ceiling",
+    "Controller unique Archive admission and full journal-loss handling",
+    "Actual orphan reattachment and compatible production platform",
+    "Cumulative resource accounting and validator TCB protection",
+    "Full real crash and hostile process acceptance"
+  ]
+}

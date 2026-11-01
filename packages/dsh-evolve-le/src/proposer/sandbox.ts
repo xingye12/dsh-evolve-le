@@ -61,7 +61,7 @@ export class SandboxError extends Error {
 
 /** The OS boundary actually achieved for a run (specs/05 §9). */
 export interface SandboxAchievement {
-  kind: 'uid-netns' | 'netns' | 'uid'
+  kind: 'uid-netns' | 'netns' | 'uid' | 'docker'
   uid: number | null
   detail: string
   /** How the worker-writable trees were handed to the isolated uid. */
@@ -147,6 +147,7 @@ const WORKER_RUNTIME_FILES = [
   'proposer/policy.js',
   'proposer/agent-loop.js',
   'proposer/protocol.js',
+  'proposer/generation-draft.js',
   // ADR-044: the TCB prompt texts the worker assembles (moved out of
   // bin/proposer-worker so tests can import them without executing main()).
   'proposer/prompt-text.js',
@@ -301,6 +302,8 @@ export interface RemoteSandboxModel {
 }
 
 export interface RunProposalSandboxOptions {
+  authoringInstruction?: string
+  generationBudget?: { maxTotalTokens: number; maxCostUsdMicros: number }
   sandboxRoot: string
   /** Controller-side parent capsule directory (from the trusted builder). */
   capsuleDir: string

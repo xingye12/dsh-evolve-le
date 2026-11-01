@@ -451,3 +451,153 @@ arguments/results, messages or provider errors. Audit records are separate from
 upstream session events so the pinned persistence vocabulary stays replayable.
 Pending notifications and next-step checkpoints have frozen caps; callback failures
 propagate at awaited boundaries rather than being silently discarded.
+
+### Docker execution records (ADR-077)
+
+The execution/v1 spec, execution-receipt/v1, execution-bundle/v1 and
+source-snapshot/v1 contracts bind run/action/attempt/execution identity, original
+deadline, reservation, image/platform/policy and input digests. Lifecycle is
+RESERVED → PREPARED → CREATED → RUNNING → STOPPED → EXPORTED → COMMITTED → CLEANED;
+execution outcome, admission and cleanup outcome are independent. Failure before
+launch records a no-target STOPPED receipt, never a fictitious RUNNING event.
+
+Write intent before each effect, CAS files and directories fsync before manifest
+publication, then read back every reachable ref through the production reader.
+Worker-result existence is not a completion fact. Preserve failed, cancelled,
+duplicate, ambiguous and partial attempts. A stopped execution exports its
+original scene without model replay; a committed bundle is adopted only after
+verification. Unknown paid dispatch is AMBIGUOUS unless provider idempotency or
+query resolves it. Cleanup receipts append separately; never rewrite a committed
+bundle to add later admission/cleanup. Derived indexes are rebuildable.
+
+### Docker frozen execution inputs (ADR-077)
+
+`execution-input/v1` binds every read-only non-gateway mount to an immutable
+inventory and CAS file refs. Its graph contains no spec back-reference; the
+execution spec includes the manifest ref. Input files/directories are root-owned
+and read-only, copied without links into an exclusive staging directory, fsynced
+and renamed before create. Existing materializations must match; drift is never
+repaired in place. Record input verification before create and again before start.
+Validator supervisor/v2 requires this binding; v1 is not migrated.
+
+Validator-pair/v1 plans freeze two independent execution specs, profile and
+allocation refs, immutable source/input refs and the original parent deadline.
+Pair-result/v1 preserves both terminal supervisor results, including failures;
+it may report ARTIFACTS_MATCHED only after both readers verify matching source,
+bundle and capsule/archive refs. ARTIFACTS_MATCHED is not Archive admission.
+A live supervisor is established by its actual kernel flock, never a PID file
+or time-based lease takeover; missing owners resume the same frozen execution.
+
+### Docker snapshot finalization records (ADR-077)
+
+`proposal-finalization-intent/v1` binds the frozen input manifest, execution spec
+hash, raw proposal and original child snapshot refs before normalization. Trusted
+finalization materializes only private CAS copies, rebuilds tree-v2 receipts with
+the existing TCB finalizer, and captures new snapshots under the same original
+execution identity and deadline. It never rewrites the live proposal workspace.
+`proposal-finalization-result/v1` binds the intent to the normalized proposal and
+snapshots; `proposal-finalization-failure/v1` retains the intent, reason and any
+captured private intermediate sources. All original/normalized source bytes and
+receipts belong in execution artifacts, including failed finish attempts.
+A committed finalization is read back on reopen; missing publication can repeat
+only this deterministic TCB transform, never model dispatch, candidate execution
+or admission. Finalization success is not Archive admission. The published
+`schemas/proposal.finalization.schema.json` covers all three record shapes.
+
+### Docker online-test records (ADR-077)
+
+`proposal-test-intent/v1` records the action spec digest, immutable child source,
+selected parent/runtime/worker refs and frozen test profile before launching any
+validator. Profiles explicitly select `kind: test` in the shared resource ledger;
+omitted legacy profile kinds still mean validator. `proposal-test-result/v1`
+binds the source and test plan to both verified terminal results. The two failed
+results are preserved; ARTIFACTS_MATCHED is development feedback, never admission.
+Identical immutable requests may reuse the same plan/results across main and
+recovery sessions without rerunning either validator. Test cancellation is
+persistent; INCOMPLETE cannot prove child cleanup or release parent resources.
+Intent/result, diagnostics (marked worker-reported), both result/failure bundles,
+input graphs and resources belong in execution artifacts. The published
+`schemas/proposal.test.schema.json` covers the online intent/result envelopes.
+
+### Docker execution completion and controller handoff (ADR-077)
+
+`execution-completion/v1` references the unchanged execution bundle and its full
+receipt chain extended through COMMITTED and CLEANED. The prefix must equal the
+bundle receipts exactly, the first extension must bind the published bundle,
+and all added lifecycle records are executor-observed. The terminal event is
+`owned-resources-and-reservation-released`, emitted only after both host cleanup
+and reservation release succeed. Earlier `owned-resources-released` records do
+not satisfy this proof. Failed release keeps the execution retryable, rather
+than marking CLEANED before the release operation.
+
+`proposal-supervisor-result/v2` contains outcome, execution, completion and an
+optional immutable submission ref (null for unsuccessful executions). The
+reader verifies spec/outcome, complete cleanup chain, parent/child/source and
+membership of every submission artifact in the execution bundle. It can read
+the handoff entirely from CAS after work directories disappear. File existence
+or PID alone is insufficient; result/v1 is not upgraded silently. The supervisor
+performs no Archive admission; the controller runs its separate admission and
+unique journal commit after verifying the handoff. Both envelopes have published
+JSON Schemas. These contracts do not establish actual platform cleanup or crash
+recovery without the corresponding real-host acceptance evidence.
+
+### Frozen standalone proposal bootstrap (ADR-077)
+
+`proposal-supervisor/v1` contains only frozen execution/host, test-runtime/profile,
+model limits and route refs; unknown credential fields are rejected. The bootstrap
+uses a private no-follow config and a fixed kernel-flock entrypoint. The currently
+implemented `model-replay/v1` route has zero prices and immutable responses selected
+by the durable model-intent sequence, including after gateway reopen. It cannot
+fall back to a live provider. Live dispatch still requires separate hard-budget
+and credential-channel acceptance before enabling it.
+
+`proposal-supervisor-failure/v1` binds a diagnostic to the config CAS ref and spec
+digest. Its existence or owner PID is not a v2 completion proof. An owner that
+vanishes with execution/owner history is INCOMPLETE even if a derived failure index
+is missing. The initial launcher refuses a blind model relaunch; full explicit
+orphan reconciliation is a remaining gate. Config, replay-route and failure
+schemas are published alongside the v2 result schema.
+
+### Action model ledger loss (ADR-077)
+
+`model-ledger/v1` freezes execution, provider/model and all eight budget/price
+fields. A private sibling of the request directory contains its header and
+no-clobber CAS intent refs, published before provider dispatch. Request inventory
+must exactly match these refs, and each stored intent must match its CAS witness.
+Missing either directory, a missing last request, partial publication or config
+drift fails closed. Requests and limits are captured before asynchronous work;
+revocation is rechecked after durable reservation and before dispatch. A revoked
+reservation without a result remains ambiguous and cannot be blindly retried.
+The ledger header and all intents are execution artifacts.
+
+The supervisor uses the persisted RUNNING/start-intent history to require an
+existing ledger when recovering an already started execution, even if both
+account directories disappeared. A previously committed bundle remains usable
+through its verified CAS handoff without authorizing further dispatch. Losing
+all trusted execution/owner/controller witnesses is still a separate recovery
+failure; this local account index is not a solution to full journal loss or
+proof of a live provider's token ceiling. Historical uncommitted request files
+without this ledger are rejected rather than silently migrated.
+
+### Source generation results (ADR-078)
+
+proposal-generation-result/v1 is a CAS object with admission=NONE. Success binds the frozen spec,
+verified execution bundle, independent CLEANED completion and immutable generation-submission/v1/source graph.
+The generation submission preserves unnormalized semantic receipts; legacy submission readers reject
+it. Receipt normalization occurs only in the external trusted pipeline, before candidate validation.
+Pre-create failures may lack execution/completion; unconfirmed cleanup remains INCOMPLETE and
+cannot hand off source. The local generation-result.json is only a CAS pointer. Preserve failed
+attempt evidence; explicit sweep appends a cleanup receipt without rewriting the original result
+or authorizing model dispatch. No generation result is an admission record; its source must pass
+independent trusted normalization/build/validation. No worker-resume semantics are introduced.
+
+### Local Docker source generation (ADR-079)
+
+For new generation-only proposal runs explicitly freezing security.profile=local-generation/v1,
+ADR-079 supersedes ADR-078's delegated-cgroup-v2/AppArmor host prerequisite. Run on the local
+Linux Docker Engine (including WSL/cgroup v1) with Docker hard memory/swap/CPU-rate/PID limits,
+seccomp, non-root/cap-drop/no-new-privileges, readonly root/input, bounded tmpfs, no credentials,
+network, Docker socket or host fallback. External elapsed timeout and Docker state own stop/cleanup;
+no cumulative CPU-time, memory-peak or retained-cgroup accounting claim. Legacy strict profiles,
+validators and benchmark gates do not change. Require actual local Docker/Loader, isolation,
+owner-kill/sweep and source-to-external-validation evidence before claiming the new flow complete.

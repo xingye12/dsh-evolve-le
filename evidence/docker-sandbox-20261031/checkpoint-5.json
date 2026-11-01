@@ -1,0 +1,64 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": 73,
+  "validatorStandaloneLauncher": true,
+  "realSubprocessPreflightRefusalVerified": true,
+  "lateFailureReplayRegressionPassed": true,
+  "successfulProductionSupervisorLifecycleVerified": false,
+  "controllerIntegrated": false,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-8.json",
+      "sha256": "4ec42f3f366199598e93c29dc344a3c6a7612bf3ef45efe382881229adf0fc56",
+      "bytes": 28895
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-launcher-3.json",
+      "sha256": "f59501d709b7e01a0b0021d236473b13335eb703aa63715e467e526e4ac4561f",
+      "bytes": 3714
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-launcher-4.json",
+      "sha256": "3d44cf73b9a55531ddb6294de6d13db8281f5471c91e6c3090a978e10890a1fe",
+      "bytes": 1553
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/dsh-evolve-le/src/execution/validator-supervisor.ts",
+      "sha256": "83ddf8b09712e904c218a52bc23b679decf0b263631d9b6d2293d32215d25013"
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/validator-launcher.ts",
+      "sha256": "e0ac541cc899ea222ea9bf816eaa958fde043aec6b80ba815e0c671649023fdc"
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/validator-result.ts",
+      "sha256": "063e39dc5b5f7b5c3ea3a7d2bf09a7499f3efd3b7c8a51125518b913dae29ba3"
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/host-directory.ts",
+      "sha256": "af0d686ac41064c351308f54b0951712af441559a9039183acf8deb590f3e6d7"
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/docker-executor.ts",
+      "sha256": "e688e8ef692d6d8afb2aa0375f6c8b83e026965ebadb63fa3355407425550adf"
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/supervisor.ts",
+      "sha256": "3b51d0f405e9716d28cdb6b2f0f50fd1495e644f142e82858bb9a82c4a2c8db9"
+    }
+  ],
+  "remaining": [
+    "trusted input/capsule staging and spec binding",
+    "proposal standalone launcher and live provider wiring",
+    "validator scheduling and full two-container execution receipts",
+    "controller unique admission and recovery",
+    "release profile/AppArmor, janitor and complete fault matrix",
+    "compatible Linux production acceptance"
+  ]
+}

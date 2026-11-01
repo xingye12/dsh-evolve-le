@@ -1,0 +1,40 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "trustedSnapshotFinalizerIntegrated": true,
+  "finalizerContractAndSchemaTests": 25,
+  "realWorkerV1FinalizerReplay": true,
+  "realWorkerTreeV2MultiChildAdmission": false,
+  "casRefsReadBack": 3322,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-finalizer-6.json",
+      "sha256": "65497a286491eb6568fb73f0ce36e927defb74c370d393a3db1da40437eaa755",
+      "bytes": 9142
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-finalizer-worker-tests-1.json",
+      "sha256": "a6c32908eefa66738cd48fcb5ab0cfd74dd02404124420c57ee48a01b705e504",
+      "bytes": 1150
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-finalizer-worker-1.json",
+      "sha256": "9a91339b780230aeaa52c9cfa962a321efeedf1d85820dc646e61c7cc2142598",
+      "bytes": 8192
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-finalizer-worker-cas-audit.json",
+      "sha256": "e7d3eb23abe33e6552ef1bb0b3240ccc1380dd2cb7111b055018a5130604511c",
+      "bytes": 481
+    }
+  ],
+  "remaining": [
+    "Concrete online test and admission services, standalone proposal launcher/provider and controller wiring",
+    "Validator TCB-state isolation and trustworthy runtime receipts",
+    "Preparation/finalization/export/cleanup real crash recovery and owned-resource janitor",
+    "Release security artifacts and compatible Linux acceptance"
+  ]
+}

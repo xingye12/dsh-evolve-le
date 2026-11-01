@@ -1,0 +1,54 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": 68,
+  "freshValidatorContainers": 2,
+  "validatorStagesPerContainer": 10,
+  "externalArtifactVerification": true,
+  "casReplayVerified": true,
+  "casRoot": "evidence/docker-sandbox-20261031/validator-cas",
+  "productionPlatformAccepted": false,
+  "controllerIntegrated": false,
+  "paidModelCalls": 0,
+  "harborJobs": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-6.json",
+      "sha256": "409706c88ad357236ad2542dfb5e61221b470b2ef79b931445ab0cbacf606b59",
+      "bytes": 26480
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-tests-5.json",
+      "sha256": "958e3c9480eb1aa64484826b33e7ce4aaca6bb4bf1ba3bc566917b189d24942f",
+      "bytes": 1113
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-5.json",
+      "sha256": "db9d7f571d007caac9457c3609574c46af631561b5135759edb9ca867201463e",
+      "bytes": 21053
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-replay-2.json",
+      "sha256": "fdb211fecfd744e40107b0e7c2e69d43aee82db626509bf24947d446c4deeb6f",
+      "bytes": 995
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/export-boundary-tests.json",
+      "sha256": "ef6a7649919546e905c6142b1770b21d0a61a7e0cb9bf073cf6f8c2e1cfd255d",
+      "bytes": 3528
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/inventory-boundary-tests.json",
+      "sha256": "08d82b14e9bc182d2bd21b5ed5b5f3cc4f134e1e9d3f6357face1faba64dda61",
+      "bytes": 3033
+    }
+  ],
+  "limitations": [
+    "static ARTIFACTS_VERIFIED does not prove worker runtime claims or Archive admission",
+    "production validator/supervisor launcher and controller handoff pending",
+    "strict platform gate still requires cgroup v2 and AppArmor",
+    "input binding, release image policy, janitor and full fault matrix incomplete"
+  ]
+}

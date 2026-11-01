@@ -150,3 +150,18 @@ release/
 # Controlled candidate lifecycle engineering evidence.
 !evidence/candidate-events-20261006/
 !evidence/candidate-events-20261006/**
+
+# Docker proposal implementation engineering evidence (not production acceptance).
+!evidence/docker-sandbox-20261031/
+!evidence/docker-sandbox-20261031/*.json
+
+# Local retained validator CAS payloads; engineering JSON receipts remain reviewable.
+evidence/docker-sandbox-20261031/validator-cas/
+
+# Source-generation sandbox gate-1 component and platform receipts.
+!evidence/docker-generation-20261101/
+!evidence/docker-generation-20261101/*.json
+
+# Local WSL/Docker proposal lifecycle and integration receipts.
+!evidence/docker-local-generation-20261101/
+!evidence/docker-local-generation-20261101/*.json

@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dsh-evolve-le.local/schemas/proposal.supervisor-failure.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "specDigest", "configuration", "reason"],
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/proposal-supervisor-failure/v1"
+    },
+    "specDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "configuration": {
+      "$ref": "https://dsh-evolve-le.local/schemas/execution.spec.schema.json#/properties/policy"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    }
+  }
+}

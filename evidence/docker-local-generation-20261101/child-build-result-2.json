@@ -1,0 +1,98 @@
+{
+  "scope": "same trusted builder and /tmp workspace convention as IterationDriver; actual live-generated source; no benchmark evaluation",
+  "generation": {
+    "admission": "NONE",
+    "completion": {
+      "algorithm": "sha256",
+      "digest": "faa4926cca27136997043b3dcdcfde173701431311024d6d57b70a9fb079b82d",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-completion+json",
+      "size": 56590
+    },
+    "diagnostic": null,
+    "execution": {
+      "algorithm": "sha256",
+      "digest": "67e4c1e16f305777005fcc7e4364e9ad2cc8ee13f938e185293a4aa5fa97a7c9",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-bundle+json",
+      "size": 690092
+    },
+    "outcome": "SUCCEEDED",
+    "protocol": "dsh-evolve-le/proposal-generation-result/v1",
+    "specDigest": "243eedee9afc5acfc4baa02b093011273eaaebbd98338b4f19b3ef8c3b804e3e",
+    "submission": {
+      "algorithm": "sha256",
+      "digest": "745a0fc36dd32bdee7b9111f6738c5963a4c87ef1347a591014ec25d0f423322",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.generation-submission+json",
+      "size": 974
+    }
+  },
+  "candidateId": "c_lpzsxjcfhbetyuza5c4ad7alhp",
+  "outcome": "admitted",
+  "rejection": null,
+  "receipts": {
+    "containment": {
+      "status": "pass",
+      "detail": "captured 6 files, 10788 bytes; staged read-only; tree digest dsh-evolve-tree-v1:bd83307d9407c0b8…"
+    },
+    "schema": {
+      "status": "pass",
+      "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+    },
+    "diffBoundary": {
+      "status": "pass",
+      "detail": "parent sha256:40c14e16d… verified by re-capture; 2 files +3/-1 within the pre-registered boundary; parent sections preserved"
+    },
+    "policyScan": {
+      "status": "pass",
+      "detail": "no findings across import/dependency/leak/task/secret rules"
+    },
+    "reproducibleBuild": {
+      "status": "pass",
+      "detail": "two sandboxed tsc runs produced identical output (2 files); closure 62 packages (2834 files), tsc 6.0.3"
+    },
+    "typeLintUnit": {
+      "status": "pass",
+      "detail": "oxlint clean over staged tree; candidate tests passed"
+    },
+    "loaderBoot": {
+      "status": "pass",
+      "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 167ms"
+    },
+    "unloadInvariant": {
+      "status": "pass",
+      "detail": "Cordis inventory and process handles returned to baseline; candidate prompt, tool and skill registrations removed"
+    },
+    "mockReplay": {
+      "status": "pass",
+      "detail": "ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2); native ctx.agents.create() turn emitted 27 session events and one candidate strategy tool call/result in 24ms with clean unload; native proposal ctx.agents.create() emitted 42 session events and bounded list/write/finish tool calls in 49ms with clean unload; native ACP ctx.agents.create() solve emitted 47 session events and bounded exec/read/write tool calls in 35ms with clean unload"
+    },
+    "capsuleDoubleBuild": {
+      "status": "pass",
+      "detail": "two capsule assemblies byte-identical (tar and tar.gz; 2881 files, 145484791 bytes); tar 68b1b172fd083cc1…, archive 8874e37527f76dd5…"
+    }
+  },
+  "buildResult": {
+    "algorithm": "sha256",
+    "digest": "2e20330ea9a9e4b76aef2a74c99d608d990b8e6d1c1ae6804a24a44078768d32",
+    "size": 7181,
+    "mediaType": "application/vnd.dsh-evolve-le.generated-source-build+json",
+    "label": "CONTROLLER_INTERNAL"
+  },
+  "capsuleArchive": {
+    "algorithm": "sha256",
+    "digest": "8874e37527f76dd55b7239a8044215561c4289542623a95a1dcecd7614e3e6be",
+    "size": 49817488,
+    "mediaType": "application/vnd.dsh-evolve-le.capsule+gzip",
+    "label": "DEV_OBSERVED"
+  },
+  "artifacts": {
+    "workRoot": "/tmp/dsh-iterate-build-0uSFBG",
+    "treeDir": "/tmp/dsh-iterate-build-0uSFBG/tree",
+    "capsuleDir": "/tmp/dsh-iterate-build-0uSFBG/capsule",
+    "capsuleTar": "/tmp/dsh-iterate-build-0uSFBG/capsule.tar",
+    "capsuleArchive": "/tmp/dsh-iterate-build-0uSFBG/capsule.tar.gz",
+    "buildManifestPath": "/tmp/dsh-iterate-build-0uSFBG/build-manifest.json"
+  }
+}

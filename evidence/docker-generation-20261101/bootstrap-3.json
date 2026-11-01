@@ -1,0 +1,240 @@
+{
+  "scope": "real CLI/flock/CAS preflight rejection only; zero worker/model dispatch",
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "config": {
+    "protocol": "dsh-evolve-le/proposal-generation/v1",
+    "spec": {
+      "protocol": "dsh-evolve-le/execution/v1",
+      "runId": "run",
+      "actionId": "expand-1",
+      "attemptId": "1",
+      "executionId": "generation-bootstrap",
+      "kind": "proposal",
+      "image": {
+        "reference": "example.test/dsh/proposal@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "platform": "linux/amd64"
+      },
+      "policy": {
+        "algorithm": "sha256",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "size": 1,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "inputs": [
+        {
+          "algorithm": "sha256",
+          "digest": "ef2a7a33195e6dee6153f21f9e77ac350004042f8bf0b55608d9ef7cfbc86719",
+          "size": 300,
+          "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "f90d66597a44d3c73c830c87117e5833039cb5b308855aa7cdbf65c025a5fc11",
+          "size": 1528,
+          "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+          "label": "DEV_OBSERVED"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+          "size": 746625,
+          "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "d92120fd119c1d8553c65930a2fda01c6b5706a9a9250e9b82a23acbe41c0803",
+          "size": 110485,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "7b95d5afd4fd7d5d8b4ce5a3cda588a43a9aa5e7c26ac9145737d1b74f56fef5",
+          "size": 40,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        {
+          "algorithm": "sha256",
+          "digest": "ca15e7e681f89273c6b3ae1404ce9a6c253bbbbeb1799a448bc290f419db23cb",
+          "size": 522,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        }
+      ],
+      "reservation": {
+        "algorithm": "sha256",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "size": 1,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "command": [
+        "/input/capsule/runtime/node",
+        "/input/capsule/runner/bin/docker-proposer-worker.js",
+        "/input/config.json"
+      ],
+      "mounts": [
+        {
+          "source": "/tmp/generation-bootstrap-q0rkJz/host/dsh-proposal-ad4e9165fff770a47cbb7e884af8a859/input",
+          "target": "/input",
+          "readOnly": true
+        },
+        {
+          "source": "/tmp/generation-bootstrap-q0rkJz/host/dsh-proposal-ad4e9165fff770a47cbb7e884af8a859/workspace",
+          "target": "/workspace",
+          "readOnly": false
+        },
+        {
+          "source": "/tmp/generation-bootstrap-q0rkJz/host/dsh-proposal-ad4e9165fff770a47cbb7e884af8a859/work",
+          "target": "/work",
+          "readOnly": false
+        },
+        {
+          "source": "/tmp/generation-bootstrap-q0rkJz/host/dsh-proposal-ad4e9165fff770a47cbb7e884af8a859/ipc",
+          "target": "/gateway",
+          "readOnly": true
+        }
+      ],
+      "limits": {
+        "cpuMillis": 1000,
+        "cpuTimeMs": 30000,
+        "memoryBytes": 268435456,
+        "pids": 64,
+        "nofile": 128,
+        "fileBytes": 1048576,
+        "workspace": {
+          "bytes": 1048576,
+          "inodes": 128
+        },
+        "work": {
+          "bytes": 1048576,
+          "inodes": 128
+        },
+        "tmp": {
+          "bytes": 1048576,
+          "inodes": 128
+        },
+        "shm": {
+          "bytes": 1048576,
+          "inodes": 128
+        },
+        "outputBytes": 1048576,
+        "shellTimeoutMs": 30000,
+        "shellCalls": 64
+      },
+      "deadlineUtc": "2026-11-01T02:56:01.120Z",
+      "maxElapsedMs": 30000,
+      "gateway": {
+        "route": {
+          "algorithm": "sha256",
+          "digest": "c48bac85d39a1bc5d89f8a3464a12d78f6a9d26afae3b89f94a051e1457ef43a",
+          "size": 171,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        },
+        "authorization": {
+          "algorithm": "sha256",
+          "digest": "c48bac85d39a1bc5d89f8a3464a12d78f6a9d26afae3b89f94a051e1457ef43a",
+          "size": 171,
+          "mediaType": "application/json",
+          "label": "CONTROLLER_INTERNAL"
+        }
+      }
+    },
+    "inputManifest": {
+      "algorithm": "sha256",
+      "digest": "ef2a7a33195e6dee6153f21f9e77ac350004042f8bf0b55608d9ef7cfbc86719",
+      "size": 300,
+      "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    "hostRoot": "/tmp/generation-bootstrap-q0rkJz/host",
+    "executionRoot": "/tmp/generation-bootstrap-q0rkJz/executions",
+    "storeRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+    "resourceRoot": "/tmp/generation-bootstrap-q0rkJz/resources",
+    "cgroupRoot": "/tmp/generation-bootstrap-q0rkJz/not-delegated",
+    "security": {
+      "seccompJson": "{}",
+      "apparmorProfile": "test",
+      "cgroupParent": "test"
+    },
+    "pools": {
+      "proposal": {
+        "slots": 1,
+        "memoryBytes": 1000000000,
+        "cpuMillis": 4000,
+        "pids": 1024,
+        "bytes": 1000000000,
+        "inodes": 100000
+      },
+      "test": {
+        "slots": 1,
+        "memoryBytes": 1000000000,
+        "cpuMillis": 4000,
+        "pids": 1024,
+        "bytes": 1000000000,
+        "inodes": 100000
+      },
+      "validator": {
+        "slots": 1,
+        "memoryBytes": 1000000000,
+        "cpuMillis": 4000,
+        "pids": 1024,
+        "bytes": 1000000000,
+        "inodes": 100000
+      }
+    },
+    "model": {
+      "provider": "replay",
+      "model": "fixed",
+      "route": {
+        "algorithm": "sha256",
+        "digest": "c48bac85d39a1bc5d89f8a3464a12d78f6a9d26afae3b89f94a051e1457ef43a",
+        "size": 171,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "limits": {
+        "maxRequests": 8,
+        "maxInputTokens": 8192,
+        "maxOutputTokens": 1024,
+        "maxTotalTokens": 100000,
+        "maxCostUsdMicros": 1,
+        "maxRequestBytes": 1048576,
+        "inputUsdMicrosPerMillion": 0,
+        "outputUsdMicrosPerMillion": 0
+      },
+      "mode": "replay"
+    }
+  },
+  "result": {
+    "ref": {
+      "algorithm": "sha256",
+      "digest": "b140a1c21612d39bd40cbab2d4f32518cf5208e96881d67bb49430e522b2ba44",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-generation-result+json",
+      "size": 417
+    },
+    "result": {
+      "admission": "NONE",
+      "completion": null,
+      "diagnostic": {
+        "algorithm": "sha256",
+        "digest": "aeca5a6a664cd2991deaebd638d692545f3b713f2e59b5798c43df1d16a13b14",
+        "label": "CONTROLLER_INTERNAL",
+        "mediaType": "application/json",
+        "size": 223
+      },
+      "execution": null,
+      "outcome": "INCOMPLETE",
+      "protocol": "dsh-evolve-le/proposal-generation-result/v1",
+      "specDigest": "e2dc3d98b627b5453808e1f18bd3d8a2428311191907ced89046f62bb7a1a25c",
+      "submission": null
+    }
+  }
+}

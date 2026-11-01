@@ -1,0 +1,343 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "recordedAt": "2026-10-31T09:58:19.660Z",
+  "baselineCommit": "5908707f3ed6a61371e73bb2999fe00325d84e4f",
+  "goalComplete": false,
+  "productionSandboxReady": false,
+  "scope": "component implementation and replay probes; not full production acceptance",
+  "paidModelRequests": 0,
+  "harborJobs": 0,
+  "sealedEvaluations": 0,
+  "checks": {
+    "strictBuild": "pass",
+    "scopedLint": "pass",
+    "scopedFormat": "pass",
+    "whitespace": "pass",
+    "upstreamIntegrity": "pass",
+    "relatedRegression": {
+      "passed": 71,
+      "failed": 0,
+      "report": "tests-3.json"
+    },
+    "subsequentManagedEnvironmentAndWorker": {
+      "passed": 7,
+      "failed": 0,
+      "report": "worker-final-2.json"
+    },
+    "platformPreflight": "REJECTED: cgroup v1 and unavailable AppArmor"
+  },
+  "reports": {
+    "doctor.json": {
+      "sha256": "7362815384a83f1d6ead6787930603b6491e8d3bb6f38baa2d0038445ac8a401",
+      "bytes": 2690
+    },
+    "tests.json": {
+      "sha256": "dd05591fa858ef0320c75dc43c282c2acb4ccb009f5599630d8c7099349bb94a",
+      "bytes": 28313
+    },
+    "tests-2.json": {
+      "sha256": "7bd36de999481e86627471813390bcbb89ca10f0e8e47fa3800ac2d74a226053",
+      "bytes": 26109
+    },
+    "tests-3.json": {
+      "sha256": "f19d824bd7b64f8779eb0d86d3dc5d6063e6f68872f002974c75be17200d1c63",
+      "bytes": 27349
+    },
+    "worker-final.json": {
+      "sha256": "48236700b3cdc91df46efc383ea6e6eb5def11e3517d62b60bec04ec434045b7",
+      "bytes": 1150
+    },
+    "worker-final-2.json": {
+      "sha256": "0d61a624e056a7eb6219edb06df710ef33f22308256dfcd90351cbc9ec3477d7",
+      "bytes": 3763
+    }
+  },
+  "sources": [
+    {
+      "path": "docs/adr/0001-docker-proposal-execution.md",
+      "sha256": "f9fdf1d6603e2fb5dd804ac10384c73bf581d22b08aee6e88445ea3917568972",
+      "bytes": 2301
+    },
+    {
+      "path": "docs/docker-sandbox-progress.md",
+      "sha256": "36cefde23b14636e8aeb1c02a634e4061d27d18f327d359dec3ca893b6c67d30",
+      "bytes": 7695
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/bin/docker-proposer-worker.ts",
+      "sha256": "a5ce436764af0a306cba537fd2d7711f3e681ed4b682818ca347d4e551393f78",
+      "bytes": 8256
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/dsh/container-shell-plugin.ts",
+      "sha256": "4c4fd1b5fb707af99233721a2b572fd821a33fdf2a210d77fc2b3d314ea9ed88",
+      "bytes": 4512
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/action-broker.ts",
+      "sha256": "8b09691d3fb092805bb848344092c8b4648a9957073cdfede01b15c2bf22ef08",
+      "bytes": 14987
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/composition.ts",
+      "sha256": "a64daedf2d5f620be8b4aa88df6d9e3ae2ceac1a7331c078702ce5df53d1096f",
+      "bytes": 1705
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/docker-engine.ts",
+      "sha256": "d88d597f063c94eb06bbb3814608d8f781923db13dce47fab037467ac4367c58",
+      "bytes": 4615
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/docker-executor.ts",
+      "sha256": "ee494a17cf1ebddf9bcab5112f3606db47813fd95f037a3863a06803f6494e1b",
+      "bytes": 18701
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/docker-policy.ts",
+      "sha256": "18cb6e99bdb6b9591b2b2d0028372ea11d8d321f55ef7cd5ed2c5e1a23c20451",
+      "bytes": 7949
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/doctor.ts",
+      "sha256": "7e3e5eeab614df47c0fdc8fbf7d3b96dcbdab4a8c6e7c3612c83490e8af7e3ab",
+      "bytes": 2932
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/evidence.ts",
+      "sha256": "1c088f7206bb8bf0e94d92b1997546fc6f82d5b8f50faa99e0e228040df77d0a",
+      "bytes": 10807
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/files.ts",
+      "sha256": "53f6a4ba762c207078f892edfbc167ad3a559228d0a5a8b956386f6eb2609291",
+      "bytes": 5057
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/invocations.ts",
+      "sha256": "6a0000281996058d29f090a04ff4c8b2e5ae8edbb73418aa3faeb981e5391d8b",
+      "bytes": 7161
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/linux-host.ts",
+      "sha256": "ab02558cbf9c0edb7fd01bf5ae23d9e0952775789dac2386fe34aee696b860b6",
+      "bytes": 13771
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/model-gateway.ts",
+      "sha256": "a07bd82aeed51d6813f724d23bedad5fd4c4e5ecbca372980cae45b9c9fced1f",
+      "bytes": 10550
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/resources.ts",
+      "sha256": "5ad7092d77824fee8625454ea3d7baf07087655e5f7804522470dabaa89fe559",
+      "bytes": 5121
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/rpc.ts",
+      "sha256": "3f42cf7305d897c686d9beb944c423d217d576c912c9e976d5f5fc31289d8791",
+      "bytes": 8143
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/security.ts",
+      "sha256": "70a7b15bd14cf52bd9c0619a23b9a966d47fb7c2cb45b0e84162c211af6ab112",
+      "bytes": 4920
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/shell-environment.ts",
+      "sha256": "e4bf9085738af05891f5eb0040d1790ff83c79a7966bd0c7932f2545f510e1e4",
+      "bytes": 1346
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/shell.ts",
+      "sha256": "fc1804f37ad265b408ff797ebde84be30d9e6045016dfdec3a606fcb82aeddf2",
+      "bytes": 6566
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/snapshot.ts",
+      "sha256": "b109abb0e23c8ca5929561519a7eb6e6b1ca737378ad54db3f4fb362558136ed",
+      "bytes": 8076
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/types.ts",
+      "sha256": "64b7a83b64acaf0c5388558ffa0a295ab98571b361628c362d7b2740599a925c",
+      "bytes": 9112
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/execution/worker-client.ts",
+      "sha256": "44182dd6378e840c4abdb210da18bd38a64de90f5f0169b0a37a0f509273ba27",
+      "bytes": 2759
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/action-broker.test.ts",
+      "sha256": "5e92a10c2dacc062d3957de2ba84a05da39fe9f939bb5b9782f4cbd0d3b0c2bc",
+      "bytes": 3966
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/composition.test.ts",
+      "sha256": "ed93b574a560f5bc977378121e6877383780fb2b052d2e225407b700036f26d6",
+      "bytes": 1237
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/contracts.test.ts",
+      "sha256": "f8f1a4b2e2bb393576fb9b933ff7a6fec5c11a5c55d107950719a821433875b4",
+      "bytes": 2377
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/docker-engine.live.test.ts",
+      "sha256": "21af3901b34f3cb246d5e1406f1ad8e45facb4004f999685b870f84eb45631de",
+      "bytes": 9913
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/docker-engine.test.ts",
+      "sha256": "3171acbb63789255fad97da877ed4c9bc92ef59cec2b7a61429ae62aa7984bbf",
+      "bytes": 3018
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/docker-policy.test.ts",
+      "sha256": "3ace030b645af0d9242539aa73285e7870dd9e136c431b032a119f4a3b08e130",
+      "bytes": 3107
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/evidence.test.ts",
+      "sha256": "ac284ef9a05257825cb33245d376920c8988393ee48dfb386beda4cc5085de76",
+      "bytes": 3149
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/executor.test.ts",
+      "sha256": "b1c8dde9c57dfae42282c5d061216573cc2863039d03bf25557c8063e9607363",
+      "bytes": 7160
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/files.test.ts",
+      "sha256": "63bb1d66d645b5b35b4350b660df8865fbf729f85f755d1c61ea50ce2f561252",
+      "bytes": 1655
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/fixtures.ts",
+      "sha256": "27e5f6839f5c9d3d762542a85b4ed8367341ffcb80b50ad5683cd0a4ee4730ea",
+      "bytes": 1740
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/invocations.test.ts",
+      "sha256": "25c71df6cfd263946552fa2bf90b2a6dc249acea05e150fd45d1968fbb573607",
+      "bytes": 2206
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/model-gateway.test.ts",
+      "sha256": "6651ba25d7328e9a5f95ecfa561625df7447ec72aa606f84884e09cf98d5f351",
+      "bytes": 3689
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/resources.test.ts",
+      "sha256": "12ae8354f61d458a61f49d4fbc6e5d2079eb172f7e903aa96ca364ef1c27b9a9",
+      "bytes": 2455
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/rpc.test.ts",
+      "sha256": "f4d52931991d617ee9b07b53747362fd8a3d88698f63e0769f107c30d4f5e72a",
+      "bytes": 2574
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/schema-parity.test.ts",
+      "sha256": "a4672768be830ec077851d0732de581e7508d70eabac151661117fbee5868e0c",
+      "bytes": 1642
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/shell-environment.test.ts",
+      "sha256": "fa2e835aa71031529e97a4dcc72087cccee081cba31c7dd59f452d9b3c91962d",
+      "bytes": 938
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/shell-loader.test.ts",
+      "sha256": "497c9d5562540fcc5adc7bf9e0dde0d4adffef5d27037db7acb3b9cfc3d1d7d3",
+      "bytes": 3112
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/snapshot.test.ts",
+      "sha256": "7a6b4a7ffbb37748b636afdc1caf5375d244cb641e09ba5e82000a755189ccaa",
+      "bytes": 2996
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/execution/worker.live.test.ts",
+      "sha256": "d33617d50d2ac16997e619ef4b663cfaf59b183ea66353495ce1a662c61ccda9",
+      "bytes": 12299
+    },
+    {
+      "path": "packages/dsh-evolve-le/tests/fixtures/container-shell-loader.mjs",
+      "sha256": "c4ad49f4b10e58f7a6347e4ce2976a6313e3c406eae5c587db99dad67c5c1895",
+      "bytes": 3499
+    },
+    {
+      "path": "schemas/execution.bundle.schema.json",
+      "sha256": "b646afb099cc31d42c112eecee1812e6a451f094f832b9ef116f45a8282025cb",
+      "bytes": 2869
+    },
+    {
+      "path": "schemas/execution.receipt.schema.json",
+      "sha256": "6be3725e966653a6fbcaa2dfdc9a97f1be234694d3b849a19c8431d4d90136fd",
+      "bytes": 2174
+    },
+    {
+      "path": "schemas/execution.spec.schema.json",
+      "sha256": "0ff5e22cb508e961914d982780cbec58841eebd79071717bb4b2a641ecad08fc",
+      "bytes": 9884
+    },
+    {
+      "path": "schemas/source-snapshot.schema.json",
+      "sha256": "e9c04b224ea32498600f6b56feba7bfe67a1c7a51f115353da0520f05986cc6a",
+      "bytes": 2160
+    },
+    {
+      "path": "scripts/doctor-proposal-sandbox.ts",
+      "sha256": "21d85788a0ae9ce090a25751dc6a08fe4e014fa1e1c55a5f5d06bd461bec84bd",
+      "bytes": 740
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "7e7fc8697da2d9b837e06365fc083e7b3898aae68068a2e09f3dbf4ffca88d4c",
+      "bytes": 5288
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "577fb90a7e365ef0badba0efeb602c494b71e30936f9d2077356e79b22e39973",
+      "bytes": 2631
+    },
+    {
+      "path": "PROJECT_STATUS.md",
+      "sha256": "09e82523416aa48063bea53cadd385fc4763be996dc0c368c757f4df17de5be1",
+      "bytes": 275348
+    },
+    {
+      "path": "docs/decisions.md",
+      "sha256": "c7d14f60581472bc90592d495601451f37046435fde8ab03317029055c1f1dfc",
+      "bytes": 207924
+    },
+    {
+      "path": "packages/dsh-evolve-le/src/dsh/native-proposal-runner.ts",
+      "sha256": "8a6d9284f8778071bf02d7cef267d53cba3d41935c3d0389e23851666d7d5df8",
+      "bytes": 16013
+    },
+    {
+      "path": "specs/02-candidate-contract.md",
+      "sha256": "2e1359e40334e24c1273efd58a18e8370b39df20acb2ddb00b03a5ad5be41fc2",
+      "bytes": 25010
+    },
+    {
+      "path": "specs/05-safety.md",
+      "sha256": "77c35192d48cd23361086790761e654c9c09e91eab8e77357ce289255cfbfed0",
+      "bytes": 20407
+    },
+    {
+      "path": "specs/06-evidence-state.md",
+      "sha256": "10e4817aa0b87efbbdc4a42a07dd873426c39bd66c3ce0fa201b40fe8b7a7087",
+      "bytes": 28801
+    },
+    {
+      "path": "specs/07-implementation-plan.md",
+      "sha256": "256bfc6a7453361bc9fec7387e312b6e1c35c6b1fdd3e41ca80e676f8ba75fa7",
+      "bytes": 17763
+    }
+  ],
+  "remainingRequirements": "docs/docker-sandbox-progress.md"
+}

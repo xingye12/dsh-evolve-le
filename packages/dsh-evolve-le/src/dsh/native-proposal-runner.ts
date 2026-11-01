@@ -1,3 +1,4 @@
+import { parseGenerationDraft } from '../proposer/generation-draft.js'
 import {
   installCandidateStrategyEvents,
   installCandidateEventBridge,
@@ -41,6 +42,7 @@ import { parseProposalOutput, type ProposalOutput } from '../proposer/protocol.j
 import type { NativeLlmAudit } from './native-llm-adapter.js'
 
 export const NATIVE_PROPOSAL_PROTOCOL = 'dsh-evolve-le/native-proposal/v1' as const
+export const DOCKER_NATIVE_PROPOSAL_PROTOCOL = 'dsh-evolve-le/native-proposal/v2' as const
 
 export class NativeProposalError extends Error {
   constructor(message: string) {
@@ -51,6 +53,10 @@ export class NativeProposalError extends Error {
 
 export interface NativeProposalRunOptions {
   ctx: Context
+  /** Docker v2 stops before another model dispatch once the external submission is accepted. */
+  stopOnSubmission?: boolean
+  /** Action-wide external mutation count includes foreground shell, across recovery sessions. */
+  workspaceMutationCount?: () => Promise<number>
   backend: NativeProposalToolBackend
   sessionId: string
   cwd: string
@@ -149,6 +155,8 @@ export async function runNativeProposal(
         next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>,
       ) => {
         await bridge.drain()
+        if (options.stopOnSubmission === true && state.proposal !== undefined)
+          return { kind: 'reject' }
         const admitted = await next()
         if (admitted.kind === 'reject') return admitted
         accept(
@@ -245,10 +253,15 @@ export async function runNativeProposal(
     // child root and TCB tool state are deliberately shared, while the DSH
     // session identity is not.  The finalizer remains authoritative and
     // accepts no invalid bundle.
+    const externalMutationCount =
+      state.proposal === undefined ? ((await options.workspaceMutationCount?.()) ?? 0) : 0
+    if (!Number.isSafeInteger(externalMutationCount) || externalMutationCount < 0)
+      throw new NativeProposalError('invalid external mutation count')
     const needsRecoveryTurn =
       state.proposal === undefined &&
       ((state.finishAttempts ?? 0) === 1 ||
-        ((state.finishAttempts ?? 0) === 0 && (state.writtenChildFiles ?? 0) > 0))
+        ((state.finishAttempts ?? 0) === 0 &&
+          ((state.writtenChildFiles ?? 0) > 0 || externalMutationCount > 0)))
     if (needsRecoveryTurn) {
       const recoveryReason =
         (state.finishAttempts ?? 0) === 1
@@ -276,7 +289,10 @@ export async function runNativeProposal(
     )
     const writeFailureTranscript = async (error: unknown): Promise<void> => {
       const transcript = {
-        protocol: NATIVE_PROPOSAL_PROTOCOL,
+        protocol:
+          options.stopOnSubmission === true
+            ? DOCKER_NATIVE_PROPOSAL_PROTOCOL
+            : NATIVE_PROPOSAL_PROTOCOL,
         ok: false,
         eventCount: events.length,
         subagents: subagentEvidence,
@@ -299,7 +315,8 @@ export async function runNativeProposal(
       )
     }
     try {
-      parseProposalOutput(proposal)
+      if (options.backend.generationOnly) parseGenerationDraft(proposal)
+      else parseProposalOutput(proposal)
     } catch (error) {
       await writeFailureTranscript(error)
       throw new NativeProposalError(
@@ -311,7 +328,10 @@ export async function runNativeProposal(
     await mkdir(dirname(options.proposalPath), { recursive: true })
     await writeFile(options.proposalPath, `${JSON.stringify(proposal, null, 2)}\n`, 'utf8')
     const transcript = {
-      protocol: NATIVE_PROPOSAL_PROTOCOL,
+      protocol:
+        options.stopOnSubmission === true
+          ? DOCKER_NATIVE_PROPOSAL_PROTOCOL
+          : NATIVE_PROPOSAL_PROTOCOL,
       eventCount: events.length,
       subagents: subagentEvidence,
       candidateEvents: candidateEventAudits.flatMap((audit) => audit()),
@@ -345,7 +365,10 @@ export async function runNativeProposal(
     await writeFile(
       failurePath,
       JSON.stringify({
-        protocol: NATIVE_PROPOSAL_PROTOCOL,
+        protocol:
+          options.stopOnSubmission === true
+            ? DOCKER_NATIVE_PROPOSAL_PROTOCOL
+            : NATIVE_PROPOSAL_PROTOCOL,
         ok: false,
         error: error instanceof Error ? error.message : String(error),
         events: handles.flatMap(eventsOf),

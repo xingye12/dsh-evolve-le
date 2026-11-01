@@ -134,6 +134,38 @@
       "type": "boolean",
       "const": false,
       "description": "stable-demo never touches sealed tasks; the field exists so a future profile must state it explicitly, not silently default."
+    },
+    "proposalSandbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "hostRoot", "image"],
+      "properties": {
+        "backend": {
+          "const": "docker-local/v1"
+        },
+        "hostRoot": {
+          "type": "string",
+          "pattern": "^/[^\\u0000]+$"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reference", "id", "platform"],
+          "properties": {
+            "reference": {
+              "type": "string",
+              "pattern": "@sha256:[a-f0-9]{64}$"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "platform": {
+              "const": "linux/amd64"
+            }
+          }
+        }
+      }
     }
   },
   "required": [

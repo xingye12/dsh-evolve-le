@@ -1,0 +1,44 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": 75,
+  "inputManifest": "dsh-evolve-le/execution-input/v1",
+  "validatorSupervisor": "dsh-evolve-le/validator-supervisor/v2",
+  "physicalInputsVerifiedBeforeStart": true,
+  "realDockerFrozenInputWorkerPassed": true,
+  "productionPlatformAccepted": false,
+  "controllerIntegrated": false,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-9.json",
+      "sha256": "af8633dccd2bde1be1231987e859f7077c1512b8427c8be6e367c7a15eca1a15",
+      "bytes": 29733
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/frozen-input-live-1.json",
+      "sha256": "075a54d35437040a331f0316c8610d1328fc6582944e664dba24f37d4adfa9eb",
+      "bytes": 1684
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/input-binding-tests.json",
+      "sha256": "7212a5c7925e9a2e25ba702e5f0feec9827b29a475f8e94a42550007fb98d711",
+      "bytes": 4075
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/input-schema-tests.json",
+      "sha256": "93aa0c4e3c749ce9dc822a229f8367aaa10fe5fd6b64ac29a716a81e4de4faed",
+      "bytes": 1558
+    }
+  ],
+  "remaining": [
+    "full source/parent/capsule/worker input composition factory",
+    "proposal standalone launcher and provider credentials/dispatch wiring",
+    "production validator scheduling and dual execution receipts",
+    "controller unique admission, recovery, status/audit",
+    "release images/AppArmor, preparation/cleanup recovery and full fault matrix",
+    "compatible Linux production acceptance"
+  ]
+}

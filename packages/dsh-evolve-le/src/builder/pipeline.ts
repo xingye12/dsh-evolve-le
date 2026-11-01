@@ -58,7 +58,12 @@ import {
   sandboxedInteractiveCommand,
   sandboxEnvironment,
 } from './sandbox.js'
-import { assembleOfflineNodeModules, captureStagedSource, stageDeclaredSource } from './staging.js'
+import {
+  assembleOfflineNodeModules,
+  assembleCapsuleDependencies,
+  captureStagedSource,
+  stageDeclaredSource,
+} from './staging.js'
 import { materializeNodeRuntime } from './pinned-runtime.js'
 import { runCandidateTests, runOxlint } from './type-lint-unit.js'
 
@@ -103,6 +108,8 @@ export interface BuildInput {
    * Omit it to build the explicitly non-native compatibility closure.
    */
   nativeDshCatalogRoot?: string
+  /** Trusted read-only parent capsule, used by Docker validators instead of a live catalog. */
+  dependencyCapsuleDir?: string
   /**
    * Run-manifest lock for the native closure. A mismatch means the upstream
    * catalog changed after preflight, so admission fails before compilation.
@@ -547,12 +554,19 @@ export async function buildCandidate(input: BuildInput): Promise<BuildResult> {
   let compiledDir = ''
   if (failed === undefined && source !== undefined) {
     try {
-      closure = await assembleOfflineNodeModules(
-        treeDir,
-        input.nativeDshCatalogRoot === undefined
-          ? undefined
-          : { nativeDshCatalogRoot: input.nativeDshCatalogRoot },
-      )
+      closure =
+        input.dependencyCapsuleDir !== undefined
+          ? await assembleCapsuleDependencies(
+              treeDir,
+              input.dependencyCapsuleDir,
+              input.expectedDependencyClosureSha256 ?? '',
+            )
+          : await assembleOfflineNodeModules(
+              treeDir,
+              input.nativeDshCatalogRoot === undefined
+                ? undefined
+                : { nativeDshCatalogRoot: input.nativeDshCatalogRoot },
+            )
       if (
         input.expectedDependencyClosureSha256 !== undefined &&
         closure.digest !== input.expectedDependencyClosureSha256

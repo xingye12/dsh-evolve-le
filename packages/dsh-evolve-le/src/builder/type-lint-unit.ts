@@ -7,7 +7,8 @@
  * @module @dsh-evolve-le/core/builder/type-lint-unit
  */
 
-import { writeFile } from 'node:fs/promises'
+import { writeFile, rename, rm } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { repoRoot } from '../schema.js'
 import { runSandboxed, type SandboxedRun } from './sandbox.js'
@@ -34,28 +35,36 @@ export async function writeTypeLintUnitConfigs(treeDir: string): Promise<void> {
     })}\n`,
     'utf8',
   )
-  await writeFile(
-    join(treeDir, 'tsconfig.json'),
-    `${JSON.stringify(
-      {
-        compilerOptions: {
-          module: 'nodenext',
-          moduleResolution: 'nodenext',
-          target: 'es2023',
-          lib: ['es2023'],
-          types: [],
-          strict: true,
-          verbatimModuleSyntax: true,
-          noEmit: true,
-          skipLibCheck: true,
+  const temporary = join(treeDir, `.tsconfig-${randomUUID()}.json`)
+  try {
+    await writeFile(
+      temporary,
+      `${JSON.stringify(
+        {
+          compilerOptions: {
+            module: 'nodenext',
+            moduleResolution: 'nodenext',
+            target: 'es2023',
+            lib: ['es2023'],
+            types: [],
+            strict: true,
+            verbatimModuleSyntax: true,
+            noEmit: true,
+            skipLibCheck: true,
+          },
+          include: ['src', 'tests'],
         },
-        include: ['src', 'tests'],
-      },
-      null,
-      2,
-    )}\n`,
-    'utf8',
-  )
+        null,
+        2,
+      )}\n`,
+      { encoding: 'utf8', flag: 'wx', mode: 0o444 },
+    )
+    // Frozen input files may be 0444. Replace this working-copy inode; never
+    // write through it or relax the original source permissions.
+    await rename(temporary, join(treeDir, 'tsconfig.json'))
+  } finally {
+    await rm(temporary, { force: true })
+  }
 }
 
 export function oxlintCli(): string {
@@ -76,10 +85,14 @@ export function typeLintUnitLintTargets(treeDir: string, hasTests: boolean): str
  * resolution.
  */
 export function runOxlint(treeDir: string, hasTests: boolean): Promise<SandboxedRun> {
-  return runSandboxed(process.execPath, [oxlintCli(), ...typeLintUnitLintTargets(treeDir, hasTests)], {
-    cwd: repoRoot,
-    timeoutMs: 60_000,
-  })
+  return runSandboxed(
+    process.execPath,
+    [oxlintCli(), ...typeLintUnitLintTargets(treeDir, hasTests)],
+    {
+      cwd: repoRoot,
+      timeoutMs: 60_000,
+    },
+  )
 }
 
 /**

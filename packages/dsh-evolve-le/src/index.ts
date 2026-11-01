@@ -380,3 +380,8 @@ export type {
   StageCall,
   FailureReport,
 } from './attribution/trajdebug.js'
+
+export {
+  localDockerProposalRunner,
+  type LocalProposalProfile,
+} from './execution/local-proposal-runner.js'

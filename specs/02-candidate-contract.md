@@ -457,3 +457,50 @@ inherit the frozen route and candidate strategy and use the same task tools and
 workspace. Candidates cannot override the route, enable background/fork or grant
 new tool permissions. Compaction is supplied by the TCB composition; summary
 requests spend the existing gateway budget and preserve original session events.
+
+### Docker proposal authoring (ADR-077)
+
+The fresh Docker execution profile uses `/workspace/<child>/` as its only
+candidate source output and `/work` for disposable session/config state. Native
+file tools and foreground standard DSH bash share that workspace. File tools
+retain path/size/package checks; arbitrary shell semantics are not a path policy.
+Every shell call counts as a mutation, serialized with file mutations across
+main, recovery and foreground child sessions. No background mode, escalation,
+host execution fallback or Docker capability is provided. If termination of a
+shell call and all descendants cannot be proved, fail the entire execution.
+
+Only externally captured immutable snapshots may enter online tests or the ten
+admission stages. `proposal_finish` binds each child to a snapshot digest;
+repairs create new snapshots under the existing finish-attempt limit. Submission,
+worker-result presence and zero exit grant neither completion nor admission.
+New native-dsh/v4 + native-capabilities/v3, proposer-tools/v2 and sandbox/v2 are
+required for this profile; legacy protocols preserve their original semantics.
+
+Docker proposer-tools/v2 exposes `proposal_test_child` only when the backend
+provides the immutable external-test capability. Historical native backends keep
+their previous tools. The tool captures the selected child externally and uses
+independent `test`-pool validator domains, with shared action budgets and original
+deadline; feedback is development-only. `proposal_finish` first normalizes private
+CAS copies, then tests those normalized snapshots before publishing submission.
+Failed or incomplete tests cannot produce a submitted proposal or Archive
+admission; main/recovery/subagent sessions do not reset test/finish limits.
+
+### Source-generation-only Docker profile (ADR-078)
+
+For new runs explicitly selecting generationOnly=true, proposal authoring runs in a disposable
+Docker container with the real Loader/native AgentLoop. The owner exports immutable source and
+cleans the attempt; test-child is absent from tool discovery and rejected by RPC. Online tests
+and snapshot finalization in ADR-077 are not required inside this generation backend. Trusted
+normalization, build, validation and Archive admission remain separate required consumers.
+Historical profiles keep their original contracts; new worker/config bytes require fresh identity.
+
+### Local Docker source generation (ADR-079)
+
+For new generation-only proposal runs explicitly freezing security.profile=local-generation/v1,
+ADR-079 supersedes ADR-078's delegated-cgroup-v2/AppArmor host prerequisite. Run on the local
+Linux Docker Engine (including WSL/cgroup v1) with Docker hard memory/swap/CPU-rate/PID limits,
+seccomp, non-root/cap-drop/no-new-privileges, readonly root/input, bounded tmpfs, no credentials,
+network, Docker socket or host fallback. External elapsed timeout and Docker state own stop/cleanup;
+no cumulative CPU-time, memory-peak or retained-cgroup accounting claim. Legacy strict profiles,
+validators and benchmark gates do not change. Require actual local Docker/Loader, isolation,
+owner-kill/sweep and source-to-external-validation evidence before claiming the new flow complete.

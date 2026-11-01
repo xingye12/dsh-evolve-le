@@ -3023,3 +3023,25 @@ result publication and retain final audit snapshots after disposal. New runtime
 semantics require a fresh run/baseline; historical capsule manifests accept their
 original v1/v2 policy and are not rewritten. Engineering checks establish live
 hook behavior and cleanup, not score improvement.
+
+## ADR-077 — Disposable Docker proposal and external snapshots (2026-10-31)
+
+Accepted implementation decision: [ADR-077](adr/0001-docker-proposal-execution.md).
+One proposal container per attempt shares native Agent sessions and foreground shell;
+external snapshots, isolated validators and trusted controller commits own admission.
+New protocols and a fresh run are required; legacy evidence remains unchanged.
+
+## ADR-078 — Source-generation-only Docker sandbox (2026-11-01)
+
+Accepted implementation decision: [ADR-078](adr/0002-proposal-generation-sandbox.md).
+Supersedes the unfinished ADR-077 implementation roadmap for new runs; preserve containment,
+external snapshots and cleanup, move validation/admission outside the generation runner.
+See the [three-gate plan](docker-proposal-sandbox-v0-plan.md). Compatible-host replay precedes
+live dispatch and controller adoption; no silent relaxation on the current WSL2 host.
+
+## ADR-079 — Local Docker generation on WSL (2026-11-01)
+
+[ADR-079](adr/0003-local-docker-generation.md) explicitly replaces the compatible-host prerequisite
+for the new generation backend with local-generation/v1: Docker/seccomp/readonly/no-network,
+bounded workspaces and Docker resource limits, without delegated cgroup v2 or required AppArmor.
+Legacy profiles remain unchanged. User authorized local implementation; no remote host is required.

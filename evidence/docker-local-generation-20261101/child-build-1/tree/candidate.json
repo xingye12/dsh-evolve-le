@@ -1,0 +1,45 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/candidate.manifest.schema.json",
+  "schemaVersion": 1,
+  "canonicalParent": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+  "donorCandidates": [],
+  "proposal": {
+    "hypothesis": "Baseline two-mode DSH candidate: registers a stable identity prompt section plus bounded candidate-owned tool and skill strategy surfaces.",
+    "evidenceRefs": ["evidence://gate0/loader-spike.json"],
+    "targetFailureModes": [],
+    "expectedBehaviorChange": "Expose the stable prompt section plus candidate-owned DSH tool and skill strategy in both modes.",
+    "regressionRisks": [],
+    "touchedSurfaces": ["system-prompt", "tools", "skills"],
+    "strategySurfaces": ["system-prompt", "tools", "skills"]
+  },
+  "runtime": {
+    "requiredServices": ["systemPrompt", "tools", "skills"],
+    "optionalServices": [],
+    "newToolNames": ["candidate_strategy_snapshot"],
+    "newSkillNames": ["candidate-strategy-review"],
+    "supportsModes": ["solve", "propose"],
+    "promptSections": {
+      "solve": [
+        {
+          "name": "candidate:identity",
+          "order": 100
+        }
+      ],
+      "propose": [
+        {
+          "name": "candidate:proposal-policy",
+          "order": 100
+        }
+      ]
+    }
+  },
+  "tests": {
+    "mechanismAssertions": [
+      "In solve mode the candidate registers exactly one section named candidate:identity and the declared candidate-owned tool and skill.",
+      "In propose mode the candidate registers exactly one section named candidate:proposal-policy and the declared candidate-owned tool and skill."
+    ],
+    "preservationAssertions": [
+      "Disposing the candidate fiber removes the registered section and restores the pre-boot inventory exactly."
+    ]
+  }
+}

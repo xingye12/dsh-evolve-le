@@ -1,0 +1,309 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dsh-evolve-le.local/schemas/proposal.generation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "spec",
+    "inputManifest",
+    "hostRoot",
+    "executionRoot",
+    "cgroupRoot",
+    "resourceRoot",
+    "storeRoot",
+    "security",
+    "pools",
+    "model"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/proposal-generation/v1"
+    },
+    "spec": {
+      "allOf": [
+        {
+          "$ref": "https://dsh-evolve-le.local/schemas/execution.spec.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "proposal"
+            }
+          }
+        }
+      ]
+    },
+    "inputManifest": {
+      "$ref": "https://dsh-evolve-le.local/schemas/execution.spec.schema.json#/properties/policy"
+    },
+    "hostRoot": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4096,
+      "pattern": "^/(?:[^/\\u0000]+/)*[^/\\u0000]+$",
+      "not": {
+        "pattern": "(?:^|/)\\.{1,2}(?:/|$)"
+      }
+    },
+    "executionRoot": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4096,
+      "pattern": "^/(?:[^/\\u0000]+/)*[^/\\u0000]+$",
+      "not": {
+        "pattern": "(?:^|/)\\.{1,2}(?:/|$)"
+      }
+    },
+    "cgroupRoot": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4096,
+      "pattern": "^/(?:[^/\\u0000]+/)*[^/\\u0000]+$",
+      "not": {
+        "pattern": "(?:^|/)\\.{1,2}(?:/|$)"
+      }
+    },
+    "resourceRoot": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4096,
+      "pattern": "^/(?:[^/\\u0000]+/)*[^/\\u0000]+$",
+      "not": {
+        "pattern": "(?:^|/)\\.{1,2}(?:/|$)"
+      }
+    },
+    "storeRoot": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4096,
+      "pattern": "^/(?:[^/\\u0000]+/)*[^/\\u0000]+$",
+      "not": {
+        "pattern": "(?:^|/)\\.{1,2}(?:/|$)"
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seccompJson", "apparmorProfile", "cgroupParent"],
+      "properties": {
+        "seccompJson": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 262144
+        },
+        "apparmorProfile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 262144
+        },
+        "cgroupParent": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 262144
+        },
+        "profile": {
+          "const": "local-generation/v1"
+        }
+      }
+    },
+    "pools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal", "test", "validator"],
+      "properties": {
+        "proposal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["slots", "memoryBytes", "cpuMillis", "pids", "bytes", "inodes"],
+          "properties": {
+            "slots": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "memoryBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "cpuMillis": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "pids": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "inodes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "test": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["slots", "memoryBytes", "cpuMillis", "pids", "bytes", "inodes"],
+          "properties": {
+            "slots": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "memoryBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "cpuMillis": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "pids": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "inodes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "validator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["slots", "memoryBytes", "cpuMillis", "pids", "bytes", "inodes"],
+          "properties": {
+            "slots": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "memoryBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "cpuMillis": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "pids": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "inodes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "route", "limits", "mode"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "route": {
+          "$ref": "https://dsh-evolve-le.local/schemas/execution.spec.schema.json#/properties/policy"
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxRequests",
+            "maxInputTokens",
+            "maxOutputTokens",
+            "maxTotalTokens",
+            "maxCostUsdMicros",
+            "maxRequestBytes",
+            "inputUsdMicrosPerMillion",
+            "outputUsdMicrosPerMillion"
+          ],
+          "properties": {
+            "maxRequests": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "maxInputTokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "maxOutputTokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "maxTotalTokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "maxCostUsdMicros": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "maxRequestBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "inputUsdMicrosPerMillion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "outputUsdMicrosPerMillion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "mode": {
+          "enum": ["replay", "live"]
+        }
+      }
+    }
+  }
+}

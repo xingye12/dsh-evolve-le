@@ -3,6 +3,355 @@
 **当前权威状态：`GATE0_IMPLEMENTED`（6/6 测试 + 机器可验证 evidence）；`GATE1_IMPLEMENTED`（95/95 测试 + `pnpm gate1` 全绿 + 机器可验证 evidence）；`GATE2_IMPLEMENTED`（124/124 测试 + `pnpm gate2` 全绿 + 真实 Harbor job evidence）；`GATE3_IMPLEMENTED`（228/228 测试 + `pnpm gate3` 全绿 + 10 例 SIGKILL fault-matrix evidence）；`GATE4_IMPLEMENTED`（282/282 测试 + `pnpm gate4` 全绿 + 真实 uid+netns proposal sandbox E2E evidence）；`GATE5_IMPLEMENTED`（348/348 测试 + `pnpm gate5` 全绿 + 真实 CLI/Harbor 开发集闭环 evidence）；`GATE6_IMPLEMENTED`（351/351 测试 + `pnpm gate6` 全绿 + 默认 profile 真实 crash/resume K=3 稳定迭代 evidence）；`OPEN_SOURCE_V0_1_RELEASE_CANDIDATE`（Gate 7：351/351 测试 + `pnpm gate7` 全绿 + fresh-profile install/restore/uninstall 实测 evidence）；`GATE8_REMOTE_ROUTE_WIRED`（370/370 测试 + 真实模型 proposal 冒烟 evidence：live deepseek-v4-flash 经 TCB proxy 完成 1 次 proposal、3 子代全部过 trusted builder 重建）；`GATE8_PILOT_RECORDED`（395/395 测试 + specs/07 §10 pilot profile evidence（2026-08-31 重录，首记录作废）：K=10 admitted 达成（12 子代、4 次真实模型扩张、depth 4、0 拒绝/0 abandoned）、50 trials participation ran=50/0 infra 伪装、90 712 µUSD、13 386s、37 条机器断言全绿；search/sealed/official profiles 未运行）；`TREE_V2_K3_LIVE_RECORDED`（2026-09-06 attempt 14：K=3 admitted 达成、trials=14、RUNNER_EXIT=0、record failures=[]、$2.04、evidence artifacts 落盘 evidence/tree-v2/k3-live/；depth-1 形态，stable-demo depth-2 全绿记录未产出）；`TREE_V2_K10_LIVE_RECORDED`（2026-09-07 attempt 3：STOPPED:TRIAL_CAP@trials=60、admittedNonBaseline=10/10 达成、expansions=6（连续失败 0）、$8.41、21698s、record failures=[]、evidence 落盘 evidence/tree-v2/k10-live/；ADR-043/044 首次生产验证通过；K_REACHED 未达——最后 2 子代冷启动在 60-trial 上限时 pending；attempt 2 的扩张墙未重演；`NO_SEALED_RESULTS`；`TREE_V2_K80_REPAIR30_TERMINAL`（2026-09-14：STOPPED:NO_DEVELOPMENT_IMPROVEMENT——tournament 294/294、champion adjudication 判定 y2vhojev 胜（最佳候选 y2vhojev paired 均值 +10.5pp、90% LCB 2.0pp）、sealed 未运行、无 champion、无提升声明）**
 **更新时间：2026-10-06（Asia/Shanghai）**
 
+## 2026-11-01 本机 WSL Docker 候选生成接通并实测（ADR-079）
+
+用户明确授权改用本机 Docker profile，见 [ADR-079](docs/adr/0003-local-docker-generation.md)。
+`local-generation/v1` 使用 Docker/seccomp/只读根与输入/非 root/无网络与凭据/有界 tmpfs/
+Docker 内存、swap、CPU 速率、PID 限额和外部 wall timeout，不要求 AppArmor 或宿主 delegated
+cgroup v2；不声称累计 CPU、memory peak 或 cgroup event 计量。旧严格 profile 的语义不变。
+
+新增公开 `localDockerProposalRunner`、Controller source-generation 分支，以及新 run 的
+`init --proposal-docker-profile FILE`：冻结 image/profile/route，模型请求 `maxAttempts=1`；
+Controller 在外部 effect 前写 launch，未知结果不重启且保留最坏预算，终态也拒绝 request 漂移，
+不允许回落到 host runner。草稿源码在容器清理后由外部可信 finalizer 规范化，再复用原有
+proposal validator、source registration 和 IterationDriver trusted builder；注册不替代正式 build admission。
+`generation-accounting/v1` 绑定 CAS 执行与实际模型账本，供预算消费者结算。
+可选可信 authoring objective 同时冻结在 durable request 与 worker input；证据文本不获得该权限。
+
+已有实际证据：
+
+- [本机 replay](evidence/docker-local-generation-20261101/replay-tests-1.json)：真实 owner/Loader/
+  AgentLoop、文件与同容器 shell 修改、只读根/输入、无网络/凭据/Docker socket、CAS snapshot 和清理。
+- [生命周期](evidence/docker-local-generation-20261101/lifecycle-tests-2.json)：真实 owner SIGKILL 后
+  sweep 删除原容器/挂载并释放 reservation，及实际 wall timeout，无新 worker/model dispatch。
+- [Controller replay 交接](evidence/docker-local-generation-20261101/controller-tests-4.json)：原验证路径
+  COMMITTED、1 个 source 注册、重复消费不再次启动；不是 benchmark 或 build admission 结论。
+- [正式 factory live 冒烟](evidence/docker-local-generation-20261101/factory-live-tests-3.json)：真实
+  deepseek-v4-flash、11 请求、79,386 tokens、冻结价格 11,749 µUSD，generation SUCCEEDED，
+  Controller COMMITTED、1 个 source 注册，容器清理完成；[收据](evidence/docker-local-generation-20261101/factory-live-3.json)。
+  可信目标仅为注释与 parent 字段修改，验证 source-authoring 通道，不是 harness 改进实验。
+- [真实生成候选的可信构建](evidence/docker-local-generation-20261101/child-build-result-2.json)：
+  10/10 检查通过，包括边界、静态策略、双重可复现构建、真实 Loader 启动/卸载、ACP mock replay
+  和 capsule 双重打包；该候选获 builder admission，不代表 development champion 或 sealed promotion。
+- [凭据审计](evidence/docker-local-generation-20261101/credential-audit.json)：失败/成功两个实际
+  provider attempt 的 4,082 + 3,402 个去重 CAS refs 读回校验，均未发现 API key。
+
+失败记录保留：首次 factory fixture 缺少 export 目录；首轮真实模型探索后未 finish，45 请求、
+冻结价格 101,329 µUSD、FAILED、清理完成，当时 Controller 保守消费 200,000 µUSD 预约，
+[完整记录](evidence/docker-local-generation-20261101/factory-live-2.json)未覆盖。
+后续代码允许先结算可验证的完整模型账本再拒绝失败源码；不确定账本仍保留预约。
+Controller 新分支的 artifact-before-terminal 顺序错误由真实测试复现并修复，失败报告同样保留。
+
+build、定向 lint/格式/契约和实际 controller SIGKILL/CLI profile 测试通过；
+[全量串行回归](evidence/docker-local-generation-20261101/full-tests-1.json)：1,007 通过、3 失败、49 跳过。
+3 个失败均来自旧计划遗留的 `controller/docker-proposal.test.ts`，要求未实现且本计划不再接入的
+`Controller.runDockerProposal`；保留失败，没有删除或跳过以制造全绿。
+首次 builder 验证误用被 gitignore 排除的 evidence 工作目录，lint 未找到文件而拒绝；
+保留 [失败收据](evidence/docker-local-generation-20261101/child-build-result-1.json)，
+改用生产 IterationDriver 相同的 `/tmp/dsh-iterate-build-*` 工作目录后，同一候选通过全部检查。
+上游完整性检查通过，最终无本方案残留容器；未修改主机/daemon 或参考上游，
+未运行 Harbor、sealed 或性能提升评测。
+启用方式见 [本机 runbook](docs/docker-local-proposal-runbook.md)，
+[已实测 image 的 profile](evidence/docker-local-generation-20261101/profile.json)可作为本机新 run 的输入。
+
+## 2026-11-01 简化候选生成 runner（门 1 代码完成，真实平台验收阻塞）
+
+按 [ADR-078](docs/adr/0002-proposal-generation-sandbox.md) 和
+[三门计划](docs/docker-proposal-sandbox-v0-plan.md)，新增薄 Docker source-generation runner，
+复用 executor、gateway、broker、外部快照和 cleanup；不抽取旧 supervisor session，不内置
+online tests/finalizer/validator。冻结 `generationOnly: true` 隐藏 test-child 并拒绝对应 RPC。
+独立 generation-submission/v1 保留 tree-v2 语义草稿与原源码快照，不要求模型编造 receipt digest；
+普通 submission reader 拒绝该协议。后续须由外部可信流程规范化、验证，不具备 admission。
+
+新增 root-owned 私有配置与 `run` / `read` / `sweep` CLI：同一 kernel flock、单 attempt、不续跑，
+失败/清理未确认不得交接；结果落 CAS，本地仅指针。sweep 对显式冻结配置及已有 effects 工作，
+不建全局扫描/后台服务、不启动模型或 worker；清理收据追加，原结果不改。
+
+[相关回归](evidence/docker-generation-20261101/regression-tests-2.json) 178 通过、0 失败、
+15 个环境依赖用例未运行，覆盖 execution/native proposal/builder/capsule-runtime/旧 sandbox/tree-v2
+finalizer；[最终定向验收](evidence/docker-generation-20261101/final-tests-3.json) 12 通过、0 失败，
+含成功/失败/清理、tree-v2 草稿与旧 reader 拒绝，以及真实 CLI/flock/CAS preflight 拒绝、
+零 worker/model dispatch、配置漂移和重复启动拒绝。
+[CLI 收据](evidence/docker-generation-20261101/bootstrap-3.json)保留配置与 CAS result refs。
+成功执行生命周期用例使用模拟 Engine/host/owner，不是实际容器安全证明。
+先前 schema 登记顺序错误和重复 CAS 校验导致的 120s 探针超时均保留原报告；
+最终版本将输入完整校验留在持锁 runner，失败未被覆盖或删除。
+
+build、定向 lint/格式和 diff 检查通过。实际
+[平台报告](evidence/docker-generation-20261101/platform.json)为 WSL2/cgroup v1、无 AppArmor；
+现有平台门保持拒绝，未修改主机/daemon 或参考上游。门 1 的真实 Docker/Loader 成功与隔离路径
+尚未验收；live dispatch 和现有 propose/Controller 切换未启用。需要兼容 Linux cgroup v2 +
+AppArmor 目标主机后继续门 1–3。不能宣称已完成迁移或沙箱已可用；没有付费模型/Harbor/sealed 运行。
+
+## 2026-11-01 模型账本丢失防线（仍未完成验收）
+
+先复现请求目录/最后请求丢失导致费用归零、调用方修改冻结预算和排队输入的问题，再新增
+model-ledger/v1 header 与请求目录外的 CAS intent 索引。索引先于 dispatch 发布；缺失、漂移或
+半写失败关闭。supervisor 根据持久化 RUNNING/start-intent 要求已有账本，不能将两份本地
+账本目录丢失重置为新账户；已提交 bundle 仍走独立 CAS handoff，不授权新 dispatch。
+请求/预算复制冻结，reservation 发布后再次核验撤权；未 dispatch 的撤权预约保留为 ambiguous。
+
+[回归](evidence/docker-sandbox-20261031/model-ledger-tests-4.json) 25/25 通过，含账本丢失、
+配置漂移、异步撤权、请求冻结、重开预算和执行状态历史读回。
+[真实 Docker/Loader replay](evidence/docker-sandbox-20261031/model-ledger-worker-tests-1.json)
+完成三次模型 replay、文件与同容器 shell 修改、外部快照及一次提交；
+[运行收据](evidence/docker-sandbox-20261031/model-ledger-worker-1.json)保留 CAS artifacts。
+该工程 profile 不证明生产平台隔离、validator admission 或 live provider 硬预算。
+
+build、定向测试/lint/格式通过。live provider 仍禁用；controller 唯一准入、累计资源、
+validator TCB 和真实平台/crash 全矩阵仍未完成；目标 active，不能宣称沙箱已可用。
+
+## 2026-11-01 显式 orphan 收集与 recovery-only 防线（仍未完成验收）
+
+新增 collectProposalSupervisor：要求持久化 spec 与非空执行收据，先写撤权，再由固定 flock owner
+停止、导出和清理原 attempt；不会把 preflight 失败当作新的运行授权。撤权的 standalone owner
+不初始化 replay/provider transport。executor prepare 增加 existingOnly 内部门，收据缺失时在
+平台检查、reservation 和 container create 之前拒绝；supervisor 撤权恢复使用该门。
+
+[组件回归](evidence/docker-sandbox-20261031/proposal-collection-tests-2.json) 14/14 通过：
+先复现缺失防线，再验证无历史拒绝和已有 CREATED 执行的取消/导出/CLEANED，worker starts=0。
+这些生命周期用例使用模拟 Engine/host。
+[真实 detached 探针](evidence/docker-sandbox-20261031/proposal-launch-tests-5.json) 验证真实 owner
+preflight 失败后收集拒绝、零模型 dispatch；[收据](evidence/docker-sandbox-20261031/proposal-launch-receipt-5.json)
+保留 config/failure CAS refs。该探针不证明真实运行容器的 orphan 收集成功。
+
+build、定向 lint/格式和 diff 检查通过。运行中无损接管、全目录丢失、live provider/controller
+接线、硬预算、validator TCB 与兼容平台全故障验收仍未完成；目标保持 active，不称沙箱已可用。
+
+## 2026-11-01 Docker sandbox 实现文档交付复核
+
+[实现文档](../docs/dsh-evolve-le-docker-sandbox-implementation.md)与
+[原设计](../docs/dsh-evolve-le-docker-proposal-sandbox-design-2026-10-31.md)的替代规则及入口齐全。
+重新检查 37 个本地链接、26 个代码块和 13 个 Bash 模板：路径、围栏、`bash -n`、行尾空白及
+`git diff --check` 均通过；接入点与当前源码核对，Docker 参数与官方参考核对。
+本项仅完成实现文档交付，不宣称已有实验实现完成、隔离安全验收通过或沙箱可部署；
+此次文档复核未执行 Docker 模板、付费模型、Harbor 或 sealed 评测。
+
+## 2026-11-01 独立 proposer bootstrap/launcher（仍未完成验收）
+
+新增闭形 proposal-supervisor/v1 配置、固定 flock Node 入口、独立 launcher/state reader；配置和日志
+先检查可信私有目录，启动不继承凭据环境。父/worker/test refs、模型路由和共享资源池绑定到冻结 spec。
+复用共享 host 配置校验，不复制另一套 validator 根路径规则。新增配置/replay/failure JSON Schemas。
+standalone 当前仅支持零费用 model-replay/v1：按持久化 model intent sequence 取响应，gateway reopen
+不重置脚本进度；不提供 live fallback。live provider 的凭据通道和 pre-dispatch token/cost 硬上限
+仍待完成，这不是把真实模型验收缩成 replay。
+
+[配置与 transport 回归](evidence/docker-sandbox-20261031/proposal-launch-components-2.json) 5/5 通过，
+覆盖未知凭据字段、路由/资源池漂移、replay 进度恢复和拒绝计费 replay。
+[真实 detached 进程探针](evidence/docker-sandbox-20261031/proposal-launch-tests-4.json) 验证 kernel owner、
+preflight 拒绝的 CAS 失败记录、零模型 dispatch、配置漂移拒绝和拒绝盲目 relaunch；删除 failure index 后
+仍依据执行/owner history 标为 INCOMPLETE，不当作从未启动。还验证拒绝 symlink store 发生在 CAS
+目录创建之前。[失败收据](evidence/docker-sandbox-20261031/proposal-launch-receipt-4.json) 保留 config/failure refs。
+[CAS 审计](evidence/docker-sandbox-20261031/proposal-launch-cas-audit.json) 读回冻结 config、failure、route 和输入 graph。
+这只验证失败/bootstrap 路径，未在生产兼容主机成功运行 proposer。
+
+build、定向 lint/格式通过。显式 orphan reconcile、live provider、controller/Archive admission、
+累计资源硬预算、validator TCB 保护及完整平台/crash 验收仍待完成；目标 active。
+无付费模型、Harbor 或 sealed 运行，不得称沙箱已可用。
+
+## 2026-11-01 清理证明与 controller 交接读回（仍未完成验收）
+
+复现并修复 CLEANED 先于 reservation release 写入导致释放失败后无法重试的问题。现在完成资源释放
+后才写新事件 owned-resources-and-reservation-released；旧事件不满足新的 completion 保证。
+新增 execution-completion/v1 CAS 证明，绑定原 bundle 与追加至 CLEANED 的收据链，独立于原 manifest。
+proposal supervisor 改为 result/v2，只返回 execution/completion/submission refs；移除 supervisor 内
+admit callback，Archive admission 留给 controller 的独立事务，不将旧 result/v1 当新协议采用。
+
+新结果 reader 验证 outcome/spec、清理链、parent/child/source 与 submission artifact membership；
+抽取纯 CAS submission verifier，不依赖已删除的容器目录或 worker-result。新增两份 JSON Schema。
+[定向回归](evidence/docker-sandbox-20261031/proposal-result-cleanup-5.json) 16/16 通过，包括释放失败后
+reopen 重试、清理尾链缺失/旧事件拒绝、伪造成功/替换 submission 拒绝和目录删除后的 CAS 读回。
+Linux cleanup 另复现把所有 lstat 错误当不存在的问题，现只允许 ENOENT；真实临时文件系统 ELOOP
+回归验证错误不会被写成资源已清理。生命周期测试使用模拟 Engine/host，不证明真实 Docker 清理。
+
+build、定向 lint/格式/whitespace 通过。独立 launcher/provider、controller/Archive 实际接线、
+硬预算、validator TCB 保护与真实 crash/platform 验收仍未完成；目标 active，不得称沙箱已可用。
+本轮没有付费模型、Harbor 或 sealed 运行。
+
+## 2026-11-01 测试准备/取消竞态与提交 fence（仍未完成验收）
+
+复现并修复取消早于 in-flight plan 发布而漏扫新计划的问题：同一 owner 的 prepare/cancel 核对串行化，
+撤权先持久化，prepare 发布后重查并传播 group cancellation；缓存采用和反馈返回也重查撤权。
+[真实 CAS/子进程回归](evidence/docker-sandbox-20261031/proposal-test-cancel-race-3.json) 在 pair CAS
+发布边界暂停、并发取消，验证 prepare 拒绝继续且取消不把 INCOMPLETE 当作停净确认。
+
+另复现并修复 finalizer 在撤权后返回仍可提交的问题：broker 在 finalization/test await 返回及提交前
+重新核验 capability；撤权发生在 finalization 等待期间时，finish 不调用 submitted callback、也不发布 marker。
+artifact reader 也检查 intent 的 slot，以及 intent/result 的协议、child、execution/spec 绑定，拒绝把另一
+execution 的合法 CAS snapshot 拼入本 action 的证据。
+[定向回归](evidence/docker-sandbox-20261031/proposal-cancel-fence-2.json) 9/9 通过，build、定向 lint
+和格式检查通过。这些是竞态/读回组件证据，不替代实际 SIGKILL 全边界矩阵或生产平台验收。
+完整 launcher/controller/admission、硬预算和 validator TCB 保护等剩余门不变；目标 active。
+
+## 2026-11-01 Docker 在线测试消费者与失败门（仍未完成验收）
+
+原生 Docker backend 新增 proposal_test_child，经标准 DSH tools → IPC → 外部 snapshot →
+ProposalValidatorTests；旧 backend 不提供该方法时仍保留原工具集合。validator profile 显式 kind=test，
+两个独立 validator 使用共享 ledger 的 test 池、冻结 runtime/source 和原 deadline。intent/result、两份
+失败/成功结果、worker-reported 诊断和完整输入/产物 refs 纳入 execution artifacts；相同 immutable
+请求可在 main/recovery 间采用同一计划，不重跑失败 trial。supervisor 已接入该实际消费者，finish 对
+TCB 规范化后的 snapshot 执行测试，失败不发布 submitted marker。admission 仍是独立外部门。
+
+[定向组件回归](evidence/docker-sandbox-20261031/proposal-online-unit-2.json) 21/21 通过。
+[真实双子进程拒绝探针](evidence/docker-sandbox-20261031/proposal-online-tests-2.json) 保留两次 preflight
+失败并返回失败反馈，INCOMPLETE 不作 cleanup 证明。
+[真实 Docker/Loader 失败门](evidence/docker-sandbox-20261031/proposal-online-worker-tests-4.json) 验证
+在线工具可见、反馈进入主 Agent、main/recovery 两次 finish 均被失败测试阻止：7 次 replay 请求，
+0 提交，worker exit=1；不是生产成功路径或有效 candidate 的准入证明。
+[CAS 审计](evidence/docker-sandbox-20261031/proposal-online-worker-cas-audit.json) 读回 6433 refs，
+确认 main/recovery 共用一份 test plan、test 池正确、本次 proposal 容器已删除。中间失败报告保留。
+
+另复现并修复等待 child cancellation 会延迟 proposal kill 的问题：先登记/发起取消，立即停自身域，
+再限时等待 child 确认；不确认仍导出 INCOMPLETE 并阻止 cleanup。回归直接观察 kill 事件，不依赖
+可跳变 UTC 作为观测计时。build/定向 lint/格式/whitespace 通过。
+
+仍未完成完整 launcher/controller/Archive admission、validator TCB 状态保护、累计 action 资源硬预算、
+成功生产执行、真实 crash/janitor 矩阵与兼容 Linux 安全验收。目标 active，不得宣称沙箱已可用。
+无付费模型、Harbor 或 sealed 评测。
+
+## 2026-11-01 Docker snapshot finalizer 接入（仍未完成验收）
+
+proposal supervisor 的 finalize 现走可信 ProposalSnapshotFinalizer，不再由外部 callback 提供。
+它只在 CAS-derived 私有副本上复用既有 tree-v2 finalizer，生成规范化后的新 snapshot；原 proposal
+工作树和原 snapshot 不改。持久化 intent/result/failure，执行 spec、输入 manifest、child 和 parent
+绑定，沿用 action deadline；reopen 采用原结果。host export 收集所有 finalization 收据与前后 source
+内容，失败保留原始 snapshot 和可捕获的私有中间产物。新增严格 JSON Schema。
+[契约与 schema 测试](evidence/docker-sandbox-20261031/proposal-finalizer-6.json) 25/25 通过，
+覆盖 receipt 重算、live tree 漂移、失败留证、reopen 和 CAS scrub。
+[真实 Docker worker](evidence/docker-sandbox-20261031/proposal-finalizer-worker-tests-1.json) 的 v1 提交
+已接入该 finalizer（replay 模型，3 次请求）；[产物收据](evidence/docker-sandbox-20261031/proposal-finalizer-worker-1.json)
+保留 finalization CAS refs。[CAS 审计](evidence/docker-sandbox-20261031/proposal-finalizer-worker-cas-audit.json)
+读回 3322 refs，核验 intent/result 存在并确认本次容器已删除。该工程 v1 probe 与 tree-v2 组件测试不等于生产 v2 多 child 准入。
+完整 test/admit 服务、proposal launcher/controller、validator TCB 状态保护、真实 crash matrix 和兼容平台
+验收仍待完成；目标 active，不得宣称 sandbox 已可用。无付费模型或 sealed 评测。
+
+## 2026-11-01 Docker proposal 冻结输入接线（仍未完成验收）
+
+新增 CAS-only proposal input composition，共用 validator 的 parent capsule/source 身份、固定 Node
+与依赖闭包校验；冻结标准 export/manifest.json、archive-catalog.json、parent-files.json、parent source、
+worker closure 和配置，保留原 capsule。export 对象的标签、路径、大小、digest、唯一性与 Merkle root
+核验；拒绝 guard/sealed、parent/依赖错绑及 export 漂移。worker 与可信侧共用配置契约，执行固定
+proposal width 上限并核验 tree-v2 parent。proposal supervisor 从 input manifest 派生 parent/child
+分配，核验执行 ID、命令、模型路由及限额，不再接收另一份可变 parent/children。
+
+[输入组合与原 validator digest 重放](evidence/docker-sandbox-20261031/proposal-input-tests-5.json)
+覆盖真实保留 CAS，validator manifest digest 不变；
+[真实 Docker replay](evidence/docker-sandbox-20261031/proposal-input-worker-live-2.json) 从冻结输入启动
+原生 Loader/AgentLoop，模型→文件→同容器 shell→外部 snapshot 提交通过（3 次模型 replay，无付费）。
+[可取回收据](evidence/docker-sandbox-20261031/proposal-input-worker-2.json) 保留输入、snapshot、模型/工具、
+stdout/stderr 与实际 inspect CAS refs。
+[产物审计](evidence/docker-sandbox-20261031/proposal-input-worker-cas-audit.json) 读回 3318 refs，并从 Docker 确认该探针容器已删除。此工程探针使用 reduced Engine profile，不代表生产平台验收或 admission。
+[组件回归](evidence/docker-sandbox-20261031/tests-12.json) 80 通过、1 跳过（本地独立 shell Loader fixture 缺失；
+Docker 探针已覆盖 Loader/bash）。完整 proposal launcher、test/finalize/admission 服务、controller 接线、
+validator TCB 保护、crash matrix 与兼容平台验收仍待完成。目标 active，不得称沙箱已可用。
+
+## 2026-10-31 Docker proposer sandbox 实现进行中（未完成验收）
+
+proposal supervisor 接入持久化取消：初始化工作树前、Docker start 前、运行轮询和 RPC 入口检查；
+AbortSignal 撤销 broker/gateway 并先持久化请求。新增 controller 可调用的 cancelProposalSupervisor，
+请求绑定 deterministic owner root/spec，不能覆盖漂移配置。
+[proposal 取消组件回归](evidence/docker-sandbox-20261031/proposal-cancellation.json) 9/9 通过；
+build、定向 lint、格式和 whitespace 通过。尚无真实 detached proposal launcher 的取消/恢复验收，
+本改动不代表端到端 sandbox 已可用。
+
+validator launcher 新增绑定 spec 的持久化取消请求；supervisor 启动前及轮询期间读取，
+signal 取消也先持久化。双 validator 新增 durable group intent 与两任务分发，调度器重入补全分发；
+取消请求不等于终态，不跳过原两份结果。[持久化取消回归](evidence/docker-sandbox-20261031/durable-cancellation.json)
+8/8 通过，覆盖幂等/冲突、spec 漂移、symlink 拒绝、两任务请求及执行器 cleanup/reopen；
+build/定向 lint/whitespace 通过。当前证据仍为组件测试，尚无兼容平台上的实际 detached group cancel 验收。
+
+取消路径新增回归：关联测试取消失败仍终止 proposal 自身；持久化 children-cancel-intent/children-stopped，
+未确认停净时导出 INCOMPLETE，cleanup 重试并阻止提前关闭 socket、删除容器和释放资源。
+停止后及 bundle 提交后的 supervisor reopen 均保留该约束。
+[执行器取消回归](evidence/docker-sandbox-20261031/executor-cancellation.json) 6/6 通过（模拟 Engine/host，
+不证明真实 Docker 故障恢复）；完整组取消、proposal/controller 接线及生产平台验收仍未完成。
+
+已记录 ADR-077 并更新 specs/02、05、06、07；新增执行契约/schema、Unix Docker API、
+实际配置核验、资源/生命周期核心、Linux host、no-follow snapshot/CAS、action broker、
+持久化工具/模型账本与标准 DSH shell adapter。真实 Docker 探针验证共享编辑、只读 input、
+残留后台进程触发整域终止和 create/inspect 配置；真实 Cordis Loader/native AgentLoop
+验证 bash 经外部 IPC 执行、后台/提权拒绝与 quiescent unload。真实 Docker worker replay
+另验证模型→文件→同容器 shell→外部暂停 snapshot→绑定提交（工程 fixture，非正式平台验收）。
+新 native-proposal/v2
+选项在成功提交后停止新模型 dispatch；旧 v1 默认行为保留。
+
+[逐项进度与未完成门](docs/docker-sandbox-progress.md)列出源码及待完成接线；
+[测试报告](evidence/docker-sandbox-20261031/tests-3.json)与
+[doctor](evidence/docker-sandbox-20261031/doctor.json)保留本轮证据。当前 WSL2 使用
+cgroup v1 且无 AppArmor 内核接口，生产 preflight 拒绝，未修改共享 daemon/kernel。
+已有本地双镜像构建、持久化资源账本、内核 flock owner/真实 SIGKILL 恢复测试、流式 receiver
+及 provisional supervisor composition。独立 validator worker 在两个全新 Docker 容器中各过十阶段，
+source/bundle/capsule hash 一致；后续[外部导出探针](evidence/docker-sandbox-20261031/validator-5.json)
+从真实 bytes 重建 tar/bundle 并核验 source/Node/runner/依赖/manifest，保存 CAS、拒绝现场漂移，
+[CAS replay](evidence/docker-sandbox-20261031/validator-replay-2.json) 读回并重建产物。
+Linux host export 已消费该核验器并绑定 spec 的 snapshot/parent execution，成功收据进入 execution artifacts，
+失败保留有界诊断；[host export replay](evidence/docker-sandbox-20261031/validator-host-replay.json)
+验证正向导出与缺失绑定拒绝（资源采样模拟）。ADR-077/specs/05 显式冻结 validator workspace exec profile，
+proposal workspace 与所有 work 仍 noexec。独立 validator supervisor/launcher/result reader 已接入，
+[真实子进程探针](evidence/docker-sandbox-20261031/validator-launcher-3.json) 验证 flock owner、
+当前平台拒绝、failure CAS 读回、终态采用和配置/结果篡改拒绝。补复现并修复正常 stop 后迟到日志
+失败在 reopen 丢失的问题；[组件回归](evidence/docker-sandbox-20261031/tests-8.json) 73/73 通过。
+execution-input/v1/schema 已绑定只读 mounts 的 CAS inventory，Linux host 在资源准入后原子物化，
+create/start 前核验，导出保留完整 input refs。validator supervisor/v2 强制该绑定并拒绝 v1。
+[真实 frozen-input worker](evidence/docker-sandbox-20261031/frozen-input-live-1.json) 验证从 CAS 物化后的
+只读输入运行 Loader/AgentLoop→文件/shell→snapshot finish，原未挂载目录变化不影响执行；
+[组件回归](evidence/docker-sandbox-20261031/tests-9.json) 75/75 通过。validator 输入 composition 已实现，
+绑定 proposal spec digest/child、parent source/capsule、Node 与依赖闭包；[新工程镜像双 validator](evidence/docker-sandbox-20261031/validator-8.json)
+通过十阶段、外部导出和 CAS 读回，capsule hash 一致。首个组合探针的非 root 目录清理失败报告保留，
+仅修复 scratch 副本的目录权限，输入保持只读。镜像配方移除 baseline metadata、测试缓存和安装状态。
+[最新组件回归](evidence/docker-sandbox-20261031/tests-10.json) 76/76 通过；proposal 输入组合及消费者仍待接入。
+validator pair 计划/调度/汇总已实现，冻结两个独立工作域和原 deadline，按真实内核 flock 对账；
+[真实双任务拒绝探针](evidence/docker-sandbox-20261031/validator-pair-launch.json) 保留两份 preflight failure，
+不丢弃失败或选择 survivor。[组件回归](evidence/docker-sandbox-20261031/tests-11.json) 77/77 通过。
+汇总 ARTIFACTS_MATCHED 不等于 Archive admission；生产成功编排、组取消和 proposal 消费者仍待完成。
+这仅证明静态产物完整性，ARTIFACTS_VERIFIED 不是准入；尚须生产 validator 生命周期收据、
+正式镜像/安全策略、proposal launcher/输入 staging/controller 接线、完整故障矩阵和
+兼容主机实测；现有 controller 仍走 legacy worker-result 路径。目标继续 active，
+不得称 Docker sandbox 已可用。未调用付费模型、Harbor 或 sealed，不产生提分结论。
+
+## 2026-10-31 Docker sandbox 实现文档（仅文档）
+
+新增[Docker 候选生成与准入 sandbox 实现文档](../docs/dsh-evolve-le-docker-sandbox-implementation.md)，
+固定每 expansion attempt 一个 proposal 容器、原生 DSH AgentLoop、同容器 shell/文件工具共享
+可写 workspace、外部暂停捕获 immutable snapshot、独立 validator 十阶段准入、完整 execution
+bundle 和 crash/reconcile/cleanup 契约。原设计的 broker 唯一 writer/只读 child/独立 shell 方案
+已标明替代，背景与取舍保留。实现前仍须 ADR、规范/协议升级与 fresh run；本轮不改生产协议。
+文档本地链接、源码依据、围栏、Bash 模板语法和 whitespace 检查通过；未执行 Docker、模型、
+Loader、Harbor 或付费评测，不产生实现/安全验收、提分或 sealed 晋升结论。
+
+## 2026-10-31 Docker sandbox 执行细化（仅文档）
+
+以下为先前文档迭代记录，writer/挂载选择已由上节新方案替代。
+
+扩展同一设计文档 §12–22，明确可信镜像构建/冻结、create 时挂载、action/Agent/session/tool
+与容器映射、外部 capability broker 唯一写 child source、测试子执行、清理 owner、故障恢复、
+分层资源调度、凭据/外部访问、副作用与可观测性。命令增加独立只读 child 挂载和 no-restart，
+保留当前 DSH 原生 agent/session/tool 语义。文档本地链接、代码围栏和全部 Bash 模板语法检查通过；
+未执行 Docker、模型、Loader 或 Harbor，不产生实现/安全验收或性能结论。
+
+## 2026-10-31 Docker proposal sandbox 实现设计（仅文档）
+
+按用户要求编写[一次性 Docker 候选产生 sandbox 设计](../docs/dsh-evolve-le-docker-proposal-sandbox-design-2026-10-31.md)，
+覆盖当前实现缺口、执行边界、完整候选产生/准入流程、关键命令、资源与 gateway 收据、
+安全导出、crash/reconcile、失败语义和实施验收。共享执行镜像与 candidate capsule 分别冻结；
+controller 保留晋升权威。文档明确标注拟议接口和命令尚未实现，未运行 Docker、付费模型或
+Harbor job，不产生隔离验收、benchmark 改善或 sealed 结论。文档 UTF-8、代码围栏和本地链接检查通过。
+
+## 2026-10-31 IterationDriver / Controller 实验执行说明
+
+按当前源码编写[实验驱动与持久化状态机说明](../docs/dsh-evolve-le-iteration-controller-experiment-flow-2026-10-31.md)，
+覆盖 Driver 调度、Controller journal/reducer/ledger/object store、Harbor/ACP/DSH 任务循环、
+crash/resume、tournament/lock 与独立 sealed 入口，说明非原子写入及恢复覆盖边界。
+仅做文档与源码链接/片段核对；没有修改生产逻辑、上游或历史评测，没有付费调用或新性能结论。
+
+## 2026-10-30 长轨迹归因数据流说明
+
+按实际 v4 调用链编写[逐阶段数据流文档](../docs/dsh-evolve-le-trajdebug-v4-data-flow-2026-10-30.md)，
+覆盖 JSON 模型消息、脱敏与分片、finding 校验、Instance 生命周期、Select/Recover、
+最终报告及恢复。示例使用模拟输入和模型回复，由现有生产函数生成；阶段 envelope、
+report/overview schema 与跨阶段一致性检查通过，文档 34 个 JSON 代码块可解析，11 个
+源码链接有效。没有修改生产逻辑、上游或历史评测，没有付费调用或新的质量结论。
+
 ## 2026-10-30 README 排版修复
 
 最终候选树改用 `text` 围栏代码块保留缩进与换行；末尾三组说明和图片以空行分段，

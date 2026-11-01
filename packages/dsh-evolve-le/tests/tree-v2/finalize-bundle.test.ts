@@ -710,3 +710,103 @@ describe('finalizeTreeV2Bundle (ADR-034)', () => {
     )
   })
 })
+
+it('normalizes immutable Docker snapshots on a private copy and replays the same finalization evidence', async () => {
+  const { openObjectStore } = await import('../../src/state/object-store.js')
+  const { captureSourceSnapshot, readSourceSnapshot } =
+    await import('../../src/execution/snapshot.js')
+  const { ProposalSnapshotFinalizer } = await import('../../src/execution/proposal-finalizer.js')
+  const { makeSpec } = await import('../execution/fixtures.js')
+  const root = await freshRoot('snapshot-finalizer-')
+  const raw = rawBundleFixture('child-1')
+  const { options, childrenRoot } = await stageFixture(root, 'child-1', raw)
+  const store = await openObjectStore(join(root, 'cas')),
+    spec = makeSpec()
+  spec.deadlineUtc = new Date(Date.now() + 60000).toISOString()
+  const source = await captureSourceSnapshot({
+    root: join(childrenRoot, 'child-1'),
+    store,
+    spec,
+    child: 'child-1',
+  })
+  const inputManifest = await store.put(Buffer.from('{}'), {
+    mediaType: 'application/json',
+    label: 'CONTROLLER_INTERNAL',
+  })
+  const config = {
+    root: join(root, 'finalizations'),
+    store,
+    spec,
+    inputManifest,
+    context: options,
+    children: ['child-1'],
+  }
+  const finalizer = new ProposalSnapshotFinalizer(config)
+  // Host live tree drift after capture cannot affect normalization.
+  await writeFile(join(childrenRoot, 'child-1', 'candidate.json'), 'live tree drift')
+  const before = JSON.stringify(raw)
+  const result = await finalizer.finalize(raw, [{ child: 'child-1', source }])
+  expect(JSON.stringify(raw)).toBe(before)
+  parseProposalOutput(result.proposal)
+  expect(result.sources[0]!.source.digest).not.toBe(source.digest)
+  const normalized = await readSourceSnapshot(store, result.sources[0]!.source)
+  const intent = JSON.parse(
+    (
+      await store.read(normalized.files.find((file) => file.path === 'candidate.json')!.content)
+    ).toString('utf8'),
+  )
+  expect(intent.parent.candidateDigest).toBe(PARENT_CANDIDATE_DIGEST)
+  expect(intent.receiptDigest).not.toBe(FABRICATED_DIGEST)
+  verifyTreeV2Receipt(intent as TreeV2Receipt)
+  expect(validateTreeV2('candidate-intent', intent).ok).toBe(true)
+  expect(
+    (result.proposal.children[0] as unknown as { proposalReceipt: TreeV2ProposalReceipt })
+      .proposalReceipt.candidateIntentDigest,
+  ).toBe(intent.receiptDigest)
+  expect(await readFile(join(childrenRoot, 'child-1', 'candidate.json'), 'utf8')).toBe(
+    'live tree drift',
+  )
+  const replay = new ProposalSnapshotFinalizer(config)
+  expect(await replay.finalize(raw, [{ child: 'child-1', source }])).toEqual(result)
+  const artifacts = await replay.artifacts()
+  expect(artifacts.some((ref) => ref.digest === source.digest)).toBe(true)
+  expect(artifacts.some((ref) => ref.digest === result.sources[0]!.source.digest)).toBe(true)
+  await store.scrub(artifacts)
+  const { treeV2Parent: _treeV2Parent, ...missingParentEvidence } = options
+  const failedConfig = {
+    ...config,
+    root: join(root, 'failed-finalizations'),
+    context: missingParentEvidence,
+  }
+  const failed = new ProposalSnapshotFinalizer(failedConfig)
+  await expect(failed.finalize(raw, [{ child: 'child-1', source }])).rejects.toThrow(
+    /frozen parent evidence/,
+  )
+  const failedArtifacts = await failed.artifacts()
+  expect(failedArtifacts.some((ref) => ref.digest === source.digest)).toBe(true)
+  expect(
+    await Promise.all(
+      failedArtifacts
+        .filter((ref) => ref.mediaType.includes('proposal-finalization'))
+        .map(async (ref) => JSON.parse((await store.read(ref)).toString('utf8')).protocol),
+    ),
+  ).toContain('dsh-evolve-le/proposal-finalization-failure/v1')
+  await expect(
+    new ProposalSnapshotFinalizer(failedConfig).finalize(raw, [{ child: 'child-1', source }]),
+  ).rejects.toThrow(/frozen parent evidence/)
+  await store.scrub(failedArtifacts)
+  const { default: Ajv } = await import('ajv')
+  const validate = new Ajv({ strict: true }).compile(
+    JSON.parse(await readFile('schemas/proposal.finalization.schema.json', 'utf8')),
+  )
+  for (const ref of [...artifacts, ...failedArtifacts].filter((ref) =>
+    ref.mediaType.includes('proposal-finalization'),
+  )) {
+    const document = JSON.parse((await store.read(ref)).toString('utf8'))
+    expect(validate(document), JSON.stringify(validate.errors)).toBe(true)
+    expect(validate({ ...document, unexpected: true })).toBe(false)
+  }
+  await expect(replay.finalize(raw, [{ child: 'foreign', source }])).rejects.toThrow(
+    /selection|allocation/,
+  )
+})

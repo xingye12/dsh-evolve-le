@@ -1,3 +1,4 @@
+import { localDockerProposalRunner } from '@dsh-evolve-le/core'
 /**
  * dsh-evolve-le iteration CLI (Gate 5, specs/07 §7): one command behind the
  * whole closed loop — propose → build → real Loader → Harbor evaluate →
@@ -124,6 +125,7 @@ function usage(): string {
     '                    [--legacy-baseline-source DIR]',
     '                    --native-dsh-catalog-root DIR --native-dsh-closure-sha256 SHA256',
     '                    [--credential-file PATH] [--set key=value]…',
+    '                    [--proposal-docker-profile FILE] (new local Docker generation profile; no request retries)',
     '                    [--proposer-route ID --model-base-url URL --model-name NAME',
     '                     --model-temperature N]   # zen-compatible route',
     '                    [--solver-route ID --solver-tokens N --concurrent-trials N',
@@ -530,6 +532,16 @@ async function commandInit(values: CliValues, io: CliIo): Promise<number> {
     )
   }
 
+  if (typeof values['proposal-docker-profile'] === 'string') {
+    document.proposalSandbox = JSON.parse(
+      await readFile(resolve(values['proposal-docker-profile']), 'utf8'),
+    )
+    document.modelRoutes = document.modelRoutes.map((route) =>
+      route.id === document.proposerRoute
+        ? { ...route, retry: { maxAttempts: 1, backoffMs: [] } }
+        : route,
+    )
+  }
   const validated = validateRunConfig(document)
   if (!validated.ok) {
     throw new CliError(
@@ -1000,6 +1012,17 @@ async function remoteRunnerFor(env: RunEnv): Promise<ProposalRunner | undefined>
   const route = env.config.modelRoutes.find(
     (candidate) => candidate.id === env.config.proposerRoute,
   )
+  if (env.config.proposalSandbox) {
+    if (!route || !env.config.nativeDsh)
+      throw new CliError('Docker proposal requires live route and native DSH closure', 2)
+    return localDockerProposalRunner({
+      runId: env.config.runId,
+      storeRoot: join(env.runRoot, 'objects'),
+      profile: env.config.proposalSandbox,
+      route,
+      dependencyClosureSha256: env.config.nativeDsh.dependencyClosureSha256,
+    })
+  }
   if (route === undefined || route.provider !== 'zen-compatible') return undefined
   if (route.credentialFile === undefined) {
     throw new CliError(`proposer route ${route.id} has no credentialFile (re-init the run)`, 2)
@@ -1796,6 +1819,7 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
     'trial-container-no-proxy': { type: 'string' },
     'credential-file': { type: 'string' },
     'proposer-route': { type: 'string' },
+    'proposal-docker-profile': { type: 'string' },
     'model-base-url': { type: 'string' },
     'model-name': { type: 'string' },
     'model-temperature': { type: 'string' },

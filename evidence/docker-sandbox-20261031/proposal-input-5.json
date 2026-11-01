@@ -1,0 +1,88 @@
+{
+  "protocol": "dsh-evolve-le/proposal-input-probe/v1",
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "result": {
+    "inputManifest": {
+      "algorithm": "sha256",
+      "digest": "af1ee78103586bc5edf9d979a03c069c4f877042ea75a2860e323389141c4a66",
+      "size": 300,
+      "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    "inputs": [
+      {
+        "algorithm": "sha256",
+        "digest": "af1ee78103586bc5edf9d979a03c069c4f877042ea75a2860e323389141c4a66",
+        "size": 300,
+        "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "f90d66597a44d3c73c830c87117e5833039cb5b308855aa7cdbf65c025a5fc11",
+        "size": 1528,
+        "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+        "label": "DEV_OBSERVED"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+        "size": 746625,
+        "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "cc4757d8f2a433071a8c2b57de400653ba5d841899e46b6671b9b6794f056283",
+        "size": 98977,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "7b95d5afd4fd7d5d8b4ce5a3cda588a43a9aa5e7c26ac9145737d1b74f56fef5",
+        "size": 40,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "ca15e7e681f89273c6b3ae1404ce9a6c253bbbbeb1799a448bc290f419db23cb",
+        "size": 522,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      }
+    ],
+    "children": [
+      "child-1",
+      "child-2"
+    ]
+  },
+  "config": {
+    "protocol": "dsh-evolve-le/proposal-sandbox/v2",
+    "nativeProtocol": "dsh-evolve-le/native-dsh/v4",
+    "capabilityProtocol": "dsh-evolve-le/native-capabilities/v3",
+    "toolsProtocol": "dsh-evolve-le/proposer-tools/v2",
+    "executionId": "proposal-input-replay",
+    "candidatePackage": "@dsh-evolve-le/candidate-baseline",
+    "candidateId": "c_idau4fw2frkgfovlepx2gl42pz",
+    "parentSourceHash": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+    "width": 2,
+    "provider": "replay",
+    "model": "fixed",
+    "maxTokens": 1024,
+    "contextWindowTokens": 8192,
+    "maxTurns": 8,
+    "shellTimeoutMs": 1000,
+    "outputBytes": 1048576,
+    "clientTimeoutMs": 10000
+  },
+  "workerInventory": {
+    "algorithm": "sha256",
+    "digest": "cc4757d8f2a433071a8c2b57de400653ba5d841899e46b6671b9b6794f056283",
+    "size": 98977,
+    "mediaType": "application/json",
+    "label": "CONTROLLER_INTERNAL"
+  },
+  "scope": "CAS composition only; no Docker execution, model dispatch or admission"
+}

@@ -687,3 +687,54 @@ it('retains callback failure audit before disposing a failed proposal', async ()
     await rm(scratch, { recursive: true, force: true })
   }
 })
+
+it('registers snapshot testing only when the backend grants it and enforces submission/cancellation guards', async () => {
+  const definitions = new Map<
+    string,
+    { execute(args: unknown, exec?: unknown): Promise<unknown> }
+  >()
+  const ctx = {
+    tools: {
+      register(definition: {
+        name: string
+        execute(args: unknown, exec?: unknown): Promise<unknown>
+      }) {
+        definitions.set(definition.name, definition)
+        return () => definitions.delete(definition.name)
+      },
+    },
+  } as never
+  let calls = 0
+  const state: NativeProposalToolState = { calls: 0, disposers: [] }
+  installNativeProposalTools(
+    ctx,
+    {
+      async listInput() {
+        return []
+      },
+      async readInput() {
+        return ''
+      },
+      async writeChildFile() {},
+      async finalizeProposal(proposal) {
+        return proposal as never
+      },
+      async testChild(child: string) {
+        calls++
+        return `snapshot-test:${child}:failed`
+      },
+    },
+    state,
+  )
+  const tool = definitions.get('proposal_test_child')!
+  expect(tool).toBeDefined()
+  await expect(tool.execute({ childName: 'child-1' })).resolves.toBe('snapshot-test:child-1:failed')
+  await expect(
+    tool.execute({ childName: 'child-1' }, { signal: AbortSignal.abort() }),
+  ).rejects.toThrow(/aborted/)
+  state.proposal = {} as never
+  await expect(tool.execute({ childName: 'child-1' })).rejects.toThrow(/submitted/)
+  expect(calls).toBe(1)
+  disposeNativeProposalTools(state)
+  expect(definitions.size).toBe(0)
+})

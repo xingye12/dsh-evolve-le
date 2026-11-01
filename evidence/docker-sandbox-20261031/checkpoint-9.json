@@ -1,0 +1,57 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": {
+    "passed": 80,
+    "skipped": 1
+  },
+  "proposalCASComposition": true,
+  "supervisorConsumesFrozenParentAndConfig": true,
+  "realComposedInputWorkerReplay": true,
+  "originalValidatorInputDigestPreserved": true,
+  "productionProposalLaunchVerified": false,
+  "archiveAdmissionIntegrated": false,
+  "paidModelCalls": 0,
+  "casRefsReadBack": 3318,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-12.json",
+      "sha256": "771a42d2e69f1ef14225410280315245d667b2dbfc3eec05eecb495c5ce61ccf",
+      "bytes": 32599
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-input-tests-5.json",
+      "sha256": "08971f28e780758ea7ba6aceb5437bceca13f74b5eaf2b2b11be3f67a01c3cd1",
+      "bytes": 2059
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-input-5.json",
+      "sha256": "ea5d5aa2dfb41bbce549eaa76e90b569d11bf57f989d371f775e981afe408ce2",
+      "bytes": 3072
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-input-worker-live-2.json",
+      "sha256": "2e8f431b194632ec0398f0e4326acfb7b7d40db17b29a7c174ad4360c3dba1a5",
+      "bytes": 1143
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-input-worker-2.json",
+      "sha256": "5035a6f0bbc76036ce56bbb4755db88c8093a1bda6ba80f14f97ce6aecef04ca",
+      "bytes": 7201
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-input-worker-cas-audit.json",
+      "sha256": "acd7f78457199a7de71c852c6e0fa730955c1acc7d52eafdb19a9a82e1d20df3",
+      "bytes": 318
+    }
+  ],
+  "remaining": [
+    "Standalone proposal launcher and model provider/budget wiring",
+    "Concrete test/finalize/admission service and controller consumers",
+    "Validator TCB-state isolation and trustworthy runtime receipts",
+    "Preparation/export/cleanup crash recovery and real fault matrix",
+    "Release security artifacts and compatible Linux platform acceptance"
+  ]
+}

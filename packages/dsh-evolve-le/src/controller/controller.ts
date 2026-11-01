@@ -1,3 +1,8 @@
+import {
+  readLocalGenerationHandoff,
+  type LocalGenerationOutcome,
+} from '../execution/local-proposal-runner.js'
+import { collectGenerationSource } from '../execution/generation-handoff.js'
 /**
  * Durable controller (Gate 3, specs/07 §5): the single writer that drives the
  * action saga — durable intent → keyed external effect → durable receipt →
@@ -22,7 +27,7 @@ import {
 } from '../state/budget.js'
 import { Journal, readJournal, type JournalConfig, type JournalEvent } from '../state/journal.js'
 import { openObjectStore, type ObjectRef, type ObjectStore } from '../state/object-store.js'
-import { canonicalJson } from '../state/canonical.js'
+import { canonicalHash, canonicalJson } from '../state/canonical.js'
 import {
   reduceEvent,
   stateHashOf,
@@ -105,7 +110,12 @@ export interface ControllerConfig {
 }
 
 /** The sandbox external effect behind a proposal action. */
-export type ProposalRunner = (options: RunProposalSandboxOptions) => Promise<ProposalSandboxOutcome>
+export type ProposalRunner = ((
+  options: RunProposalSandboxOptions,
+) => Promise<ProposalSandboxOutcome | LocalGenerationOutcome>) & {
+  backend?: 'local-generation/v1'
+  profile?: unknown
+}
 
 /** Controller-level evaluation request (opaque payload to the reducer). */
 export interface EvaluationRequest {
@@ -164,6 +174,8 @@ export const PROPOSAL_VALIDATION_MEDIA_TYPE =
 
 /** Controller-level proposal request (the durable journal payload). */
 export interface ProposalRequest {
+  authoringInstruction?: string
+  executionBackend?: 'local-generation/v1'
   parentCandidateId: string
   /** Canonical source digest of the parent the children derive from. */
   parentSourceHash: string
@@ -713,7 +725,143 @@ export class Controller {
   // bundle validation pass.
   // ---------------------------------------------------------------------
 
+  private async runDockerSourceProposal(input: ProposalInput): Promise<ProposalResult> {
+    const runner = this.config.proposalRunner!
+    if (
+      !this.current.evidence?.['proposal-generation-profile'] &&
+      Object.values(this.current.actions).some((action) => action.kind === 'proposal')
+    )
+      throw new ControllerError('Docker proposal backend requires a fresh run identity')
+    const profile = await this.store.put(Buffer.from(canonicalJson(runner.profile)), {
+      mediaType: 'application/vnd.dsh-evolve-le.proposal-generation-profile+json',
+      label: 'CONTROLLER_INTERNAL',
+    })
+    await this.publishEvidence('proposal-generation-profile', profile)
+    const existing = this.current.actions[input.actionId]
+    if (
+      existing &&
+      existing.requestHash !==
+        canonicalHash({ ...input.request, executionBackend: 'local-generation/v1' })
+    )
+      throw new ControllerError('proposal backend differs from durable request')
+    if (existing && TERMINAL_ACTIONS.has(existing.status))
+      return this.proposalResultOf(input.actionId)
+    await this.reserveProposalAction({
+      ...input,
+      request: { ...input.request, executionBackend: 'local-generation/v1' },
+    })
+    const sandboxRoot = join(this.runDir, 'sandboxes', input.actionId)
+    let trustedUsage: GatewayUsage | null = null
+    try {
+      if (!this.current.externalJobs[input.actionId]) {
+        // Before the external effect: any ambiguous launch is retained, never bought again on resume.
+        await this.emit('action.launched', {
+          actionId: input.actionId,
+          externalJobId: sandboxRoot,
+          provider: 'docker-source-generation',
+        })
+        await this.boundary('launch-receipt-durable', input.actionId)
+        await this.boundary('launch-before-effect', input.actionId)
+        await runner({
+          sandboxRoot,
+          capsuleDir: input.capsuleDir,
+          parentTreeDir: input.parentTreeDir,
+          exportDir: input.exportDir,
+          parentSourceHash: input.request.parentSourceHash,
+          width: input.request.width,
+          catalog: input.catalog,
+          priorRejections: input.priorRejections,
+          ...(input.request.authoringInstruction
+            ? { authoringInstruction: input.request.authoringInstruction }
+            : {}),
+          generationBudget: {
+            maxTotalTokens:
+              input.estimate.find((e) => e.dimension === 'proposer-tokens')?.amount ?? 0,
+            maxCostUsdMicros: input.estimate.find((e) => e.dimension === 'usd')?.amount ?? 0,
+          },
+          ...(input.request.treeV2Parent ? { treeV2Parent: input.request.treeV2Parent } : {}),
+          ...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
+          ...(input.maxTurns ? { maxTurns: input.maxTurns } : {}),
+        })
+        await this.boundary('launch-effect-done', input.actionId)
+      }
+      const handoff = await readLocalGenerationHandoff(sandboxRoot)
+      await this.observeExternalTerminal(input.actionId, {
+        kind: 'docker-source-generation',
+        outcome: 'returned-for-verification',
+      })
+      const configuration = await this.store.put(
+        Buffer.from(canonicalJson(handoff.configuration)),
+        {
+          mediaType: 'application/vnd.dsh-evolve-le.proposal-generation+json',
+          label: 'CONTROLLER_INTERNAL',
+        },
+      )
+      for (const artifact of [configuration, handoff.result])
+        await this.emit('artifact.collected', { actionId: input.actionId, artifact })
+      const source = await collectGenerationSource({
+        handoff,
+        store: this.store,
+        runId: this.config.runId,
+        actionId: input.actionId,
+        request: input.request,
+        catalog: input.catalog,
+        exportDir: input.exportDir,
+        parentTreeDir: input.parentTreeDir,
+        sandboxRoot,
+        onUsage: (usage) => {
+          trustedUsage = usage
+        },
+        recordFailureArtifacts: async (artifacts) => {
+          for (const artifact of artifacts)
+            await this.emit('artifact.collected', { actionId: input.actionId, artifact })
+        },
+      })
+      for (const artifact of source.artifacts)
+        await this.emit('artifact.collected', { actionId: input.actionId, artifact })
+      const supervisor: SupervisorManifest = {
+        schemaVersion: 1,
+        sandboxVersion: 'dsh-evolve-le/proposal-sandbox/v1',
+        sandbox: {
+          kind: 'docker',
+          uid: 65532,
+          detail: 'local-generation/v1; external immutable snapshot and CLEANED proof',
+        },
+        parentSourceHash: input.request.parentSourceHash,
+        width: input.request.width,
+        capsuleDigest: source.capsuleDigest,
+        capsuleFileCount: 0,
+        model: { kind: 'recorded' },
+        ...(input.request.treeV2Parent ? { treeV2Parent: input.request.treeV2Parent } : {}),
+      }
+      return this.validateAndCommitProposal(
+        input,
+        sandboxRoot,
+        supervisor,
+        { schemaVersion: 1, ok: true, uid: 65532, usage: source.usage, proposal: source.proposal },
+        source,
+      )
+    } catch {
+      if (this.action(input.actionId).status === 'RUNNING')
+        await this.observeExternalTerminal(input.actionId, {
+          kind: 'docker-source-generation',
+          outcome: 'INCOMPLETE',
+        })
+      return this.failProposal(
+        input.actionId,
+        'Docker source generation/verification failed; inspect immutable attempt evidence',
+        trustedUsage,
+      )
+    }
+  }
+
   async runProposal(input: ProposalInput): Promise<ProposalResult> {
+    if (this.config.proposalRunner?.backend === 'local-generation/v1')
+      return this.runDockerSourceProposal(input)
+    if (this.current.evidence?.['proposal-generation-profile'])
+      throw new ControllerError(
+        'Docker generation profile cannot fall back to host proposal runner',
+      )
     const existing = this.current.actions[input.actionId]
     if (existing !== undefined && TERMINAL_ACTIONS.has(existing.status)) {
       return this.proposalResultOf(input.actionId)
@@ -1062,11 +1210,13 @@ export class Controller {
     sandboxRoot: string,
     supervisor: SupervisorManifest,
     worker: WorkerResultDoc,
+    generated?: { proposal: ProposalOutput; childrenRoot: string; usage: GatewayUsage },
   ): Promise<ProposalResult> {
-    let usage = worker.usage ?? null
+    let usage = generated?.usage ?? worker.usage ?? null
     let summary: ProposalSummaryDoc | undefined
     try {
       const proposal: ProposalOutput =
+        generated?.proposal ??
         worker.proposal ??
         (JSON.parse(await readFile(join(sandboxRoot, 'work', 'proposal.json'), 'utf8')) as never)
       parseProposalOutput(proposal)
@@ -1089,7 +1239,9 @@ export class Controller {
       // the worker (declaredMatch) and re-anchored by the trusted builder when
       // each admitted child re-boots. (`model` is optional on read so a
       // pre-Gate-8 run root still resumes through the recorded-replay branch.)
-      if (supervisor.model?.kind === 'remote') {
+      if (generated) {
+        // The generation-handoff verifier checked CAS execution, cleanup and immutable sources.
+      } else if (supervisor.model?.kind === 'remote') {
         const verification = await verifyRemoteReceipts({
           receiptsPath: supervisor.model.receiptsPath,
           transcriptPath: join(sandboxRoot, 'work', 'transcript.jsonl'),
@@ -1133,7 +1285,7 @@ export class Controller {
       const exportManifest = await readExportManifest(input.exportDir)
       const validation = await validateProposalBundle({
         proposal,
-        childrenRoot: join(sandboxRoot, 'work', 'children'),
+        childrenRoot: generated?.childrenRoot ?? join(sandboxRoot, 'work', 'children'),
         parentSource,
         exportManifest,
         catalog: input.catalog,
@@ -1157,7 +1309,7 @@ export class Controller {
       for (const verdict of validation.admitted) {
         const stored = await storeCandidateSource(
           candidatesRoot,
-          join(sandboxRoot, 'work', 'children', verdict.childName),
+          join(generated?.childrenRoot ?? join(sandboxRoot, 'work', 'children'), verdict.childName),
         )
         if (stored.sourceHash !== verdict.sourceHash) {
           return this.failProposal(
@@ -1273,8 +1425,12 @@ export class Controller {
    */
   private async settleProposalBudget(actionId: string, usage: GatewayUsage | null): Promise<void> {
     const reserved = this.current.budgetByAction[actionId] ?? {}
+    const conservative =
+      usage === null && this.current.evidence?.['proposal-generation-profile'] !== undefined
     const bounded = (dimension: BudgetDimension, amount: number): number =>
-      Math.min(amount, reserved[dimension]?.reserved ?? 0)
+      conservative
+        ? (reserved[dimension]?.reserved ?? 0)
+        : Math.min(amount, reserved[dimension]?.reserved ?? 0)
     await this.settleIfAccountable({
       dimension: 'proposal-calls',
       actionId,

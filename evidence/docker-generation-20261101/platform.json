@@ -1,0 +1,100 @@
+{
+  "protocol": "dsh-evolve-le/sandbox-doctor/v1",
+  "checkedAt": "2026-11-01T02:44:23.462Z",
+  "ready": false,
+  "platform": {
+    "dockerVersion": "29.3.1",
+    "apiVersion": "1.54",
+    "kernel": "5.15.167.4-microsoft-standard-WSL2",
+    "cgroupVersion": "1",
+    "securityOptions": [
+      "name=seccomp,profile=builtin"
+    ]
+  },
+  "blockers": [
+    "cgroup-v2: observed cgroup v1",
+    "enforced-lsm: AppArmor kernel interface unavailable"
+  ],
+  "checks": [
+    {
+      "name": "linux",
+      "status": "PASS",
+      "detail": "linux"
+    },
+    {
+      "name": "cgroup-v2",
+      "status": "FAIL",
+      "detail": "observed cgroup v1"
+    },
+    {
+      "name": "MemoryLimit",
+      "status": "PASS",
+      "detail": "true"
+    },
+    {
+      "name": "SwapLimit",
+      "status": "PASS",
+      "detail": "true"
+    },
+    {
+      "name": "CpuCfsQuota",
+      "status": "PASS",
+      "detail": "true"
+    },
+    {
+      "name": "PidsLimit",
+      "status": "PASS",
+      "detail": "true"
+    },
+    {
+      "name": "seccomp",
+      "status": "PASS",
+      "detail": "name=seccomp,profile=builtin"
+    },
+    {
+      "name": "enforced-lsm",
+      "status": "FAIL",
+      "detail": "AppArmor kernel interface unavailable"
+    },
+    {
+      "name": "image-and-capsule-compatibility",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    },
+    {
+      "name": "readonly-and-credential-canaries",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    },
+    {
+      "name": "network-and-gateway-authorization",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    },
+    {
+      "name": "resource-exhaustion",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    },
+    {
+      "name": "shell-descendant-reaping",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    },
+    {
+      "name": "snapshot-consistency",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    },
+    {
+      "name": "production-loader",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    },
+    {
+      "name": "crash-replay-and-cas-audit",
+      "status": "NOT_RUN",
+      "detail": "requires the frozen image/profile, trusted supervisor and full acceptance suite"
+    }
+  ]
+}

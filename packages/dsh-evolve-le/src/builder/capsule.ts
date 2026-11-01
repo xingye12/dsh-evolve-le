@@ -72,6 +72,48 @@ export interface CapsuleBundle {
   bytes: number
 }
 
+/** Exact trusted runner inventory, shared by assembly and external export verification. */
+export async function capsuleRunnerFiles(runnerSourceDir: string): Promise<CanonicalFile[]> {
+  const mapping = [
+    ['bin/candidate-probe.js', 'bin/probe.js'],
+    ['bin/native-turn-probe.js', 'bin/native-turn-probe.js'],
+    ['bin/native-proposal-probe.js', 'bin/native-proposal-probe.js'],
+    ['bin/native-solve-probe.js', 'bin/native-solve-probe.js'],
+    ['dsh/candidate-events.js', 'dsh/candidate-events.js'],
+    ['dsh/native-capabilities.js', 'dsh/native-capabilities.js'],
+    ['bin/acp-boot.js', 'bin/acp-boot.js'],
+    ['cordis/boot.js', 'cordis/boot.js'],
+    ['cordis/inventory.js', 'cordis/inventory.js'],
+    ['acp/replay-agent.js', 'acp/replay-agent.js'],
+    ['acp/recorded-replay.js', 'acp/recorded-replay.js'],
+    ['acp/solve-protocol.js', 'acp/solve-protocol.js'],
+    ['acp/solve-client.js', 'acp/solve-client.js'],
+    ['acp/live-solve-agent.js', 'acp/live-solve-agent.js'],
+    ['acp/native-solve-agent.js', 'acp/native-solve-agent.js'],
+    ['acp/native-solve-tools.js', 'acp/native-solve-tools.js'],
+    ['dsh/native-composition.js', 'dsh/native-composition.js'],
+    ['dsh/native-llm-adapter.js', 'dsh/native-llm-adapter.js'],
+    ['dsh/native-runner.js', 'dsh/native-runner.js'],
+    ['dsh/native-proposal.js', 'dsh/native-proposal.js'],
+    ['dsh/native-proposal-runner.js', 'dsh/native-proposal-runner.js'],
+    ['proposer/protocol.js', 'proposer/protocol.js'],
+    ['proposer/generation-draft.js', 'proposer/generation-draft.js'],
+    ['tree-v2/finalize-bundle.js', 'tree-v2/finalize-bundle.js'],
+    ['state/canonical.js', 'state/canonical.js'],
+    ['version.js', 'version.js'],
+  ] as const
+  const files: CanonicalFile[] = [
+    { path: 'package.json', mode: 0o644, content: Buffer.from('{"type":"module"}\n') },
+  ]
+  for (const [source, target] of mapping)
+    files.push({
+      path: target,
+      mode: 0o644,
+      content: await readFile(join(runnerSourceDir, source)),
+    })
+  return files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+}
+
 /** Bundle = candidate metadata files + compiled `lib/` output. */
 export async function buildBundle(
   source: CanonicalSource,
@@ -376,112 +418,11 @@ export async function assembleCapsule(options: {
   }
 
   // runner/: ESM package + Loader probes + ACP boot + boot/inventory compiled files.
-  await mkdir(join(capsuleDir, 'runner/bin'), { recursive: true })
-  await mkdir(join(capsuleDir, 'runner/cordis'), { recursive: true })
-  await mkdir(join(capsuleDir, 'runner/acp'), { recursive: true })
-  await mkdir(join(capsuleDir, 'runner/dsh'), { recursive: true })
-  await mkdir(join(capsuleDir, 'runner/proposer'), { recursive: true })
-  await writeFile(join(capsuleDir, 'runner/package.json'), '{"type":"module"}\n', 'utf8')
-  await cp(join(runnerSourceDir, 'bin/candidate-probe.js'), join(capsuleDir, 'runner/bin/probe.js'))
-  await cp(
-    join(runnerSourceDir, 'bin/native-turn-probe.js'),
-    join(capsuleDir, 'runner/bin/native-turn-probe.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'bin/native-proposal-probe.js'),
-    join(capsuleDir, 'runner/bin/native-proposal-probe.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'bin/native-solve-probe.js'),
-    join(capsuleDir, 'runner/bin/native-solve-probe.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'dsh/candidate-events.js'),
-    join(capsuleDir, 'runner/dsh/candidate-events.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'dsh/native-capabilities.js'),
-    join(capsuleDir, 'runner/dsh/native-capabilities.js'),
-  )
-  await cp(join(runnerSourceDir, 'bin/acp-boot.js'), join(capsuleDir, 'runner/bin/acp-boot.js'))
-  await cp(join(runnerSourceDir, 'cordis/boot.js'), join(capsuleDir, 'runner/cordis/boot.js'))
-  await cp(
-    join(runnerSourceDir, 'cordis/inventory.js'),
-    join(capsuleDir, 'runner/cordis/inventory.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'acp/replay-agent.js'),
-    join(capsuleDir, 'runner/acp/replay-agent.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'acp/recorded-replay.js'),
-    join(capsuleDir, 'runner/acp/recorded-replay.js'),
-  )
-  // Live-solve trio (ADR-030): the env-gated agent, its HTTPS client, and the
-  // zero-import directive grammar. They ship in EVERY capsule — the capsule
-  // bytes stay independent of the run's route configuration (an offline
-  // builder must produce the byte-identical archive a live run uses), and
-  // acp-boot falls back to recorded replay when the solve env is absent.
-  await cp(
-    join(runnerSourceDir, 'acp/solve-protocol.js'),
-    join(capsuleDir, 'runner/acp/solve-protocol.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'acp/solve-client.js'),
-    join(capsuleDir, 'runner/acp/solve-client.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'acp/live-solve-agent.js'),
-    join(capsuleDir, 'runner/acp/live-solve-agent.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'acp/native-solve-agent.js'),
-    join(capsuleDir, 'runner/acp/native-solve-agent.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'acp/native-solve-tools.js'),
-    join(capsuleDir, 'runner/acp/native-solve-tools.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'dsh/native-composition.js'),
-    join(capsuleDir, 'runner/dsh/native-composition.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'dsh/native-llm-adapter.js'),
-    join(capsuleDir, 'runner/dsh/native-llm-adapter.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'dsh/native-runner.js'),
-    join(capsuleDir, 'runner/dsh/native-runner.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'dsh/native-proposal.js'),
-    join(capsuleDir, 'runner/dsh/native-proposal.js'),
-  )
-  await cp(
-    join(runnerSourceDir, 'dsh/native-proposal-runner.js'),
-    join(capsuleDir, 'runner/dsh/native-proposal-runner.js'),
-  )
-  // Native proposal tools validate the controller-owned proposal wire shape;
-  // preserve its relative import inside the standalone runner tree.
-  await cp(
-    join(runnerSourceDir, 'proposer/protocol.js'),
-    join(capsuleDir, 'runner/proposer/protocol.js'),
-  )
-  // TCB receipt finalization (ADR-034) lives at the native proposal submit
-  // boundary; proposer/tools.js imports it at runtime, so the runner tree
-  // ships the module and its only runtime dependency (canonical JSON).
-  await mkdir(join(capsuleDir, 'runner/tree-v2'), { recursive: true })
-  await cp(
-    join(runnerSourceDir, 'tree-v2/finalize-bundle.js'),
-    join(capsuleDir, 'runner/tree-v2/finalize-bundle.js'),
-  )
-  await mkdir(join(capsuleDir, 'runner/state'), { recursive: true })
-  await cp(
-    join(runnerSourceDir, 'state/canonical.js'),
-    join(capsuleDir, 'runner/state/canonical.js'),
-  )
-  await cp(join(runnerSourceDir, 'version.js'), join(capsuleDir, 'runner/version.js'))
+  for (const file of await capsuleRunnerFiles(runnerSourceDir)) {
+    const target = join(capsuleDir, 'runner', file.path)
+    await mkdir(join(target, '..'), { recursive: true })
+    await writeFile(target, file.content, { mode: file.mode })
+  }
   const { digest: runnerDigest } = await computeTreeDigest(join(capsuleDir, 'runner'))
 
   // Composition overlay (solve mode is the resting state of the capsule).

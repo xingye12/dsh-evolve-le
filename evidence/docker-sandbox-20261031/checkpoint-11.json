@@ -1,0 +1,65 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "concreteOnlineTestsIntegrated": true,
+  "nativeSnapshotTestTool": true,
+  "testResourcePoolExplicit": true,
+  "normalizedFinishTestsRequired": true,
+  "mainAndRecoveryFailureGateVerified": true,
+  "parentKillDoesNotWaitForChildConfirmation": true,
+  "componentTests": 21,
+  "casRefsReadBack": 6433,
+  "paidModelCalls": 0,
+  "productionPositiveAdmissionVerified": false,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-online-unit-2.json",
+      "sha256": "19507f74d2f8c11451d01ac6da01be4cafb6831d2baaffe9f855f5ff4f7cc25c",
+      "bytes": 8727
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-online-tests-2.json",
+      "sha256": "d2f3e0a57f7ff866d01f67c96962675134e1f69ad560726c9dded7079b9fab0f",
+      "bytes": 1030
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-online-receipt-2.json",
+      "sha256": "01f001ff4a140dbcd457890a3b3f0726e4ca8f1f74d2862ac6ab6b7e711ae886",
+      "bytes": 685057
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-input-online-tests-1.json",
+      "sha256": "48ead2c0687c33d6eb7ce2cdd7af01dcd0f846f47371bf0b0be42e71b8fde219",
+      "bytes": 1021
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-input-online-1.json",
+      "sha256": "dd618fb07e21cc228f02a72781516eee4d38d1115ab28f1496bc597245d95fd6",
+      "bytes": 3074
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-online-worker-tests-4.json",
+      "sha256": "7d095bf4187a859397bd1799219d887d380dac8371e622e88ef63836075e193c",
+      "bytes": 1144
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-online-worker-4.json",
+      "sha256": "628328363cb2a68080ad7f0ef317b42958d9aa6e144faa27566ee206cceafa70",
+      "bytes": 701375
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-online-worker-cas-audit.json",
+      "sha256": "57829c38b7d020e9b8ef512518173dc778d36b2524fab15e8d928b3f8c6191e2",
+      "bytes": 501
+    }
+  ],
+  "remaining": [
+    "Standalone proposal launcher/provider wiring, controller/Archive unique admission and status/audit consumers",
+    "Validator TCB-state isolation and trustworthy runtime receipts",
+    "Hard cumulative action resource accounting and model pre-dispatch token ceiling",
+    "Preparation/export/cleanup/finalization real crash recovery and owned-resource janitor",
+    "Release images/security artifacts and compatible Linux production acceptance"
+  ]
+}

@@ -82,12 +82,18 @@ export function buildNativeProposalInstruction(options: {
   parentSourceHash: string
   width: number
   treeV2Parent?: TreeV2ProposalParent
+  generationOnly?: true
 }): string {
   return [
     'You are the proposer inside a label-filtered sandbox.',
     'Use the proposal_list_files, proposal_read_file and proposal_write_child tools to inspect the export and parent source.',
     `Create exactly one complete child source tree per distinct failure mode, at most ${String(options.width)} children.`,
     'Every child must preserve untouched parent files, update candidate.json with the declared parent hash and strategy surfaces, and keep cordis.patch.yml and package.json fixed.',
+    ...(options.generationOnly
+      ? [
+          `proposal_finish expects {schemaVersion:${options.treeV2Parent ? 2 : 1},protocol:"dsh-evolve-le/proposal/v${options.treeV2Parent ? 2 : 1}",parentSourceHash:"${options.parentSourceHash}",children:[{childName:"child-1",hypothesis:"a distinct mechanism of at least ten characters",donorCandidates:[],targetFailureModes:[]${options.treeV2Parent ? ',analysisReceipt:{...semantic fields...},proposalReceipt:{...semantic fields...}' : ',evidenceRefs:[]'}}]}. Preserve semantic receipts as draft data; external validation decides admission.`,
+        ]
+      : []),
     ...(options.treeV2Parent === undefined
       ? []
       : [
@@ -100,14 +106,22 @@ export function buildNativeProposalInstruction(options: {
           'modeContract must partition solve and propose into target and preserved modes. A target mode needs an observable runtime delta, but prompt-section TEXT is not a required nor default delta: the real native ACP probe fingerprints emitted solve-policy checkpoints as well as mounted surfaces. Preserve propose for solve-only strategies. A prompt text change is permitted only when it is necessary to the hypothesis and paired with a non-prompt executable mechanism; never edit prompt text merely to satisfy a fingerprint.',
           'The parent candidate ships its own baseline spec (tests/candidate.spec.ts) asserting its EXACT mounted surface: exactly the one strategy plugin, one section/tool/skill per mode, a fixed effect count, and specific text fragments in each section. Your child must keep those tests passing: do NOT mount additional top-level plugins in src/index.ts — route a new mechanism through the existing strategy component (import it inside src/strategy.ts or a module it already uses).',
           'When the parent declares candidate-workflow:solve-policy in its solve-mode workflowNames, it is one executable seam: in a multi-child batch, include at least one non-prompt mechanism and vary primary surfaces where evidence supports it. A candidate tool may add strategy:{autoInvoke:true,run(context)}; the TCB calls at most four such tool facets per pre-step with { protocol:"dsh-evolve-le/candidate-strategy-context/v1", turn, step, phase, observation }, and accepts only a bounded {checkpoint}. Agent event candidate:agent/pre-step and session events candidate:session/start and candidate:session/end are emitted by the TCB with the same context and may return the same bounded outcome; an end-of-session outcome is evidence-only and cannot affect a closed session. The runner also emits candidate:agent/request, request-error, error, status, turn-stopping, tool-pre-execute, tool-post-execute and tool-result (all names prefixed candidate:agent/); and candidate:session/event, turn-start, turn-end, step-start, step-end, compaction-start, compaction-summary, compaction-end and compaction-prune (all prefixed candidate:session/). Expanded callbacks receive candidate-strategy-context/v2 with phase=event and a safe event object: name, coarse toolKind/outcome, lifecycle status or selected sessionEventType/stopReason. Register tool lifecycle handlers in agentEvents and declare their exact names under agentEventNames. These hooks only queue checkpoints for a later admitted pre-step; they cannot replace tool results or override retry/stop decisions. Other candidate:* names remain declarations. Callback audits are separate evidence, not custom DSH session-log events. The workflow receives { protocol:"dsh-evolve-le/candidate-solve-policy/v2", turn, step, observation }. observation contains ONLY TCB-derived prior-tool facts: toolCalls {exec,read,write}, previousAction, lastExec {outcome,consecutiveRepeated}, and writesSinceLastExec. None of these surfaces provides raw commands, paths, file/terminal contents, deliverable/verifier/controller state, model routing or budgets. A child must not claim to branch on unavailable state.',
-          'When you call proposal_finish, the harness validates your candidate.json against the manifest schema, checks that the raw child tree still contains every inherited file, mounts both trees and compares surfaces per your modeContract, and runs the parent baseline tests plus your added tests against that same complete child tree. If the first call fails, repair only the reported defect and call proposal_finish exactly once more; a second failure is terminal for this action.',
-          'Do not compute receiptDigest fields yourself — the toolchain derives and rewrites all receipt digests from your semantic fields when you call proposal_finish; fabricated digests fail the proposal.',
+          ...(options.generationOnly
+            ? [
+                'proposal_finish captures source and raw semantic receipts only. Testing, receipt normalization and admission happen in the external trusted pipeline after this container is cleaned up. Do not compute receiptDigest fields.',
+              ]
+            : [
+                'When you call proposal_finish, the harness validates your candidate.json against the manifest schema, checks that the raw child tree still contains every inherited file, mounts both trees and compares surfaces per your modeContract, and runs the parent baseline tests plus your added tests against that same complete child tree. If the first call fails, repair only the reported defect and call proposal_finish exactly once more; a second failure is terminal for this action.',
+                'Do not compute receiptDigest fields yourself — the toolchain derives and rewrites all receipt digests from your semantic fields when you call proposal_finish; fabricated digests fail the proposal.',
+              ]),
         ]),
     // ADR-044: the controller stages this run's prior rejections (when any)
     // as input/prior-rejections.json; the exact reasons are the acceptance
     // criteria previously missed and bind the next submission.
     "When prior-rejections.json is present in the input root, read it before writing any child: it lists this run's previously rejected children with the exact validator reason for each (candidate scan findings, manifest violations, duplicate/no-change verdicts, bundle errors). Treat every listed reason as a hard constraint — a child that repeats a rejected shape is rejected again.",
-    'When all files are written, call proposal_finish with a valid proposal bundle. Only after its first finalizer error may you repair the reported defect and call it once more.',
+    options.generationOnly
+      ? 'When all files are written, call proposal_finish with the source draft. Only structural submission errors can be repaired here; candidate verification is external.'
+      : 'When all files are written, call proposal_finish with a valid proposal bundle. Only after its first finalizer error may you repair the reported defect and call it once more.',
     'A plain-text final answer ends the run in failure: only a proposal_finish tool call can succeed.',
     'You have a bounded tool-call budget; when its reminder appears in tool results, write only what remains necessary and submit.',
     `The parent source hash is ${options.parentSourceHash}.`,

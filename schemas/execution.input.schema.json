@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dsh-evolve-le.local/schemas/execution.input.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "trees"],
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/execution-input/v1"
+    },
+    "trees": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "inventory"],
+        "properties": {
+          "target": {
+            "enum": ["/input", "/dependencies", "/toolchain"]
+          },
+          "inventory": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["algorithm", "digest", "size", "mediaType", "label"],
+            "properties": {
+              "algorithm": {
+                "const": "sha256"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "mediaType": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "enum": ["PUBLIC_SPEC", "DEV_OBSERVED", "CONTROLLER_INTERNAL"]
+              }
+            }
+          }
+        }
+      },
+      "uniqueItems": true,
+      "contains": {
+        "type": "object",
+        "required": ["target"],
+        "properties": {
+          "target": {
+            "const": "/input"
+          }
+        }
+      }
+    }
+  }
+}

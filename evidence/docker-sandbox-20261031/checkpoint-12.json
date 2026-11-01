@@ -1,0 +1,29 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "prepareCancelPublicationRaceCovered": true,
+  "revokedAsyncFinalizationCannotSubmit": true,
+  "onlineArtifactNamespaceChecked": true,
+  "componentTests": 9,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-cancel-fence-2.json",
+      "sha256": "07eeddc9e19662e44203871dbc2cc6cdf81101fd91ff6424c0c1b356c5fcc667",
+      "bytes": 4347
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-test-cancel-race-3.json",
+      "sha256": "ccd1cab909521f4fb9d4f4b3fc64c4bc78b11d747a691972f4c1cd7a415f7a65",
+      "bytes": 1023
+    }
+  ],
+  "remaining": [
+    "Standalone proposal launcher/provider and controller/Archive admission",
+    "Validator TCB-state isolation and trustworthy runtime receipts",
+    "Cumulative action hard resource budget and predispatch token ceiling",
+    "Actual crash/janitor matrix and production compatible-host acceptance"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "protocol": "dsh-evolve-le/proposal-launch-probe/v1",
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "configuration": {
+    "algorithm": "sha256",
+    "digest": "3f9ff9371e04d00d2bc78fd9190a83ce3882139cf40824de5feae92aa69b3daa",
+    "label": "CONTROLLER_INTERNAL",
+    "mediaType": "application/vnd.dsh-evolve-le.proposal-supervisor+json",
+    "size": 7008
+  },
+  "failures": [
+    {
+      "algorithm": "sha256",
+      "digest": "626b9d31c141b8200684112c5f6d633d5018a104ccc48e9d5f9efd9f7104520d",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-supervisor-failure+json",
+      "size": 431
+    }
+  ],
+  "status": "INCOMPLETE",
+  "scope": "Actual detached process; preflight failure; no candidate or model dispatch; no production acceptance"
+}

@@ -1,0 +1,212 @@
+{
+  "scope": "explicit paid engineering smoke on synthetic dev feedback; no benchmark/sealed claim",
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "runId": "local-live-1793504970623",
+  "root": "/tmp/local-factory-live-kfA2pT",
+  "profile": {
+    "runId": "local-live-1793504970623",
+    "storeRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+    "profile": {
+      "backend": "docker-local/v1",
+      "hostRoot": "/tmp/dsh-localgen",
+      "image": {
+        "reference": "dsh-evolve-le/proposal-executor@sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+        "id": "sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+        "platform": "linux/amd64"
+      }
+    },
+    "routeHash": "26f609e745ab65beb4b27eae6fe1460f80b121bf6df07e7c5f75bc18663693f6",
+    "provider": "zen-compatible",
+    "contextWindowTokens": 262144,
+    "dependencyClosureSha256": "c783df9247be693047751382c9e4bcd69b0ea0a7539408898474499511fe3c81"
+  },
+  "result": {
+    "actionId": "proposal-1",
+    "status": "COMMITTED",
+    "failureReason": null,
+    "sandboxRoot": "/tmp/local-factory-live-kfA2pT/controller/sandboxes/proposal-1",
+    "summary": {
+      "schemaVersion": 1,
+      "actionId": "proposal-1",
+      "sandbox": {
+        "kind": "docker",
+        "uid": 65532,
+        "detail": "local-generation/v1; external immutable snapshot and CLEANED proof"
+      },
+      "capsuleDigest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+      "turns": null,
+      "usage": {
+        "requests": 11,
+        "promptTokens": 74879,
+        "completionTokens": 4507,
+        "totalTokens": 79386,
+        "costUsdMicros": 11749
+      },
+      "admitted": [
+        {
+          "childName": "child-1",
+          "sourceHash": "sha256:5bf32ba44538493c5320e8b801fc0b3bdb6c654277516a333c0139d50fa81f49",
+          "diffHash": "99bbd03273c2c8309e6f9a879052c4a5493b49aa32e3a8d1abc1dcac70a71a6d",
+          "filesChanged": 2,
+          "linesAdded": 3,
+          "linesRemoved": 1,
+          "admitted": true
+        }
+      ],
+      "rejected": [],
+      "batchErrors": [],
+      "registeredCandidateIds": [
+        "c_lpzsxjcfhbetyuza5c4ad7alhp"
+      ]
+    }
+  },
+  "generation": {
+    "admission": "NONE",
+    "completion": {
+      "algorithm": "sha256",
+      "digest": "faa4926cca27136997043b3dcdcfde173701431311024d6d57b70a9fb079b82d",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-completion+json",
+      "size": 56590
+    },
+    "diagnostic": null,
+    "execution": {
+      "algorithm": "sha256",
+      "digest": "67e4c1e16f305777005fcc7e4364e9ad2cc8ee13f938e185293a4aa5fa97a7c9",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-bundle+json",
+      "size": 690092
+    },
+    "outcome": "SUCCEEDED",
+    "protocol": "dsh-evolve-le/proposal-generation-result/v1",
+    "specDigest": "243eedee9afc5acfc4baa02b093011273eaaebbd98338b4f19b3ef8c3b804e3e",
+    "submission": {
+      "algorithm": "sha256",
+      "digest": "745a0fc36dd32bdee7b9111f6738c5963a4c87ef1347a591014ec25d0f423322",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.generation-submission+json",
+      "size": 974
+    }
+  },
+  "artifacts": [
+    {
+      "algorithm": "sha256",
+      "digest": "c05a0b0127996d24e5308d3931b86346bc18fbd84930d1e27b6ac318bdcedd09",
+      "size": 7944,
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-generation+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "535bd953a797332d0ce3b234223c3352d4701eb5997dd56acfb5d8e3769026bb",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-generation-result+json",
+      "size": 867
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "67e4c1e16f305777005fcc7e4364e9ad2cc8ee13f938e185293a4aa5fa97a7c9",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-bundle+json",
+      "size": 690092
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "faa4926cca27136997043b3dcdcfde173701431311024d6d57b70a9fb079b82d",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-completion+json",
+      "size": 56590
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "745a0fc36dd32bdee7b9111f6738c5963a4c87ef1347a591014ec25d0f423322",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.generation-submission+json",
+      "size": 974
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "edbc9185361e56464142c40e7587785e3763778ededaeb3515b600d7cdfd5af0",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-finalization+json",
+      "size": 1142
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "441048dc6ad657012b3fe8d23f1b3ea57a28339d1e0e2a09c6d78c2a636fa01a",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+      "size": 1557
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "4430de6159da68efbad14f2243c23fc62fcae46b954b9fd91685fe9262e56ab3",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 1788
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "cbbbda64b4d476ae731b30cdfd35ade1397098b752289bb2993ffc2e38b93308",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 322
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "973cb296624239b4f541efb2ab6e80648bb352c93af122dd7bb5b682417c31b6",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 890
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "3d17c494aff764110636e0606aa4002427597a82c9024e9c21702ed2182af1ce",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 5141
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "1130675d0121ad758d68b40111e4896341e9840a539233091aa6c53bff1d7c44",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 2511
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "a889cc640f135bf8c0eb8e9e04e2016b0b4d669c4cafb30c5546379036b37fcf",
+      "label": "DEV_OBSERVED",
+      "mediaType": "application/octet-stream",
+      "size": 136
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "23f4a5e78bd794a246267ea09233c5ece9f518406da34f665a4f723570a54187",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-finalization+json",
+      "size": 1062
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "99443e3e8b76fdedd03b5bc777fc5fcd45ad5414551075d71268b7d09efff005",
+      "size": 897,
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-validation+json",
+      "label": "CONTROLLER_INTERNAL"
+    }
+  ],
+  "budget": {
+    "usd": {
+      "reserved": 0,
+      "spent": 11749
+    },
+    "proposer-tokens": {
+      "reserved": 0,
+      "spent": 79386
+    },
+    "proposal-calls": {
+      "reserved": 0,
+      "spent": 1
+    }
+  }
+}

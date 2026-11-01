@@ -1,0 +1,115 @@
+{
+  "protocol": "dsh-evolve-le/executor-images/v1",
+  "images": [
+    {
+      "kind": "proposal",
+      "reference": "dsh-evolve-le/proposal-executor@sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+      "id": "sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+      "platform": "linux/amd64",
+      "contextDigest": "7be38db748604014177aba994443feeb2c0ef4b618777e5668a0cd2f094604eb",
+      "base": "ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55",
+      "metadata": {
+        "buildx.build.provenance": {
+          "builder": {
+            "id": ""
+          },
+          "buildType": "https://mobyproject.org/buildkit@v1",
+          "materials": [
+            {
+              "uri": "pkg:docker/ubuntu?digest=sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55&platform=linux%2Famd64",
+              "digest": {
+                "sha256": "534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55"
+              }
+            }
+          ],
+          "invocation": {
+            "configSource": {
+              "entryPoint": "Dockerfile"
+            },
+            "parameters": {
+              "frontend": "dockerfile.v0",
+              "args": {
+                "build-arg:BASE_IMAGE": "ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55",
+                "force-network-mode": "none"
+              },
+              "locals": [
+                {
+                  "name": "context"
+                },
+                {
+                  "name": "dockerfile"
+                }
+              ]
+            },
+            "environment": {
+              "platform": "linux/amd64"
+            }
+          }
+        },
+        "buildx.build.ref": "default/default/xlnqas1pv2q68zna2en1h3fmi",
+        "containerimage.descriptor": {
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "digest": "sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+          "size": 855
+        },
+        "containerimage.digest": "sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+        "image.name": "docker.io/dsh-evolve-le/proposal-executor:build-7be38db748604014"
+      }
+    },
+    {
+      "kind": "validator",
+      "reference": "dsh-evolve-le/validator-executor@sha256:bba1f8590cb6c3d3fc32b879a832a515cb9bbb6ddc18d2c16a5352b5a1c2fe7c",
+      "id": "sha256:bba1f8590cb6c3d3fc32b879a832a515cb9bbb6ddc18d2c16a5352b5a1c2fe7c",
+      "platform": "linux/amd64",
+      "contextDigest": "ade5a81956929e3500a940a700e0eea7310986f86da634330f2faf0bbfacf487",
+      "base": "ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55",
+      "metadata": {
+        "buildx.build.provenance": {
+          "builder": {
+            "id": ""
+          },
+          "buildType": "https://mobyproject.org/buildkit@v1",
+          "materials": [
+            {
+              "uri": "pkg:docker/ubuntu?digest=sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55&platform=linux%2Famd64",
+              "digest": {
+                "sha256": "534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55"
+              }
+            }
+          ],
+          "invocation": {
+            "configSource": {
+              "entryPoint": "Dockerfile"
+            },
+            "parameters": {
+              "frontend": "dockerfile.v0",
+              "args": {
+                "build-arg:BASE_IMAGE": "ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55",
+                "force-network-mode": "none"
+              },
+              "locals": [
+                {
+                  "name": "context"
+                },
+                {
+                  "name": "dockerfile"
+                }
+              ]
+            },
+            "environment": {
+              "platform": "linux/amd64"
+            }
+          }
+        },
+        "buildx.build.ref": "default/default/xwgjmk98v5d9atxvomb4tq1p9",
+        "containerimage.descriptor": {
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "digest": "sha256:bba1f8590cb6c3d3fc32b879a832a515cb9bbb6ddc18d2c16a5352b5a1c2fe7c",
+          "size": 855
+        },
+        "containerimage.digest": "sha256:bba1f8590cb6c3d3fc32b879a832a515cb9bbb6ddc18d2c16a5352b5a1c2fe7c",
+        "image.name": "docker.io/dsh-evolve-le/validator-executor:build-ade5a81956929e35"
+      }
+    }
+  ]
+}

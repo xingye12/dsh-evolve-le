@@ -1,0 +1,29 @@
+{
+  "protocol": "dsh-evolve-le/proposal-worker-partial-probe/v1",
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "inputManifest": {
+    "algorithm": "sha256",
+    "digest": "d780b6368e6bf81f1d68eb461a9df704f1ddb5e5ca8217d00f7b54d939d50b68",
+    "size": 300,
+    "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+    "label": "CONTROLLER_INTERNAL"
+  },
+  "requests": 7,
+  "submitted": 0,
+  "exitCode": 1,
+  "stdout": {
+    "algorithm": "sha256",
+    "digest": "850a0d5313cc6697f7f31d57d07aa139c5c29e8f2196b4e570388a8e66e93972",
+    "size": 56273,
+    "mediaType": "application/x-ndjson",
+    "label": "DEV_OBSERVED"
+  },
+  "stderr": {
+    "algorithm": "sha256",
+    "digest": "12dd4c4f28d17ed2d1c25213f3a8b495a78e3877a47e5f927fcd320d26750eec",
+    "size": 123,
+    "mediaType": "text/plain",
+    "label": "DEV_OBSERVED"
+  },
+  "scope": "Raw engineering probe logs; not a success verdict"
+}

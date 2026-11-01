@@ -1,0 +1,86 @@
+{
+  "$schema": "https://dsh-evolve-le.local/schemas/build.manifest.schema.json",
+  "schemaVersion": 1,
+  "candidateId": "c_lpzsxjcfhbetyuza5c4ad7alhp",
+  "outcome": "rejected",
+  "rejection": {
+    "stage": "typeLintUnit",
+    "reason": "oxlint failed (exit 1): No files found to lint. Please check your paths and ignore patterns.\nFinished in 47ms on 0 files with 98 rules using 16 threads."
+  },
+  "identity": {
+    "sourceDigest": "sha256:5bf32ba44538493c5320e8b801fc0b3bdb6c654277516a333c0139d50fa81f49",
+    "canonicalParent": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297"
+  },
+  "parentDiff": {
+    "parent": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+    "diffHash": "99bbd03273c2c8309e6f9a879052c4a5493b49aa32e3a8d1abc1dcac70a71a6d",
+    "filesChanged": 2,
+    "linesAdded": 3,
+    "linesRemoved": 1,
+    "differingFiles": [
+      {
+        "path": "candidate.json",
+        "status": "modified",
+        "linesAdded": 1,
+        "linesRemoved": 1
+      },
+      {
+        "path": "src/index.ts",
+        "status": "modified",
+        "linesAdded": 2,
+        "linesRemoved": 0
+      }
+    ]
+  },
+  "receipts": {
+    "containment": {
+      "status": "pass",
+      "detail": "captured 6 files, 10788 bytes; staged read-only; tree digest dsh-evolve-tree-v1:bd83307d9407c0b8…"
+    },
+    "schema": {
+      "status": "pass",
+      "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+    },
+    "diffBoundary": {
+      "status": "pass",
+      "detail": "parent sha256:40c14e16d… verified by re-capture; 2 files +3/-1 within the pre-registered boundary; parent sections preserved"
+    },
+    "policyScan": {
+      "status": "pass",
+      "detail": "no findings across import/dependency/leak/task/secret rules"
+    },
+    "reproducibleBuild": {
+      "status": "pass",
+      "detail": "two sandboxed tsc runs produced identical output (2 files); closure 62 packages (2834 files), tsc 6.0.3"
+    },
+    "typeLintUnit": {
+      "status": "fail",
+      "detail": "oxlint failed (exit 1): No files found to lint. Please check your paths and ignore patterns.\nFinished in 47ms on 0 files with 98 rules using 16 threads."
+    },
+    "loaderBoot": {
+      "status": "skipped",
+      "detail": "not reached"
+    },
+    "unloadInvariant": {
+      "status": "skipped",
+      "detail": "not reached"
+    },
+    "mockReplay": {
+      "status": "skipped",
+      "detail": "not reached"
+    },
+    "capsuleDoubleBuild": {
+      "status": "skipped",
+      "detail": "not reached"
+    }
+  },
+  "builder": {
+    "builtAt": "2026-11-01T07:16:36.747Z",
+    "sandbox": {
+      "kind": "namespace",
+      "detail": "unshare --net (network namespace, no interfaces)"
+    },
+    "networkAccess": false,
+    "executedCandidateLifecycleScript": false
+  }
+}

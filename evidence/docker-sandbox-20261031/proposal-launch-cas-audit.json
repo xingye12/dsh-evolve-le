@@ -1,0 +1,8 @@
+{
+  "protocol": "dsh-evolve-le/proposal-bootstrap-audit/v1",
+  "status": "PASS",
+  "checkedRefs": 3300,
+  "launchStatus": "INCOMPLETE",
+  "liveProviderEnabled": false,
+  "scope": "Frozen bootstrap/preflight-failure CAS graph only; no production positive execution"
+}

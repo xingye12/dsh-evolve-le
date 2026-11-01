@@ -1,0 +1,10 @@
+{
+  "protocol": "dsh-evolve-le/model-ledger-cas-audit/v1",
+  "report": "evidence/docker-sandbox-20261031/model-ledger-worker-1.json",
+  "checked": 3104,
+  "headers": 1,
+  "status": "ENGINEERING_REPLAY_ONLY",
+  "requests": 3,
+  "submitted": 1,
+  "exitCode": 0
+}

@@ -301,3 +301,48 @@ waterfall delegation, failure/overflow behavior and foreign-session filtering.
 Real production Loader tests must register callbacks through the actual SDK,
 observe solve/proposal/child invocations and checkpoint effects, and unload to a
 quiescent inventory. Preserve cancellation and crash/replay regression checks.
+
+### Disposable Docker proposal acceptance (ADR-077)
+
+Implement the accepted Docker sandbox implementation document in this order:
+versioned contracts and negative tests; image/executor/resource admission and
+watchdog; native worker with shared foreground shell; consistent snapshots,
+streaming bundles and controller recovery; independent validator and full
+admission. Run real Loader, shell/file/subagent/recovery/cancel/unload E2E,
+hostile descendants and resource exhaustion, snapshot concurrency/links/drift,
+controller/worker/gateway/daemon/host faults and SIGKILL at intent, dispatch,
+snapshot, export, commit, admission and cleanup boundaries. Verify all success
+and failure artifacts from CAS and unique admission across replay. Require two
+clean builds. New baseline/profile/run only; no historical result inheritance.
+The production profile fails closed on absent cgroup v2 or other containment
+preconditions. Contract tests on an incompatible host do not meet this gate.
+
+Docker input gate: exercise execution-input/v1 CAS materialization, interrupted
+publication/reopen, frozen worker/config lookup, read-only owner/mode checks,
+byte/mode drift before create/start, and source-directory changes after freeze.
+Input copies occur only after execution resource admission; native Loader and
+AgentLoop must boot from the materialized inventory in a real container.
+Validator supervisor/v2 rejects v1 configuration rather than migrating it.
+
+### Source-generation-only replacement roadmap (ADR-078)
+
+For new proposal runs, the ADR-078 three-gate plan supersedes ADR-077's requirement to finish
+the full Docker supervisor, online validator/finalizer orchestration and worker recovery first.
+Gate 1: contracts and real compatible-host Docker/Loader replay through snapshot and cleanup.
+Gate 2: single-dispatch live transport, budget/credential checks and real orphan cleanup.
+Gate 3: explicit new backend/profile hands source to existing trusted validation/admission;
+failed or unclean generation is never adopted. Gate 1 must pass before advancing to live.
+Current cgroup v1/AppArmor absence blocks real acceptance; component tests do not replace it.
+See docs/docker-proposal-sandbox-v0-plan.md; old supervisor failures remain recorded, not skipped
+or reclassified as new backend acceptance. Benchmark and sealed gates are unchanged.
+
+### Local Docker source generation (ADR-079)
+
+For new generation-only proposal runs explicitly freezing security.profile=local-generation/v1,
+ADR-079 supersedes ADR-078's delegated-cgroup-v2/AppArmor host prerequisite. Run on the local
+Linux Docker Engine (including WSL/cgroup v1) with Docker hard memory/swap/CPU-rate/PID limits,
+seccomp, non-root/cap-drop/no-new-privileges, readonly root/input, bounded tmpfs, no credentials,
+network, Docker socket or host fallback. External elapsed timeout and Docker state own stop/cleanup;
+no cumulative CPU-time, memory-peak or retained-cgroup accounting claim. Legacy strict profiles,
+validators and benchmark gates do not change. Require actual local Docker/Loader, isolation,
+owner-kill/sweep and source-to-external-validation evidence before claiming the new flow complete.

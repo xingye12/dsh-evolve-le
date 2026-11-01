@@ -1,0 +1,37 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "explicitCollectionEntry": true,
+  "recoveryOnlyPreparation": true,
+  "productionRecoveryVerified": false,
+  "liveProviderEnabled": false,
+  "paidModelCalls": 0,
+  "componentTests": 14,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-collection-tests-2.json",
+      "sha256": "d9a92486f5e241c40cd1060068b9e0168c09c99096859dccd341ad64ada5a3e9",
+      "bytes": 6264
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-launch-tests-5.json",
+      "sha256": "6cef5e3d62be7607776d61acd1dab2dae16816164e143ced16dc4d021f3c26d3",
+      "bytes": 1024
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-launch-receipt-5.json",
+      "sha256": "01dd8e2f165bed1a22e418f1bb9dd70eda935d0498e24d551407ac904cef5db4",
+      "bytes": 842
+    }
+  ],
+  "remaining": [
+    "Actual running-container collection and non-destructive owner takeover",
+    "Full-directory loss and controller journal",
+    "Live provider credentials and predispatch hard budget",
+    "Controller and unique Archive admission",
+    "Cumulative action resources and validator TCB protection",
+    "Compatible platform and full real crash acceptance"
+  ]
+}

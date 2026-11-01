@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dsh-evolve-le.local/schemas/execution.receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "executionId",
+    "specDigest",
+    "sequence",
+    "previousDigest",
+    "phase",
+    "event",
+    "observedAt",
+    "source",
+    "facts"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "dsh-evolve-le/execution-receipt/v1"
+    },
+    "executionId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}$"
+    },
+    "specDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "previousDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "phase": {
+      "enum": [
+        "RESERVED",
+        "PREPARED",
+        "CREATED",
+        "RUNNING",
+        "STOPPED",
+        "EXPORTED",
+        "COMMITTED",
+        "CLEANED"
+      ]
+    },
+    "event": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "source": {
+      "enum": ["executor-observed", "gateway-observed", "worker-reported"]
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "digest", "size", "mediaType", "label"],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "enum": ["PUBLIC_SPEC", "DEV_OBSERVED", "DEV_GUARD", "SEALED", "CONTROLLER_INTERNAL"]
+        }
+      }
+    }
+  }
+}

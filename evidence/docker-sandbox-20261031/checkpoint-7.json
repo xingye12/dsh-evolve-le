@@ -1,0 +1,65 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": 76,
+  "validatorInputComposition": true,
+  "freshImageDualValidatorPassed": true,
+  "compositionCasReplayPassed": true,
+  "originalCapsuleUnchanged": true,
+  "scratchDirectoryModeFixVerified": true,
+  "productionPlatformAccepted": false,
+  "controllerIntegrated": false,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-10.json",
+      "sha256": "d241f9de38e50050e6d65a2d8f897b37c48d851b0465dadf581114ac1236b04e",
+      "bytes": 30279
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-tests-7.json",
+      "sha256": "913bca2ae191064cd871f608a98a33d35e1e5e74d788b9f23207c93600f29485",
+      "bytes": 1107
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-7.json",
+      "sha256": "42f555f1de9ff32d402ce186ef5f6377aa2d3257a6cdb97e5241662bfda1e12b",
+      "bytes": 22915
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-input-replay.json",
+      "sha256": "3f4d64581b312c1bce1afe21be541b1e9177331a72967ae5da772cb06762c034",
+      "bytes": 975
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-tests-8.json",
+      "sha256": "00fcba0613e3b27992743613126762098ed586ddcef75e61350f392370ebe803",
+      "bytes": 1107
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-8.json",
+      "sha256": "a0813c0fccae2791e52a797a9b179c8eac753eb713b59226034d7e19ccc82b35",
+      "bytes": 22915
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/executor-images-8.json",
+      "sha256": "030f684e0662cdcc8d656339f7b4f0dca86adf3ea546f760693a8f775b19d342",
+      "bytes": 4486
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-tests-6.json",
+      "sha256": "e2d293740699a64d6f819fe4c05f2fa6301b6db50d147a0345e168c2aa35eefe",
+      "bytes": 1883
+    }
+  ],
+  "remaining": [
+    "proposal input composition, standalone launcher and provider wiring",
+    "test/finalize/admission consumers and unique controller commit",
+    "candidate/validator TCB state protection and trustworthy lifecycle receipts",
+    "preparation/cleanup/janitor recovery and full fault matrix",
+    "release SBOM/platform/AppArmor artifacts",
+    "compatible production Linux acceptance"
+  ]
+}

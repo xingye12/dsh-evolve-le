@@ -1,0 +1,480 @@
+{
+  "protocol": "dsh-evolve-le/validator-engineering-probe/v1",
+  "image": "dsh-evolve-le/validator-executor@sha256:62fb2ddf2c579006d6e62ef732f92e67b21abc06c8df9a65f1f246a8f3b083d7",
+  "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+  "results": [
+    {
+      "candidateId": "c_idau4fw2frkgfovlepx2gl42pz",
+      "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+      "outcome": "admitted",
+      "receipts": {
+        "containment": {
+          "status": "pass",
+          "detail": "captured 6 files, 10637 bytes; staged read-only; tree digest dsh-evolve-tree-v1:a1e1f39ab9d3ab26…"
+        },
+        "schema": {
+          "status": "pass",
+          "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+        },
+        "diffBoundary": {
+          "status": "pass",
+          "detail": "lineage root (canonicalParent null): no parent diff required"
+        },
+        "policyScan": {
+          "status": "pass",
+          "detail": "no findings across import/dependency/leak/task/secret rules"
+        },
+        "reproducibleBuild": {
+          "status": "pass",
+          "detail": "two sandboxed tsc runs produced identical output (2 files); closure 62 packages (2834 files), tsc 6.0.3"
+        },
+        "typeLintUnit": {
+          "status": "pass",
+          "detail": "oxlint clean over staged tree; candidate tests passed"
+        },
+        "loaderBoot": {
+          "status": "pass",
+          "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 156ms"
+        },
+        "unloadInvariant": {
+          "status": "pass",
+          "detail": "Cordis inventory and process handles returned to baseline; candidate prompt, tool and skill registrations removed"
+        },
+        "mockReplay": {
+          "status": "pass",
+          "detail": "ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2); native ctx.agents.create() turn emitted 27 session events and one candidate strategy tool call/result in 20ms with clean unload; native proposal ctx.agents.create() emitted 42 session events and bounded list/write/finish tool calls in 44ms with clean unload; native ACP ctx.agents.create() solve emitted 47 session events and bounded exec/read/write tool calls in 41ms with clean unload"
+        },
+        "capsuleDoubleBuild": {
+          "status": "pass",
+          "detail": "two capsule assemblies byte-identical (tar and tar.gz; 2880 files, 145480867 bytes); tar 7eebe4768cdad9d6…, archive 84d2d6e83ea75869…"
+        }
+      },
+      "bundle": {
+        "tarSha256": "7444a8e9117e635f67cd44de52b48af15a0d739f93b8fc083f0af55cbbe298b1",
+        "entrySha256": "2b4de3a145e1e27af2894c93d1958ceb072f576f8ee8b8db011e6dcd5708cec4",
+        "fileCount": 5,
+        "bytes": 9171
+      },
+      "capsule": {
+        "tarSha256": "7eebe4768cdad9d6cbacc8ddfffe3ac19ca2050f7e2a6d017875f3c3f1a2bd21",
+        "archiveSha256": "84d2d6e83ea75869aa2b435ac07d6867277bb75f171881443386bfbe2d81340c",
+        "sbomSha256": "ab969b05a36bcdfceb9d1565941079c905b3f0d3a94822e71b6dc7e6cd47dd71",
+        "provenanceSha256": "ca1957a526a9d89f50d9b96d3aaa9bff58697e572e330481cd02784c2caff9ff"
+      },
+      "artifacts": {
+        "workRoot": "/workspace/build",
+        "treeDir": "/workspace/build/tree",
+        "capsuleDir": "/workspace/build/capsule",
+        "capsuleTar": "/workspace/build/capsule.tar",
+        "capsuleArchive": "/workspace/build/capsule.tar.gz",
+        "buildManifestPath": "/workspace/build/build-manifest.json"
+      },
+      "manifest": {
+        "$schema": "https://dsh-evolve-le.local/schemas/build.manifest.schema.json",
+        "schemaVersion": 1,
+        "candidateId": "c_idau4fw2frkgfovlepx2gl42pz",
+        "outcome": "admitted",
+        "identity": {
+          "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+          "canonicalParent": null
+        },
+        "source": {
+          "fileCount": 6,
+          "bytes": 10637,
+          "treeDigest": {
+            "algo": "dsh-evolve-tree-v1",
+            "value": "a1e1f39ab9d3ab26fdf38fd785f02cc9ed49be3c1373637c7da5be7f78ff0c4a"
+          }
+        },
+        "bundle": {
+          "tarSha256": "7444a8e9117e635f67cd44de52b48af15a0d739f93b8fc083f0af55cbbe298b1",
+          "entrySha256": "2b4de3a145e1e27af2894c93d1958ceb072f576f8ee8b8db011e6dcd5708cec4",
+          "fileCount": 5,
+          "bytes": 9171
+        },
+        "capsule": {
+          "tarSha256": "7eebe4768cdad9d6cbacc8ddfffe3ac19ca2050f7e2a6d017875f3c3f1a2bd21",
+          "archiveSha256": "84d2d6e83ea75869aa2b435ac07d6867277bb75f171881443386bfbe2d81340c",
+          "sbomSha256": "ab969b05a36bcdfceb9d1565941079c905b3f0d3a94822e71b6dc7e6cd47dd71",
+          "provenanceSha256": "ca1957a526a9d89f50d9b96d3aaa9bff58697e572e330481cd02784c2caff9ff"
+        },
+        "parentDiff": {
+          "parent": null,
+          "diffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "filesChanged": 0,
+          "linesAdded": 0,
+          "linesRemoved": 0
+        },
+        "fingerprints": {
+          "node": "v24.14.0",
+          "pnpm": "11.9.0",
+          "typescript": "6.0.3",
+          "dependencyClosureSha256": "c783df9247be693047751382c9e4bcd69b0ea0a7539408898474499511fe3c81",
+          "tsconfigSha256": "0a3cd5f41121d31b950900dfbb29cec62ebbf429429e5e0039f247fcbd42a03c"
+        },
+        "receipts": {
+          "containment": {
+            "status": "pass",
+            "detail": "captured 6 files, 10637 bytes; staged read-only; tree digest dsh-evolve-tree-v1:a1e1f39ab9d3ab26…"
+          },
+          "schema": {
+            "status": "pass",
+            "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+          },
+          "diffBoundary": {
+            "status": "pass",
+            "detail": "lineage root (canonicalParent null): no parent diff required"
+          },
+          "policyScan": {
+            "status": "pass",
+            "detail": "no findings across import/dependency/leak/task/secret rules"
+          },
+          "reproducibleBuild": {
+            "status": "pass",
+            "detail": "two sandboxed tsc runs produced identical output (2 files); closure 62 packages (2834 files), tsc 6.0.3"
+          },
+          "typeLintUnit": {
+            "status": "pass",
+            "detail": "oxlint clean over staged tree; candidate tests passed"
+          },
+          "loaderBoot": {
+            "status": "pass",
+            "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 156ms"
+          },
+          "unloadInvariant": {
+            "status": "pass",
+            "detail": "Cordis inventory and process handles returned to baseline; candidate prompt, tool and skill registrations removed"
+          },
+          "mockReplay": {
+            "status": "pass",
+            "detail": "ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2); native ctx.agents.create() turn emitted 27 session events and one candidate strategy tool call/result in 20ms with clean unload; native proposal ctx.agents.create() emitted 42 session events and bounded list/write/finish tool calls in 44ms with clean unload; native ACP ctx.agents.create() solve emitted 47 session events and bounded exec/read/write tool calls in 41ms with clean unload"
+          },
+          "capsuleDoubleBuild": {
+            "status": "pass",
+            "detail": "two capsule assemblies byte-identical (tar and tar.gz; 2880 files, 145480867 bytes); tar 7eebe4768cdad9d6…, archive 84d2d6e83ea75869…"
+          }
+        },
+        "builder": {
+          "builtAt": "2026-10-31T11:37:16.421Z",
+          "sandbox": {
+            "kind": "host-restricted",
+            "detail": "stripped environment, no proxy/registry vars; namespace unavailable"
+          },
+          "networkAccess": false,
+          "executedCandidateLifecycleScript": false
+        }
+      }
+    },
+    {
+      "candidateId": "c_idau4fw2frkgfovlepx2gl42pz",
+      "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+      "outcome": "admitted",
+      "receipts": {
+        "containment": {
+          "status": "pass",
+          "detail": "captured 6 files, 10637 bytes; staged read-only; tree digest dsh-evolve-tree-v1:a1e1f39ab9d3ab26…"
+        },
+        "schema": {
+          "status": "pass",
+          "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+        },
+        "diffBoundary": {
+          "status": "pass",
+          "detail": "lineage root (canonicalParent null): no parent diff required"
+        },
+        "policyScan": {
+          "status": "pass",
+          "detail": "no findings across import/dependency/leak/task/secret rules"
+        },
+        "reproducibleBuild": {
+          "status": "pass",
+          "detail": "two sandboxed tsc runs produced identical output (2 files); closure 62 packages (2834 files), tsc 6.0.3"
+        },
+        "typeLintUnit": {
+          "status": "pass",
+          "detail": "oxlint clean over staged tree; candidate tests passed"
+        },
+        "loaderBoot": {
+          "status": "pass",
+          "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 295ms"
+        },
+        "unloadInvariant": {
+          "status": "pass",
+          "detail": "Cordis inventory and process handles returned to baseline; candidate prompt, tool and skill registrations removed"
+        },
+        "mockReplay": {
+          "status": "pass",
+          "detail": "ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2); native ctx.agents.create() turn emitted 27 session events and one candidate strategy tool call/result in 48ms with clean unload; native proposal ctx.agents.create() emitted 42 session events and bounded list/write/finish tool calls in 87ms with clean unload; native ACP ctx.agents.create() solve emitted 47 session events and bounded exec/read/write tool calls in 42ms with clean unload"
+        },
+        "capsuleDoubleBuild": {
+          "status": "pass",
+          "detail": "two capsule assemblies byte-identical (tar and tar.gz; 2880 files, 145480867 bytes); tar 7eebe4768cdad9d6…, archive 84d2d6e83ea75869…"
+        }
+      },
+      "bundle": {
+        "tarSha256": "7444a8e9117e635f67cd44de52b48af15a0d739f93b8fc083f0af55cbbe298b1",
+        "entrySha256": "2b4de3a145e1e27af2894c93d1958ceb072f576f8ee8b8db011e6dcd5708cec4",
+        "fileCount": 5,
+        "bytes": 9171
+      },
+      "capsule": {
+        "tarSha256": "7eebe4768cdad9d6cbacc8ddfffe3ac19ca2050f7e2a6d017875f3c3f1a2bd21",
+        "archiveSha256": "84d2d6e83ea75869aa2b435ac07d6867277bb75f171881443386bfbe2d81340c",
+        "sbomSha256": "ab969b05a36bcdfceb9d1565941079c905b3f0d3a94822e71b6dc7e6cd47dd71",
+        "provenanceSha256": "ca1957a526a9d89f50d9b96d3aaa9bff58697e572e330481cd02784c2caff9ff"
+      },
+      "artifacts": {
+        "workRoot": "/workspace/build",
+        "treeDir": "/workspace/build/tree",
+        "capsuleDir": "/workspace/build/capsule",
+        "capsuleTar": "/workspace/build/capsule.tar",
+        "capsuleArchive": "/workspace/build/capsule.tar.gz",
+        "buildManifestPath": "/workspace/build/build-manifest.json"
+      },
+      "manifest": {
+        "$schema": "https://dsh-evolve-le.local/schemas/build.manifest.schema.json",
+        "schemaVersion": 1,
+        "candidateId": "c_idau4fw2frkgfovlepx2gl42pz",
+        "outcome": "admitted",
+        "identity": {
+          "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+          "canonicalParent": null
+        },
+        "source": {
+          "fileCount": 6,
+          "bytes": 10637,
+          "treeDigest": {
+            "algo": "dsh-evolve-tree-v1",
+            "value": "a1e1f39ab9d3ab26fdf38fd785f02cc9ed49be3c1373637c7da5be7f78ff0c4a"
+          }
+        },
+        "bundle": {
+          "tarSha256": "7444a8e9117e635f67cd44de52b48af15a0d739f93b8fc083f0af55cbbe298b1",
+          "entrySha256": "2b4de3a145e1e27af2894c93d1958ceb072f576f8ee8b8db011e6dcd5708cec4",
+          "fileCount": 5,
+          "bytes": 9171
+        },
+        "capsule": {
+          "tarSha256": "7eebe4768cdad9d6cbacc8ddfffe3ac19ca2050f7e2a6d017875f3c3f1a2bd21",
+          "archiveSha256": "84d2d6e83ea75869aa2b435ac07d6867277bb75f171881443386bfbe2d81340c",
+          "sbomSha256": "ab969b05a36bcdfceb9d1565941079c905b3f0d3a94822e71b6dc7e6cd47dd71",
+          "provenanceSha256": "ca1957a526a9d89f50d9b96d3aaa9bff58697e572e330481cd02784c2caff9ff"
+        },
+        "parentDiff": {
+          "parent": null,
+          "diffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "filesChanged": 0,
+          "linesAdded": 0,
+          "linesRemoved": 0
+        },
+        "fingerprints": {
+          "node": "v24.14.0",
+          "pnpm": "11.9.0",
+          "typescript": "6.0.3",
+          "dependencyClosureSha256": "c783df9247be693047751382c9e4bcd69b0ea0a7539408898474499511fe3c81",
+          "tsconfigSha256": "0a3cd5f41121d31b950900dfbb29cec62ebbf429429e5e0039f247fcbd42a03c"
+        },
+        "receipts": {
+          "containment": {
+            "status": "pass",
+            "detail": "captured 6 files, 10637 bytes; staged read-only; tree digest dsh-evolve-tree-v1:a1e1f39ab9d3ab26…"
+          },
+          "schema": {
+            "status": "pass",
+            "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+          },
+          "diffBoundary": {
+            "status": "pass",
+            "detail": "lineage root (canonicalParent null): no parent diff required"
+          },
+          "policyScan": {
+            "status": "pass",
+            "detail": "no findings across import/dependency/leak/task/secret rules"
+          },
+          "reproducibleBuild": {
+            "status": "pass",
+            "detail": "two sandboxed tsc runs produced identical output (2 files); closure 62 packages (2834 files), tsc 6.0.3"
+          },
+          "typeLintUnit": {
+            "status": "pass",
+            "detail": "oxlint clean over staged tree; candidate tests passed"
+          },
+          "loaderBoot": {
+            "status": "pass",
+            "detail": "packed capsule booted through the real Loader in an isolated one-shot process; sections [\"candidate:identity\"]; boot 295ms"
+          },
+          "unloadInvariant": {
+            "status": "pass",
+            "detail": "Cordis inventory and process handles returned to baseline; candidate prompt, tool and skill registrations removed"
+          },
+          "mockReplay": {
+            "status": "pass",
+            "detail": "ACP initialize/session/prompt round over @agentclientprotocol/sdk 0.25.1 (the locked dsh-acp wire surface) through the real Loader: all declared solve sections streamed in the turn, end_turn, unload invariant held; propose overlay dispatched the declared propose sections with clean unload; recorded-LLM replay lands with the staged DSH production closure (Gate 2); native ctx.agents.create() turn emitted 27 session events and one candidate strategy tool call/result in 48ms with clean unload; native proposal ctx.agents.create() emitted 42 session events and bounded list/write/finish tool calls in 87ms with clean unload; native ACP ctx.agents.create() solve emitted 47 session events and bounded exec/read/write tool calls in 42ms with clean unload"
+          },
+          "capsuleDoubleBuild": {
+            "status": "pass",
+            "detail": "two capsule assemblies byte-identical (tar and tar.gz; 2880 files, 145480867 bytes); tar 7eebe4768cdad9d6…, archive 84d2d6e83ea75869…"
+          }
+        },
+        "builder": {
+          "builtAt": "2026-10-31T11:38:34.903Z",
+          "sandbox": {
+            "kind": "host-restricted",
+            "detail": "stripped environment, no proxy/registry vars; namespace unavailable"
+          },
+          "networkAccess": false,
+          "executedCandidateLifecycleScript": false
+        }
+      }
+    }
+  ],
+  "exports": [
+    {
+      "protocol": "dsh-evolve-le/validator-export/v1",
+      "executionId": "validator-0",
+      "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+      "candidateId": "c_idau4fw2frkgfovlepx2gl42pz",
+      "status": "ARTIFACTS_VERIFIED",
+      "diagnostic": {
+        "algorithm": "sha256",
+        "digest": "2ccb4fd9b4be7e0fd61164e8bb1af11b9046a0cb36cf805afee52692cf5a0c79",
+        "size": 6833,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "buildManifest": {
+        "algorithm": "sha256",
+        "digest": "4f7a547bd1893137301f5a0e62c966a977fed1d41ea2ef7825d2cc8378cb411a",
+        "size": 4208,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "capsuleInventory": {
+        "algorithm": "sha256",
+        "digest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+        "size": 746625,
+        "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "capsuleTar": {
+        "algorithm": "sha256",
+        "digest": "7eebe4768cdad9d6cbacc8ddfffe3ac19ca2050f7e2a6d017875f3c3f1a2bd21",
+        "size": 147705344,
+        "mediaType": "application/x-tar",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "capsuleArchive": {
+        "algorithm": "sha256",
+        "digest": "84d2d6e83ea75869aa2b435ac07d6867277bb75f171881443386bfbe2d81340c",
+        "size": 49816276,
+        "mediaType": "application/gzip",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "bundleTar": {
+        "algorithm": "sha256",
+        "digest": "7444a8e9117e635f67cd44de52b48af15a0d739f93b8fc083f0af55cbbe298b1",
+        "size": 13824,
+        "mediaType": "application/x-tar",
+        "label": "CONTROLLER_INTERNAL"
+      }
+    },
+    {
+      "protocol": "dsh-evolve-le/validator-export/v1",
+      "executionId": "validator-1",
+      "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+      "candidateId": "c_idau4fw2frkgfovlepx2gl42pz",
+      "status": "ARTIFACTS_VERIFIED",
+      "diagnostic": {
+        "algorithm": "sha256",
+        "digest": "74337d721cbe6ff1294cbf20ba0dc2643c807b0eb1850c3b18f812429810ea4f",
+        "size": 6833,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "buildManifest": {
+        "algorithm": "sha256",
+        "digest": "bf3e132bc5126ee7c3e436435b2750ec59da5bbc0df7c36c46b3ce5a0d325dd7",
+        "size": 4208,
+        "mediaType": "application/json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "capsuleInventory": {
+        "algorithm": "sha256",
+        "digest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+        "size": 746625,
+        "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "capsuleTar": {
+        "algorithm": "sha256",
+        "digest": "7eebe4768cdad9d6cbacc8ddfffe3ac19ca2050f7e2a6d017875f3c3f1a2bd21",
+        "size": 147705344,
+        "mediaType": "application/x-tar",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "capsuleArchive": {
+        "algorithm": "sha256",
+        "digest": "84d2d6e83ea75869aa2b435ac07d6867277bb75f171881443386bfbe2d81340c",
+        "size": 49816276,
+        "mediaType": "application/gzip",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      "bundleTar": {
+        "algorithm": "sha256",
+        "digest": "7444a8e9117e635f67cd44de52b48af15a0d739f93b8fc083f0af55cbbe298b1",
+        "size": 13824,
+        "mediaType": "application/x-tar",
+        "label": "CONTROLLER_INTERNAL"
+      }
+    }
+  ],
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "inputComposition": {
+    "inputManifest": {
+      "algorithm": "sha256",
+      "digest": "19149ea651fe290c034da784c6223c46d33633aef55e7bd4f3a38d86c20a6f4a",
+      "size": 300,
+      "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+    "parentSourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+    "inputs": [
+      {
+        "algorithm": "sha256",
+        "digest": "19149ea651fe290c034da784c6223c46d33633aef55e7bd4f3a38d86c20a6f4a",
+        "size": 300,
+        "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "1a4c69cd172cb99514f91be16112cabed902535168fed4915c79c91d05a5905c",
+        "size": 1524,
+        "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+        "label": "DEV_OBSERVED"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "f90d66597a44d3c73c830c87117e5833039cb5b308855aa7cdbf65c025a5fc11",
+        "size": 1528,
+        "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+        "label": "DEV_OBSERVED"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+        "size": 746625,
+        "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "a35fbaa4d34797bbfd2125ccd3f4c9437e7e46a8214f9dac9d7b8d3205d43b5d",
+        "size": 95430,
+        "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+        "label": "CONTROLLER_INTERNAL"
+      }
+    ]
+  }
+}

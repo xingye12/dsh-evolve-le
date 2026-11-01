@@ -1,0 +1,32 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": 77,
+  "validatorPairPlanAndScheduler": true,
+  "realDualPreflightFailurePreservation": true,
+  "asyncPlanArgumentsFrozen": true,
+  "productionSuccessfulPairVerified": false,
+  "archiveAdmissionIntegrated": false,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-11.json",
+      "sha256": "fa7acfb02fc1c5cc4fc30909d7cc9f5079cee8763feb50daf1bf69a562d07f69",
+      "bytes": 30790
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-pair-launch.json",
+      "sha256": "0bfb0ffba7464e3eda42c6eb7b6341a71349c00ae6ac298570bce0395df68ec2",
+      "bytes": 1020
+    }
+  ],
+  "remaining": [
+    "proposal input/launcher/provider wiring and test/finalize/admission consumers",
+    "group cancellation and preparation/cleanup recovery",
+    "candidate/validator TCB-state protection and trustworthy runtime receipts",
+    "controller unique admission, audit/status and full fault matrix",
+    "release security artifacts and compatible Linux acceptance"
+  ]
+}

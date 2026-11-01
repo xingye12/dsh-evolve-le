@@ -5,13 +5,17 @@
  * controller-owned directive parser is involved in this path. The existing
  * `proposer/tools` implementation is used only as a capability backend.
  */
+import { parseGenerationDraft } from '../proposer/generation-draft.js'
 import type { Context } from '@deepseek-ai/cordis'
 import { parseProposalOutput, type ProposalOutput } from '../proposer/protocol.js'
 
 export interface NativeProposalToolBackend {
+  generationOnly?: true
   listInput(path: string): Promise<string[]>
   readInput(path: string): Promise<string>
   writeChildFile(childName: string, relativePath: string, content: string): Promise<void>
+  /** Docker proposer-tools/v2: immutable external test feedback, never admission. */
+  testChild?(childName: string): Promise<string>
   /** TCB receipt finalization at the submit boundary (ADR-034). */
   finalizeProposal(proposal: unknown): Promise<ProposalOutput>
 }
@@ -172,9 +176,30 @@ export function installNativeProposalTools(
       return `ok${budgetNote(state)}`
     },
   })
+  if (backend.testChild)
+    register({
+      name: 'proposal_test_child',
+      description:
+        'Test an externally captured immutable child snapshot in independent validators. Feedback is development-only, not Archive admission.',
+      parameters: objectSchema({ childName: { type: 'string' } }),
+      output: textOutput,
+      async execute(args, exec) {
+        assertNotAborted(exec, 'proposal_test_child')
+        state.calls += 1
+        assertAuthoringAllowed(state, 'proposal_test_child')
+        if (state.proposal !== undefined) throw new Error('proposal is already submitted')
+        const child = (args as { childName?: unknown }).childName
+        if (typeof child !== 'string' || !child) throw new Error('childName is required')
+        const result = await backend.testChild!(child)
+        assertNotAborted(exec, 'proposal_test_child')
+        return `${result}${budgetNote(state)}`
+      },
+    })
   register({
     name: 'proposal_finish',
-    description: 'Submit exactly one validated proposal after all child files are written.',
+    description: backend.generationOnly
+      ? 'Submit candidate source and semantic proposal draft for later external validation.'
+      : 'Submit exactly one validated proposal after all child files are written.',
     parameters: objectSchema({ proposal: { type: 'object' } }),
     output: textOutput,
     async execute(args, exec) {
@@ -206,7 +231,8 @@ export function installNativeProposalTools(
       // The native tool is a transport boundary, not a second proposal
       // validator. Shape-check here so a model cannot mark an invalid bundle
       // as finished and rely on a later compatibility path to accept it.
-      parseProposalOutput(finalized)
+      if (backend.generationOnly) parseGenerationDraft(finalized)
+      else parseProposalOutput(finalized)
       state.proposal = finalized
       return 'submitted'
     },

@@ -47,3 +47,20 @@ of supporting evidence are separate facts.
 
 An auditable limitation or inconsistency in support for an instance state. It
 does not by itself mean the model's lifecycle judgment is unknown or false.
+
+## Proposal Execution
+
+One authorized attempt to generate children from a selected parent. Sessions,
+subagents and tools within it share the same budget and deadline. Completion of
+a session does not complete the execution or admit a child.
+
+## Source Snapshot
+
+An immutable capture of the exact child source bytes submitted for validation.
+A test result applies to that snapshot only; later edits create a different one.
+
+## Execution Bundle
+
+The immutable evidence linking an execution's frozen inputs, observed effects,
+source snapshots, resource and cost records, and terminal outcome. A committed
+bundle can describe a failed execution and does not itself grant admission.

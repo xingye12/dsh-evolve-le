@@ -1,0 +1,16 @@
+{
+  "protocol": "dsh-evolve-le/proposal-worker-cas-audit/v1",
+  "status": "PASS",
+  "checkedRefs": 6433,
+  "requests": 7,
+  "submitted": 0,
+  "exitCode": 1,
+  "distinctTestPlans": 1,
+  "testProtocols": [
+    "dsh-evolve-le/proposal-test-result/v1",
+    "dsh-evolve-le/proposal-test-intent/v1",
+    "dsh-evolve-le/proposal-test-result/v1"
+  ],
+  "containerRemoved": true,
+  "scope": "Engineering failure gate and main/recovery shared test plan; no production positive admission or safety acceptance"
+}

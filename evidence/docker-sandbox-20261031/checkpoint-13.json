@@ -1,0 +1,37 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-11-01",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "executionCompletionProof": true,
+  "proposalResultV2Verified": true,
+  "supervisorPerformsAdmission": false,
+  "cleanedAfterReservationRelease": true,
+  "cleanupIgnoresOnlyENOENT": true,
+  "targetedTests": 16,
+  "paidModelCalls": 0,
+  "verificationScope": "Simulated Engine/host lifecycle and real temporary-FS error; no production host acceptance",
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/proposal-result-cleanup-5.json",
+      "sha256": "bf670083d150e57b9d027264cf724bf04d473efd01ee6fe584018298ffd3dab2",
+      "bytes": 7263
+    },
+    {
+      "path": "schemas/execution.completion.schema.json",
+      "sha256": "a6ca98c8d45307d887f3b669bca72903d8293293aa9cb63e9997d37a5475631a",
+      "bytes": 1279
+    },
+    {
+      "path": "schemas/proposal.supervisor-result.schema.json",
+      "sha256": "d473213990ef0f180f9f08e9aaddd270c6fd309d7b482615caedc9368cbfd635",
+      "bytes": 1475
+    }
+  ],
+  "remaining": [
+    "Standalone launcher/provider and controller/Archive integration",
+    "Hard cumulative action budgets and predispatch model token ceiling",
+    "Validator TCB-state isolation and trusted runtime receipts",
+    "Actual crash/replay/janitor matrix and compatible Linux safety acceptance"
+  ]
+}

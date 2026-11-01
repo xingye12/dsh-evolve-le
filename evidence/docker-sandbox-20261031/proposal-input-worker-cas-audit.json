@@ -1,0 +1,8 @@
+{
+  "protocol": "dsh-evolve-le/proposal-worker-cas-audit/v1",
+  "status": "PASS",
+  "checkedRefs": 3318,
+  "containerId": "a01331f3fa5f41b2f68825f571e7942f5a3de34439b4e10b6e40cdf1860a2e00",
+  "containerRemoved": true,
+  "scope": "CAS graph retrieval and engineering-container removal only; no production acceptance"
+}

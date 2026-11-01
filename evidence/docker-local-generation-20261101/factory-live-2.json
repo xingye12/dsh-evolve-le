@@ -1,0 +1,105 @@
+{
+  "scope": "explicit paid engineering smoke on synthetic dev feedback; no benchmark/sealed claim",
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+  "runId": "local-live-1793504380007",
+  "root": "/tmp/local-factory-live-K94l2k",
+  "profile": {
+    "runId": "local-live-1793504380007",
+    "storeRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas",
+    "profile": {
+      "backend": "docker-local/v1",
+      "hostRoot": "/tmp/dsh-localgen",
+      "image": {
+        "reference": "dsh-evolve-le/proposal-executor@sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+        "id": "sha256:3fe15c2d69901e17a27194741ede1ee2451586cce8fc0dd4bf362bd8ba0bee60",
+        "platform": "linux/amd64"
+      }
+    },
+    "routeHash": "26f609e745ab65beb4b27eae6fe1460f80b121bf6df07e7c5f75bc18663693f6",
+    "provider": "zen-compatible",
+    "contextWindowTokens": 262144,
+    "dependencyClosureSha256": "c783df9247be693047751382c9e4bcd69b0ea0a7539408898474499511fe3c81"
+  },
+  "result": {
+    "actionId": "proposal-1",
+    "status": "FAILED",
+    "failureReason": "Docker source generation/verification failed; inspect immutable attempt evidence",
+    "sandboxRoot": "/tmp/local-factory-live-K94l2k/controller/sandboxes/proposal-1",
+    "summary": {
+      "schemaVersion": 1,
+      "actionId": "proposal-1",
+      "sandbox": {
+        "kind": "netns",
+        "uid": null,
+        "detail": "no summary recorded"
+      },
+      "capsuleDigest": "",
+      "turns": null,
+      "usage": null,
+      "admitted": [],
+      "rejected": [],
+      "batchErrors": [
+        "Docker source generation/verification failed; inspect immutable attempt evidence"
+      ],
+      "registeredCandidateIds": []
+    }
+  },
+  "generation": {
+    "admission": "NONE",
+    "completion": {
+      "algorithm": "sha256",
+      "digest": "e14faa01fe86e29e9bc3502160f663db2ad3fd71ee17271c224f0768ae7a8f94",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-completion+json",
+      "size": 213703
+    },
+    "diagnostic": {
+      "algorithm": "sha256",
+      "digest": "083c6f3a73250a71647d69c4cbea4e2429dfce43099aef685b203889dbe2b7e2",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/json",
+      "size": 223
+    },
+    "execution": {
+      "algorithm": "sha256",
+      "digest": "b911fcc75abeada190007bd1f7b8cf24c08566c6ef5f3651d6721d70c2d98737",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-bundle+json",
+      "size": 980109
+    },
+    "outcome": "FAILED",
+    "protocol": "dsh-evolve-le/proposal-generation-result/v1",
+    "specDigest": "7aa60d994b22b3a5c12987555a172a0ab8330995ff52a369bd1854356389a0b5",
+    "submission": null
+  },
+  "artifacts": [
+    {
+      "algorithm": "sha256",
+      "digest": "e1aa612815f9c714b4bf764fdd81d0694b89fbddfe4220c29c36ff589b16f364",
+      "size": 7944,
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-generation+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    {
+      "algorithm": "sha256",
+      "digest": "57e31726bbdc43c64a0385459518e9bd7fea53b98e9f0e40ab2a358ae28bfe06",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.proposal-generation-result+json",
+      "size": 825
+    }
+  ],
+  "budget": {
+    "usd": {
+      "reserved": 0,
+      "spent": 200000
+    },
+    "proposer-tokens": {
+      "reserved": 0,
+      "spent": 2000000
+    },
+    "proposal-calls": {
+      "reserved": 0,
+      "spent": 1
+    }
+  }
+}

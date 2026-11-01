@@ -1,0 +1,53 @@
+{
+  "protocol": "dsh-evolve-le/validator-composition-probe/v1",
+  "image": "dsh-evolve-le/validator-executor@sha256:bba1f8590cb6c3d3fc32b879a832a515cb9bbb6ddc18d2c16a5352b5a1c2fe7c",
+  "inputComposition": {
+    "inputManifest": {
+      "algorithm": "sha256",
+      "digest": "ca7cb32b7a3284389991d8bee1704d125592db7270b5ba880581b031da5f8640",
+      "size": 300,
+      "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+      "label": "CONTROLLER_INTERNAL"
+    },
+    "sourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+    "parentSourceDigest": "sha256:40c14e16da2c5462baab23efa32f9a7e6b4a88fc97dcee82dd046590e3df0297",
+    "inputs": [
+      {
+        "algorithm": "sha256",
+        "digest": "ca7cb32b7a3284389991d8bee1704d125592db7270b5ba880581b031da5f8640",
+        "size": 300,
+        "mediaType": "application/vnd.dsh-evolve-le.execution-input+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "1a4c69cd172cb99514f91be16112cabed902535168fed4915c79c91d05a5905c",
+        "size": 1524,
+        "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+        "label": "DEV_OBSERVED"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "f90d66597a44d3c73c830c87117e5833039cb5b308855aa7cdbf65c025a5fc11",
+        "size": 1528,
+        "mediaType": "application/vnd.dsh-evolve-le.source-snapshot+json",
+        "label": "DEV_OBSERVED"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "69c033bd0f919d127c694c68ad4ba8f95c003cdcad275f6d9b414f3f0f96df8e",
+        "size": 746625,
+        "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+        "label": "CONTROLLER_INTERNAL"
+      },
+      {
+        "algorithm": "sha256",
+        "digest": "1c652afea32eacd74199a4a0e75602270278dba53690cd58e12abfe895287642",
+        "size": 95430,
+        "mediaType": "application/vnd.dsh-evolve-le.artifact-inventory+json",
+        "label": "CONTROLLER_INTERNAL"
+      }
+    ]
+  },
+  "casRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-sandbox-20261031/validator-cas"
+}

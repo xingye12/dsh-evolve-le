@@ -1,0 +1,48 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": 66,
+  "legacyRegressionTests": 32,
+  "freshValidatorContainers": 2,
+  "validatorStagesPerContainer": 10,
+  "productionPlatformAccepted": false,
+  "controllerIntegrated": false,
+  "paidModelCalls": 0,
+  "harborJobs": 0,
+  "sealedResults": false,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-5.json",
+      "sha256": "cd29af75f32f088a75d56dd28cad4025175f629f873511f7a75485561d849912",
+      "bytes": 25497
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-tests-4.json",
+      "sha256": "8c0dd7167bcf6d99f78f48ff4ab6da8a74e35664df62c54747256df7f8081d15",
+      "bytes": 1106
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-4.json",
+      "sha256": "8d44e786dc07f72e98e972e2bea4bef545e042937f016ef7d9fa0281a947bd48",
+      "bytes": 17234
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/builder-regression.json",
+      "sha256": "86647185a93efba5452131c512c96c969d2006316ff495ca88c5e587f7298743",
+      "bytes": 11422
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/executor-images-5.json",
+      "sha256": "6bb97177727e93d1df6854ca60b15502bd26cc0483dc7c155afb9de43bd5f4b2",
+      "bytes": 4486
+    }
+  ],
+  "limitations": [
+    "validator hashes compared from builder reports; independent export verification pending",
+    "engineering Docker profile does not satisfy production cgroup v2/AppArmor gate",
+    "provisional supervisor lacks launcher/controller integration",
+    "release image policy and full crash matrix pending"
+  ]
+}

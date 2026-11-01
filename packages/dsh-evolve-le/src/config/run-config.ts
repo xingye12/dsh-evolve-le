@@ -142,6 +142,11 @@ export interface RunConfig {
     tournament?: TournamentConfig
   }
   modelRoutes: ModelRouteConfig[]
+  proposalSandbox?: {
+    backend: 'docker-local/v1'
+    hostRoot: string
+    image: { reference: string; id: string; platform: 'linux/amd64' }
+  }
   proposerRoute: string
   /**
    * Required by the built-in iteration builder. It remains optional in the
@@ -336,6 +341,29 @@ function routeCompleteness(
 /** Semantic invariants beyond the schema's reach (fail closed). */
 function semanticProblems(config: RunConfig): string[] {
   const problems: string[] = []
+  if (config.proposalSandbox) {
+    const route = config.modelRoutes.find((route) => route.id === config.proposerRoute)
+    if (
+      !config.nativeDsh ||
+      !route ||
+      route.provider !== 'zen-compatible' ||
+      !route.credentialFile ||
+      route.retry?.maxAttempts !== 1 ||
+      route.retry.backoffMs.length !== 0
+    )
+      problems.push(
+        'local Docker proposal requires nativeDsh and a live credential route with maxAttempts=1',
+      )
+    if (
+      config.proposalSandbox.hostRoot === '/' ||
+      config.proposalSandbox.hostRoot.length > 40 ||
+      resolve(config.proposalSandbox.hostRoot) !== config.proposalSandbox.hostRoot
+    )
+      problems.push(
+        'local Docker hostRoot must be canonical, private and short enough for the action socket (<=40 chars)',
+      )
+  }
+
   const routeIds = new Set(config.modelRoutes.map((route) => route.id))
   if (routeIds.size !== config.modelRoutes.length) {
     problems.push('modelRoutes: duplicate route ids')

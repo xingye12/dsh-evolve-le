@@ -1,0 +1,30 @@
+{
+  "protocol": "dsh-evolve-le/docker-implementation-checkpoint/v1",
+  "date": "2026-10-31",
+  "status": "INCOMPLETE",
+  "goalActive": true,
+  "componentTests": 70,
+  "validatorHostExportIntegrated": true,
+  "validatorHostReplay": true,
+  "productionPlatformAccepted": false,
+  "controllerIntegrated": false,
+  "paidModelCalls": 0,
+  "artifacts": [
+    {
+      "path": "evidence/docker-sandbox-20261031/tests-7.json",
+      "sha256": "7f0acadf8e0fbb51d6879e7ed3d8872fcbae876e2a4682a7a4189328faffcd3b",
+      "bytes": 27460
+    },
+    {
+      "path": "evidence/docker-sandbox-20261031/validator-host-replay.json",
+      "sha256": "79cb84062c9b291045e690174e3bf2ec871fbe91c211a021812298a2746f4e06",
+      "bytes": 995
+    }
+  ],
+  "remaining": [
+    "standalone supervisor launcher and input staging",
+    "validator scheduling, full lifecycle receipts and online-test handoff",
+    "controller unique admission and recovery",
+    "release images/AppArmor, compatible host and full fault matrix"
+  ]
+}

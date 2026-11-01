@@ -303,3 +303,51 @@ S3/S4 修复后必须新 run ID 和新的 split/seed commitment；不能 resume 
 
 禁止的表述：`零 reward hacking`、`provably safe`、`verifier 完全隔离`（若有 shared-mode exception）、
 或仅凭 regex/green score 声称安全。
+
+### Docker execution policy (ADR-077)
+
+For new Docker proposal runs, create one container per expansion attempt and
+independent validator containers consuming immutable snapshots. An external
+supervisor is the only Docker owner. Freeze image/platform, input, resource,
+route and policy digests before execution; inspect actual configuration before
+start and fail closed on mismatch. Require private namespaces, no IP network,
+non-root, no capabilities/escalation, read-only inputs/capsule, bounded writable
+workspace/work/tmp/shm, cgroup v2, enforced CPU-total/deadline and whole-domain
+termination evidence. Never mount controller, repo, evidence root, home, secrets
+or Docker socket. No automatic restart, --rm, global prune or host fallback.
+
+Shell and Agent share process authority and socket visibility. Gateway checks
+all requests against the same action authorization, expiry and budget; worker
+claims cannot authorize effects. Freeze the entire proposal domain for external
+no-follow snapshots; reject links, special files, traversal and size/inode
+excess. Stop new effects, cancel tests, stop processes, sample final resources,
+commit success/failure evidence, close sockets, remove container, unmount owned
+tmpfs and release reservation, in that order. Reconcile cleanup durably and fence
+stale owners. Incompatible platforms cannot claim a usable production sandbox.
+
+Proposal `/workspace` and every execution `/work` are mounted `noexec`.
+Validator/test `/workspace` may execute the pinned packed Node/probes only
+under frozen policy `workspaceExecution: validator-exec/v1`; missing or
+misapplied profile fails preflight. It remains bounded `nosuid,nodev`, with
+no gateway, capabilities, network or host fallback. Record actual mount flags
+in the host receipt and freeze this profile in a fresh run manifest.
+
+### Source-generation-only Docker boundary (ADR-078)
+
+ADR-078 replaces the unfinished full-supervisor roadmap for new generation runs, not Docker
+containment requirements. Keep the fixed image/command, no credentials/network/host fallback,
+read-only TCB/input, bounded writable workspace, external snapshot and cleanup checks. Do not
+resume a crashed worker or automatically repeat an ambiguous dispatch. Explicit sweep requires
+the same kernel lock and trusted effect identity. Linux cgroup v2 and AppArmor remain preconditions;
+engineering labels do not authorize reduced policy. External validation/admission gates remain.
+
+### Local Docker source generation (ADR-079)
+
+For new generation-only proposal runs explicitly freezing security.profile=local-generation/v1,
+ADR-079 supersedes ADR-078's delegated-cgroup-v2/AppArmor host prerequisite. Run on the local
+Linux Docker Engine (including WSL/cgroup v1) with Docker hard memory/swap/CPU-rate/PID limits,
+seccomp, non-root/cap-drop/no-new-privileges, readonly root/input, bounded tmpfs, no credentials,
+network, Docker socket or host fallback. External elapsed timeout and Docker state own stop/cleanup;
+no cumulative CPU-time, memory-peak or retained-cgroup accounting claim. Legacy strict profiles,
+validators and benchmark gates do not change. Require actual local Docker/Loader, isolation,
+owner-kill/sweep and source-to-external-validation evidence before claiming the new flow complete.

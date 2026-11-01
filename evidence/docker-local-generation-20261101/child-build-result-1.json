@@ -1,0 +1,94 @@
+{
+  "scope": "trusted ten-stage rebuild of the actual live-generated source; no benchmark evaluation",
+  "generation": {
+    "admission": "NONE",
+    "completion": {
+      "algorithm": "sha256",
+      "digest": "faa4926cca27136997043b3dcdcfde173701431311024d6d57b70a9fb079b82d",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-completion+json",
+      "size": 56590
+    },
+    "diagnostic": null,
+    "execution": {
+      "algorithm": "sha256",
+      "digest": "67e4c1e16f305777005fcc7e4364e9ad2cc8ee13f938e185293a4aa5fa97a7c9",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.execution-bundle+json",
+      "size": 690092
+    },
+    "outcome": "SUCCEEDED",
+    "protocol": "dsh-evolve-le/proposal-generation-result/v1",
+    "specDigest": "243eedee9afc5acfc4baa02b093011273eaaebbd98338b4f19b3ef8c3b804e3e",
+    "submission": {
+      "algorithm": "sha256",
+      "digest": "745a0fc36dd32bdee7b9111f6738c5963a4c87ef1347a591014ec25d0f423322",
+      "label": "CONTROLLER_INTERNAL",
+      "mediaType": "application/vnd.dsh-evolve-le.generation-submission+json",
+      "size": 974
+    }
+  },
+  "candidateId": "c_lpzsxjcfhbetyuza5c4ad7alhp",
+  "outcome": "rejected",
+  "rejection": {
+    "stage": "typeLintUnit",
+    "reason": "oxlint failed (exit 1): No files found to lint. Please check your paths and ignore patterns.\nFinished in 47ms on 0 files with 98 rules using 16 threads."
+  },
+  "receipts": {
+    "containment": {
+      "status": "pass",
+      "detail": "captured 6 files, 10788 bytes; staged read-only; tree digest dsh-evolve-tree-v1:bd83307d9407c0b8…"
+    },
+    "schema": {
+      "status": "pass",
+      "detail": "candidate.json and package.json validate; package @dsh-evolve-le/candidate-baseline"
+    },
+    "diffBoundary": {
+      "status": "pass",
+      "detail": "parent sha256:40c14e16d… verified by re-capture; 2 files +3/-1 within the pre-registered boundary; parent sections preserved"
+    },
+    "policyScan": {
+      "status": "pass",
+      "detail": "no findings across import/dependency/leak/task/secret rules"
+    },
+    "reproducibleBuild": {
+      "status": "pass",
+      "detail": "two sandboxed tsc runs produced identical output (2 files); closure 62 packages (2834 files), tsc 6.0.3"
+    },
+    "typeLintUnit": {
+      "status": "fail",
+      "detail": "oxlint failed (exit 1): No files found to lint. Please check your paths and ignore patterns.\nFinished in 47ms on 0 files with 98 rules using 16 threads."
+    },
+    "loaderBoot": {
+      "status": "skipped",
+      "detail": "not reached"
+    },
+    "unloadInvariant": {
+      "status": "skipped",
+      "detail": "not reached"
+    },
+    "mockReplay": {
+      "status": "skipped",
+      "detail": "not reached"
+    },
+    "capsuleDoubleBuild": {
+      "status": "skipped",
+      "detail": "not reached"
+    }
+  },
+  "buildResult": {
+    "algorithm": "sha256",
+    "digest": "1d6fe20aa1dad9cc903163f0198ee1f55359154f25e675aeeb02289bdb6d6b1e",
+    "size": 4493,
+    "mediaType": "application/vnd.dsh-evolve-le.generated-source-build+json",
+    "label": "CONTROLLER_INTERNAL"
+  },
+  "artifacts": {
+    "workRoot": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-local-generation-20261101/child-build-1",
+    "treeDir": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-local-generation-20261101/child-build-1/tree",
+    "capsuleDir": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-local-generation-20261101/child-build-1/capsule",
+    "capsuleTar": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-local-generation-20261101/child-build-1/capsule.tar",
+    "capsuleArchive": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-local-generation-20261101/child-build-1/capsule.tar.gz",
+    "buildManifestPath": "/root/vibe/dsh/dsh-evolve-le/evidence/docker-local-generation-20261101/child-build-1/build-manifest.json"
+  }
+}

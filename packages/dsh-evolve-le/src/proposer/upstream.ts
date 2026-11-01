@@ -26,6 +26,7 @@ export interface UpstreamMessage {
 
 export interface UpstreamChatInput {
   plan: RemoteRoutePlan
+  signal?: AbortSignal
   /** Exists ONLY for this request's Authorization header (rule 8). */
   credential: string
   sections: readonly { name: string; order: number; text: string }[]
@@ -150,7 +151,10 @@ async function singleAttempt(
         max_tokens: input.plan.maxOutputTokens,
         ...(tools === undefined || tools.length === 0 ? {} : { tools }),
       }),
-      signal: controller.signal,
+      signal:
+        input.signal === undefined
+          ? controller.signal
+          : AbortSignal.any([controller.signal, input.signal]),
     })
     if (!response.ok) {
       return {
@@ -213,7 +217,10 @@ function usageFor(
   reportedUsage: { prompt_tokens?: unknown; completion_tokens?: unknown } | undefined,
   content: string,
   toolCalls: readonly NativeLlmToolCall[] = [],
-): Pick<UpstreamChatOk, 'promptTokens' | 'completionTokens' | 'costUsdMicros' | 'modelReportedUsage'> {
+): Pick<
+  UpstreamChatOk,
+  'promptTokens' | 'completionTokens' | 'costUsdMicros' | 'modelReportedUsage'
+> {
   const modelReported =
     typeof reportedUsage?.prompt_tokens === 'number' &&
     typeof reportedUsage?.completion_tokens === 'number'
